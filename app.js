@@ -223,7 +223,7 @@
     endpointInput.value = "";
     ownerToken = "";
     agentTokenInput.value = "";
-    localStorage.removeItem(STORAGE_TOKEN);
+    sessionStorage.removeItem(STORAGE_TOKEN);
     setConnection(false, "Not connected");
     $("settingsNote").textContent = "Disconnected on this device.";
   });
