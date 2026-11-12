@@ -41,7 +41,7 @@ test("health reports readiness without exposing secrets", async () => {
   assert.equal("AGENT_OWNER_TOKEN" in data, false);
 });
 
-test("health reports missing AI binding", async () => {
+test("health reports missing AI binding and does not claim ready", async () => {
   const response = await worker.fetch(makeRequest("/health", { method: "GET" }), makeEnv({ AI: undefined }));
   assert.equal((await response.json()).aiConfigured, false);
 });
@@ -84,6 +84,17 @@ test("chat rejects unapproved browser origins", async () => {
     body: JSON.stringify({ message: "Hello" })
   }), makeEnv());
   assert.equal(response.status, 403);
+});
+
+test("chat rejects non-JSON content types", async () => {
+  const response = await worker.fetch(makeRequest("/api/agent/chat", {
+    headers: {
+      Authorization: "Bearer " + OWNER_TOKEN,
+      "Content-Type": "text/plain"
+    },
+    body: "message=hello"
+  }), makeEnv());
+  assert.equal(response.status, 415);
 });
 
 test("chat rejects oversized request bodies before parsing", async () => {
