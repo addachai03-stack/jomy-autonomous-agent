@@ -97,6 +97,17 @@ test("chat rejects non-JSON content types", async () => {
   assert.equal(response.status, 415);
 });
 
+test("chat rejects non-JSON content types", async () => {
+  const response = await worker.fetch(makeRequest("/api/agent/chat", {
+    headers: {
+      Authorization: "Bearer " + OWNER_TOKEN,
+      "Content-Type": "text/plain"
+    },
+    body: "message=hello"
+  }), makeEnv());
+  assert.equal(response.status, 415);
+});
+
 test("chat rejects oversized request bodies before parsing", async () => {
   const response = await worker.fetch(makeRequest("/api/agent/chat", {
     headers: { Authorization: "Bearer " + OWNER_TOKEN },
