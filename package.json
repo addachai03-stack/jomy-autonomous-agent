@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev:api": "wrangler dev",
-    "deploy:api": "wrangler deploy",
-    "check:api": "wrangler deploy --dry-run"
+    "test": "node --test",
+    "check:api": "wrangler deploy --dry-run",
+    "check": "npm test && npm run check:api",
+    "deploy:api": "wrangler deploy"
   },
   "devDependencies": {
     "wrangler": "^4.45.0"
