@@ -21,7 +21,7 @@
   const STORAGE_SOUND = "jomy_agent_sound_v1";
   const STORAGE_TOKEN = "jomy_agent_owner_token_v1";
   let endpoint = localStorage.getItem(STORAGE_ENDPOINT) || "";
-  let ownerToken = localStorage.getItem(STORAGE_TOKEN) || "";
+  let ownerToken = sessionStorage.getItem(STORAGE_TOKEN) || "";
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
   let recognition = null;
   let listening = false;
@@ -209,8 +209,8 @@
       endpoint = url.toString();
       ownerToken = agentTokenInput.value.trim();
       localStorage.setItem(STORAGE_ENDPOINT, endpoint);
-      if (ownerToken) localStorage.setItem(STORAGE_TOKEN, ownerToken);
-      else localStorage.removeItem(STORAGE_TOKEN);
+      if (ownerToken) sessionStorage.setItem(STORAGE_TOKEN, ownerToken);
+      else sessionStorage.removeItem(STORAGE_TOKEN);
       setConnection(true, "Endpoint saved");
       $("settingsNote").textContent = "Saved on this device. Send a message to test the connection.";
     } catch (error) {
