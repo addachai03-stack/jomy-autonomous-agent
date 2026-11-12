@@ -13,12 +13,12 @@
   const activityCount = $("activityCount");
   const activityToggle = $("activityToggle");
   const settingsDialog = $("settingsDialog");
-  const endpointInput = $("endpointInput");
+  const endpointInput = $("endpointInput");\n  const agentTokenInput = $("agentTokenInput");
   const connection = $("connection");
   const voiceHint = $("voiceHint");
   const STORAGE_ENDPOINT = "jomy_agent_endpoint_v1";
-  const STORAGE_SOUND = "jomy_agent_sound_v1";
-  let endpoint = localStorage.getItem(STORAGE_ENDPOINT) || "";
+  const STORAGE_SOUND = "jomy_agent_sound_v1";\n  const STORAGE_TOKEN = "jomy_agent_owner_token_v1";
+  let endpoint = localStorage.getItem(STORAGE_ENDPOINT) || "";\n  let ownerToken = localStorage.getItem(STORAGE_TOKEN) || "";
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
   let recognition = null;
   let listening = false;
@@ -132,7 +132,7 @@
     try {
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(ownerToken ? { "Authorization": "Bearer " + ownerToken } : {}) },
         body: JSON.stringify({ message: text, sessionId, locale: "hi-IN", client: "jomy-autonomous-agent" })
       });
       if (!response.ok) throw new Error("Agent endpoint returned HTTP " + response.status);
@@ -193,7 +193,7 @@
     $("activityChevron").textContent = open ? "−" : "＋";
   });
   $("settingsButton").addEventListener("click", () => {
-    endpointInput.value = endpoint;
+    endpointInput.value = endpoint;\n    agentTokenInput.value = ownerToken;
     $("settingsNote").textContent = "";
     settingsDialog.showModal();
   });
