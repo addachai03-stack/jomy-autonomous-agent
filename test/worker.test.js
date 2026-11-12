@@ -5,14 +5,14 @@ import worker from "../src/worker.js";
 const OWNER_TOKEN = "test-owner-token-that-is-long-enough-for-tests";
 const ORIGIN = "https://agent.example.com";
 
-function makeRequest(path, {
-  method = "POST",
-  headers = {},
-  body
-} = {}) {
+function makeRequest(path, { method = "POST", headers = {}, body } = {}) {
+  const requestHeaders = new Headers(headers);
+  if (body !== undefined && !requestHeaders.has("Content-Type")) {
+    requestHeaders.set("Content-Type", "application/json");
+  }
   return new Request("https://worker.example.com" + path, {
     method,
-    headers,
+    headers: requestHeaders,
     ...(body === undefined ? {} : { body })
   });
 }
@@ -38,12 +38,16 @@ test("health reports readiness without exposing secrets", async () => {
   const data = await response.json();
   assert.equal(data.status, "ready");
   assert.equal(data.aiConfigured, true);
+  assert.equal(data.ownerAuthConfigured, true);
+  assert.equal(data.originConfigured, true);
   assert.equal("AGENT_OWNER_TOKEN" in data, false);
 });
 
 test("health reports missing AI binding and does not claim ready", async () => {
   const response = await worker.fetch(makeRequest("/health", { method: "GET" }), makeEnv({ AI: undefined }));
-  assert.equal((await response.json()).aiConfigured, false);
+  const data = await response.json();
+  assert.equal(data.aiConfigured, false);
+  assert.equal(data.status, "configuration_required");
 });
 
 test("preflight accepts only the configured origin", async () => {
@@ -68,7 +72,6 @@ test("unknown paths and unsupported methods are rejected", async () => {
 
 test("chat requires owner bearer authentication", async () => {
   const response = await worker.fetch(makeRequest("/api/agent/chat", {
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message: "Hello" })
   }), makeEnv());
   assert.equal(response.status, 401);
@@ -78,23 +81,11 @@ test("chat rejects unapproved browser origins", async () => {
   const response = await worker.fetch(makeRequest("/api/agent/chat", {
     headers: {
       Origin: "https://attacker.example",
-      Authorization: "Bearer " + OWNER_TOKEN,
-      "Content-Type": "application/json"
+      Authorization: "Bearer " + OWNER_TOKEN
     },
     body: JSON.stringify({ message: "Hello" })
   }), makeEnv());
   assert.equal(response.status, 403);
-});
-
-test("chat rejects non-JSON content types", async () => {
-  const response = await worker.fetch(makeRequest("/api/agent/chat", {
-    headers: {
-      Authorization: "Bearer " + OWNER_TOKEN,
-      "Content-Type": "text/plain"
-    },
-    body: "message=hello"
-  }), makeEnv());
-  assert.equal(response.status, 415);
 });
 
 test("chat rejects non-JSON content types", async () => {
@@ -140,8 +131,7 @@ test("chat returns the model reply and chat-only capability", async () => {
   const response = await worker.fetch(makeRequest("/api/agent/chat", {
     headers: {
       Origin: ORIGIN,
-      Authorization: "Bearer " + OWNER_TOKEN,
-      "Content-Type": "application/json"
+      Authorization: "Bearer " + OWNER_TOKEN
     },
     body: JSON.stringify({ message: "Namaste" })
   }), makeEnv());
