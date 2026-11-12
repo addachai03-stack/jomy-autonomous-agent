@@ -3,9 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#090909">
+  <meta name="theme-color" content="#f5f7fb">
   <meta name="description" content="JOMY Autonomous Agent — a private voice-first command interface.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="JOMY Agent">
   <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
   <link rel="stylesheet" href="/styles.css">
   <title>JOMY · Autonomous Agent</title>
 </head>
@@ -18,64 +23,36 @@
         <button class="icon-button" id="settingsButton" aria-label="Connection settings" title="Connection settings">⚙</button>
       </div>
     </header>
-
     <section class="hero" aria-labelledby="agentTitle">
       <p class="eyebrow">PERSONAL COMMAND INTELLIGENCE</p>
       <h1 id="agentTitle">I'm listening<span class="gold-dot">.</span></h1>
       <p class="subline" id="statusText" aria-live="polite">Your command center. Speak or type to begin.</p>
-
       <div class="orb-stage" id="orbStage" data-state="idle">
-        <div class="orb-aura"></div>
-        <div class="orb-ring ring-one"></div>
-        <div class="orb-ring ring-two"></div>
-        <div class="orb">
-          <div class="orb-glow"></div>
-          <div class="face">
-            <span class="eye eye-left"></span><span class="eye eye-right"></span>
-            <span class="mouth"></span>
-          </div>
-          <span class="orb-shine"></span>
-        </div>
+        <div class="orb-aura"></div><div class="orb-ring ring-one"></div><div class="orb-ring ring-two"></div>
+        <div class="orb"><div class="orb-glow"></div><div class="face"><span class="eye eye-left"></span><span class="eye eye-right"></span><span class="mouth"></span></div><span class="orb-shine"></span></div>
         <span class="orb-caption" id="orbCaption">READY</span>
       </div>
-
       <div class="voice-controls">
-        <button class="mic-button" id="micButton" aria-label="Start voice input">
-          <span class="mic-icon">⌁</span><span id="micLabel">Tap to speak</span>
-        </button>
+        <button class="mic-button" id="micButton" aria-label="Start voice input"><span class="mic-icon">⌁</span><span id="micLabel">Tap to speak</span></button>
         <button class="sound-button" id="soundButton" aria-pressed="true" aria-label="Toggle spoken replies">◖))</button>
       </div>
       <p class="voice-hint" id="voiceHint">Voice input availability depends on your browser. iPhone keyboard dictation is a fallback.</p>
     </section>
-
     <section class="composer" aria-label="Message the agent">
-      <form id="chatForm">
-        <label class="sr-only" for="messageInput">Your command</label>
-        <textarea id="messageInput" rows="1" maxlength="4000" placeholder="Tell JOMY what you need…" enterkeyhint="send"></textarea>
-        <button class="send-button" id="sendButton" type="submit" aria-label="Send message">↑</button>
-      </form>
+      <form id="chatForm"><label class="sr-only" for="messageInput">Your command</label><textarea id="messageInput" rows="1" maxlength="4000" placeholder="Tell JOMY what you need…" enterkeyhint="send"></textarea><button class="send-button" id="sendButton" type="submit" aria-label="Send message">↑</button></form>
       <div class="composer-foot"><span>PRIVATE SESSION</span><span>Enter to send · Shift + Enter for new line</span></div>
     </section>
-
     <section class="activity" aria-label="Recent conversation">
-      <button class="activity-toggle" id="activityToggle" aria-expanded="false">
-        <span><i class="activity-dot"></i> RECENT ACTIVITY</span><span id="activityCount">0 messages</span><b id="activityChevron">＋</b>
-      </button>
-      <div class="messages" id="messages" hidden>
-        <p class="empty-state" id="emptyState">Your conversation will appear here.</p>
-      </div>
+      <button class="activity-toggle" id="activityToggle" aria-expanded="false"><span><i class="activity-dot"></i> RECENT ACTIVITY</span><span id="activityCount">0 messages</span><b id="activityChevron">＋</b></button>
+      <div class="messages" id="messages" hidden><p class="empty-state" id="emptyState">Your conversation will appear here.</p></div>
     </section>
-
     <footer class="footer"><span>JOMY AUTONOMOUS AGENT</span><span>OWNER CONTROL · SAFE BY DEFAULT</span></footer>
   </main>
-
   <dialog id="settingsDialog" class="settings-dialog">
     <form method="dialog" class="dialog-head"><div><p class="eyebrow">CONNECTION</p><h2>Agent endpoint</h2></div><button class="icon-button" aria-label="Close settings">✕</button></form>
     <div class="dialog-body">
-      <label for="endpointInput">Secure API URL</label>
-      <input id="endpointInput" type="url" placeholder="https://your-agent.example.com/api/agent/chat" autocomplete="url">
-      <label for="agentTokenInput" style="display:block;margin-top:14px">Owner access token</label>
-      <input id="agentTokenInput" type="password" placeholder="Private token · saved on this iPhone" autocomplete="off" autocapitalize="none" spellcheck="false">
+      <label for="endpointInput">Secure API URL</label><input id="endpointInput" type="url" placeholder="https://your-agent.example.com/api/agent/chat" autocomplete="url">
+      <label for="agentTokenInput" style="display:block;margin-top:14px">Owner access token</label><input id="agentTokenInput" type="password" placeholder="Private token · saved on this iPhone" autocomplete="off" autocapitalize="none" spellcheck="false">
       <p>Use an HTTPS endpoint you control. The URL is saved in this browser; the dedicated agent access token stays only for this browser session. Never enter your MCP owner token, provider API keys, GitHub tokens or Cloudflare tokens here.</p>
       <div class="dialog-actions"><button class="quiet-button" id="clearEndpoint" type="button">Disconnect</button><button class="primary-button" id="saveEndpoint" type="button">Save endpoint</button></div>
       <p class="settings-note" id="settingsNote" role="status"></p>
