@@ -1,0 +1,31 @@
+name: Agent API checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "feature/**"
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    name: Unit tests and Worker dry-run build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-package-lock
+      - name: Run Worker API tests
+        run: npm test
+      - name: Validate Cloudflare Worker build
+        run: npm run check:api
