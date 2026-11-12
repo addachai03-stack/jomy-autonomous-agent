@@ -158,7 +158,7 @@
   }
 
   setupRecognition();
-  setConnection(Boolean(endpoint), endpoint ? "Endpoint saved" : "Not connected");
+  setConnection(false, endpoint ? "Endpoint saved · not tested" : "Not connected");
   soundButton.setAttribute("aria-pressed", String(soundOn));
   soundButton.textContent = soundOn ? "◖))" : "◖×";
   micButton.addEventListener("click", () => {
@@ -211,7 +211,7 @@
       localStorage.setItem(STORAGE_ENDPOINT, endpoint);
       if (ownerToken) sessionStorage.setItem(STORAGE_TOKEN, ownerToken);
       else sessionStorage.removeItem(STORAGE_TOKEN);
-      setConnection(true, "Endpoint saved");
+      setConnection(false, "Endpoint saved · not tested");
       $("settingsNote").textContent = "Saved on this device. Send a message to test the connection.";
     } catch (error) {
       $("settingsNote").textContent = error.message || "Enter a valid HTTPS URL.";
