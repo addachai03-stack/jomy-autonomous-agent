@@ -133,7 +133,7 @@ export default {
 
     let context = "";
     let connected = false;
-    if (needsSystemStatus(message)) {
+    if (needsSystemStatus(message) || needsTelegramStatus(message)) {
       try {
         const status = await mcpReadTool(env, "system_status");
         context += "\nVerified JOMY PERSONAL MCP status (read-only): " + JSON.stringify(status);
