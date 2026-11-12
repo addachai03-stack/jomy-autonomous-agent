@@ -10,25 +10,24 @@ Standalone, compact, iPhone-first voice interface with a humanoid-inspired anima
 - Installable PWA shell and offline caching for static assets.
 
 ## Backend API (source only; not deployed)
-A Cloudflare Worker API lives in `src/worker.js`. It provides owner bearer-token authentication, Cloudflare Workers AI chat, and optional read-only status lookups against the existing JOMY PERSONAL MCP. MCP access is limited to `system_status` and `telegram_status`. It has no write-capable tools, financial actions, secret changes, deletes, or deployments.
+A standalone Cloudflare Worker API lives in `src/worker.js`. It provides owner bearer-token authentication and Cloudflare Workers AI chat. It has no MCP integration, Telegram integration, external service tools, financial actions, secret changes, deletes, or deployments.
 
 ### Required Worker configuration
 1. Enable the Workers AI binding in Cloudflare.
-2. Set Worker secrets `AGENT_OWNER_TOKEN` and `MCP_CLIENT_TOKEN`. `AGENT_OWNER_TOKEN` must be a new, unique random secret (at least 32 characters); do not reuse the MCP token. `MCP_CLIENT_TOKEN` is the separate client-scoped token created for `jomy-autonomous-agent`, never the MCP owner token. On iPhone, generate the owner secret with a trusted password manager's random-password generator, use at least 32 characters, and save it privately. Never paste either secret into GitHub, chat, or the app's public source.
+2. Set the Worker secret `AGENT_OWNER_TOKEN`. It must be a new, unique random secret (at least 32 characters). On iPhone, generate it with a trusted password manager's random-password generator and save it privately. Never paste the secret into GitHub, chat, or the app's public source.
 3. Set `ALLOWED_ORIGIN` to the exact HTTPS origin hosting this standalone UI.
-4. Keep `MCP_URL` pointed at the existing JOMY PERSONAL MCP `/mcp` endpoint.
-5. Deploy only after separate explicit deployment approval.
+4. Deploy only after separate explicit deployment approval.
 
 The model uses `@cf/meta/llama-3.1-8b-instruct` through Workers AI. Confirm account availability and free daily allowance in Cloudflare first; usage beyond any free allowance may be billable.
 
 ## Local API development
-Requires Node.js/npm and Wrangler. Run `npm install`, configure local secrets and AI binding, then `npm run dev:api`. Health endpoint: `/health`; chat endpoint: `POST /api/agent/chat`.
+Requires Node.js/npm and Wrangler. Run `npm install`, configure the local secret and AI binding, then `npm run dev:api`. Health endpoint: `/health`; chat endpoint: `POST /api/agent/chat`.
 
-The browser sends `Authorization: Bearer <owner token>` plus JSON `{ "message": "...", "sessionId": "...", "locale": "hi-IN", "client": "jomy-autonomous-agent" }`. The Worker returns `{ "reply": "...", "status": "ready|connected" }`.
+The browser sends `Authorization: Bearer <owner token>` plus JSON `{ "message": "...", "sessionId": "...", "locale": "hi-IN", "client": "jomy-autonomous-agent" }`. The Worker returns `{ "reply": "...", "status": "ready" }`.
 
 ## Safety and scope
 - Backend is source-only until deployed and configured.
-- MCP access is read-only and limited to `system_status` and `telegram_status`.
+- Standalone AI chat only; no Telegram, MCP, or other connected-service access.
 - No task is reported completed without trusted confirmation.
 - Credentials remain in server-side secret storage; owner API token is entered locally on the user's device.
 - No dashboard files, databases, or production services are changed by this repository work.
