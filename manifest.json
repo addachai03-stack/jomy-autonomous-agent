@@ -1,0 +1,10 @@
+{
+  "name": "JOMY Autonomous Agent",
+  "short_name": "JOMY Agent",
+  "description": "A compact, voice-first personal command interface.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090909",
+  "theme_color": "#090909",
+  "orientation": "portrait"
+}
