@@ -1,0 +1,11 @@
+name = "jomy-autonomous-agent-api"
+main = "src/worker.js"
+compatibility_date = "2026-11-13"
+workers_dev = true
+
+[ai]
+binding = "AI"
+
+[vars]
+# Set ALLOWED_ORIGIN to the exact HTTPS origin serving the standalone agent UI before enabling browser requests.
+# Configure AGENT_OWNER_TOKEN as a Worker secret. Never commit its value.
