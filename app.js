@@ -14,14 +14,14 @@
   const activityToggle = $("activityToggle");
   const settingsDialog = $("settingsDialog");
   const endpointInput = $("endpointInput");
-  const agentTokenInput = $("agentTokenInput");\n  const agentTokenInput = $("agentTokenInput");
+  const agentTokenInput = $("agentTokenInput");
   const connection = $("connection");
   const voiceHint = $("voiceHint");
   const STORAGE_ENDPOINT = "jomy_agent_endpoint_v1";
   const STORAGE_SOUND = "jomy_agent_sound_v1";
-  const STORAGE_TOKEN = "jomy_agent_owner_token_v1";\n  const STORAGE_TOKEN = "jomy_agent_owner_token_v1";
+  const STORAGE_TOKEN = "jomy_agent_owner_token_v1";
   let endpoint = localStorage.getItem(STORAGE_ENDPOINT) || "";
-  let ownerToken = localStorage.getItem(STORAGE_TOKEN) || "";\n  let ownerToken = localStorage.getItem(STORAGE_TOKEN) || "";
+  let ownerToken = localStorage.getItem(STORAGE_TOKEN) || "";
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
   let recognition = null;
   let listening = false;
@@ -196,7 +196,8 @@
     $("activityChevron").textContent = open ? "−" : "＋";
   });
   $("settingsButton").addEventListener("click", () => {
-    endpointInput.value = endpoint;\n    agentTokenInput.value = ownerToken;
+    endpointInput.value = endpoint;
+    agentTokenInput.value = ownerToken;
     $("settingsNote").textContent = "";
     settingsDialog.showModal();
   });
