@@ -1,5 +1,6 @@
 const MODEL = "@cf/meta/llama-3.1-8b-instruct";
 const MAX_MESSAGE_LENGTH = 4000;
+const MAX_BODY_BYTES = 16_384;
 
 function json(data, status = 200, origin = "") {
   return new Response(JSON.stringify(data), {
@@ -24,6 +25,48 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
+async function readBodyLimited(request) {
+  const declaredLength = request.headers.get("Content-Length");
+  if (declaredLength !== null && Number(declaredLength) > MAX_BODY_BYTES) {
+    const error = new Error("Request body too large");
+    error.status = 413;
+    throw error;
+  }
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_BODY_BYTES) {
+        await reader.cancel();
+        const error = new Error("Request body too large");
+        error.status = 413;
+        throw error;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    const error = new Error("Request body must be valid UTF-8");
+    error.status = 400;
+    throw error;
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -41,7 +84,16 @@ export default {
       }});
     }
     if (url.pathname === "/health" && request.method === "GET") {
-      return json({ service: "JOMY Autonomous Agent API", status: "ready", aiConfigured: Boolean(env.AI) });
+      const aiConfigured = Boolean(env.AI);
+      const ownerAuthConfigured = Boolean(env.AGENT_OWNER_TOKEN);
+      const originConfigured = Boolean(allowedOrigin);
+      return json({
+        service: "JOMY Autonomous Agent API",
+        status: aiConfigured && ownerAuthConfigured && originConfigured ? "ready" : "configuration_required",
+        aiConfigured,
+        ownerAuthConfigured,
+        originConfigured
+      });
     }
     if (url.pathname !== "/api/agent/chat" || request.method !== "POST") {
       return json({ error: "Not found" }, 404, corsOrigin);
@@ -52,9 +104,16 @@ export default {
     if (!env.AGENT_OWNER_TOKEN || !safeEqual(supplied, env.AGENT_OWNER_TOKEN)) {
       return json({ error: "Owner authentication required" }, 401, corsOrigin);
     }
+    const contentType = request.headers.get("Content-Type") || "";
+    if (!/^application\/json(?:\s*;|\s*$)/i.test(contentType)) {
+      return json({ error: "Content-Type must be application/json" }, 415, corsOrigin);
+    }
     let rawBody;
-    try { rawBody = await request.text(); } catch { return json({ error: "Request body unavailable" }, 400, corsOrigin); }
-    if (rawBody.length > 16_384) return json({ error: "Request body too large" }, 413, corsOrigin);
+    try {
+      rawBody = await readBodyLimited(request);
+    } catch (error) {
+      return json({ error: error.status === 413 ? "Request body too large" : error.status === 400 ? error.message : "Request body unavailable" }, error.status || 400, corsOrigin);
+    }
     let payload;
     try { payload = JSON.parse(rawBody); } catch { return json({ error: "Invalid JSON" }, 400, corsOrigin); }
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) return json({ error: "Invalid request body" }, 400, corsOrigin);
