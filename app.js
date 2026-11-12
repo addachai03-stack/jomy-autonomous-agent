@@ -14,11 +14,14 @@
   const activityToggle = $("activityToggle");
   const settingsDialog = $("settingsDialog");
   const endpointInput = $("endpointInput");
+  const agentTokenInput = $("agentTokenInput");
   const connection = $("connection");
   const voiceHint = $("voiceHint");
   const STORAGE_ENDPOINT = "jomy_agent_endpoint_v1";
   const STORAGE_SOUND = "jomy_agent_sound_v1";
+  const STORAGE_TOKEN = "jomy_agent_owner_token_v1";
   let endpoint = localStorage.getItem(STORAGE_ENDPOINT) || "";
+  let ownerToken = sessionStorage.getItem(STORAGE_TOKEN) || "";
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
   let recognition = null;
   let listening = false;
@@ -121,7 +124,7 @@
     messageInput.value = "";
     messageInput.style.height = "auto";
     if (!endpoint) {
-      const notice = "I can hear/read your command, but my action engine is not connected yet. Add your private HTTPS agent API in Settings to enable real tasks. I won't pretend a task was completed.";
+      const notice = "I received your message, but the standalone AI chat backend is not connected yet. Add your private HTTPS chat API in Settings to start chatting.";
       addMessage("agent", notice);
       speak(notice);
       return;
@@ -132,7 +135,7 @@
     try {
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(ownerToken ? { "Authorization": "Bearer " + ownerToken } : {}) },
         body: JSON.stringify({ message: text, sessionId, locale: "hi-IN", client: "jomy-autonomous-agent" })
       });
       if (!response.ok) throw new Error("Agent endpoint returned HTTP " + response.status);
@@ -141,7 +144,7 @@
       if (!reply) throw new Error("The agent response did not include a reply string.");
       addMessage("agent", reply);
       speak(reply);
-      if (data.status === "connected") setConnection(true, "Connected");
+      setConnection(true, "Connected");
     } catch (error) {
       const notice = "Connection problem: " + error.message + ". No task was confirmed as completed.";
       addMessage("agent", notice);
@@ -155,7 +158,7 @@
   }
 
   setupRecognition();
-  setConnection(Boolean(endpoint), endpoint ? "Endpoint saved" : "Not connected");
+  setConnection(false, endpoint ? "Endpoint saved · not tested" : "Not connected");
   soundButton.setAttribute("aria-pressed", String(soundOn));
   soundButton.textContent = soundOn ? "◖))" : "◖×";
   micButton.addEventListener("click", () => {
@@ -194,6 +197,7 @@
   });
   $("settingsButton").addEventListener("click", () => {
     endpointInput.value = endpoint;
+    agentTokenInput.value = ownerToken;
     $("settingsNote").textContent = "";
     settingsDialog.showModal();
   });
@@ -203,8 +207,11 @@
       const url = new URL(value);
       if (url.protocol !== "https:" && url.hostname !== "localhost") throw new Error("Use HTTPS for the agent endpoint.");
       endpoint = url.toString();
+      ownerToken = agentTokenInput.value.trim();
       localStorage.setItem(STORAGE_ENDPOINT, endpoint);
-      setConnection(true, "Endpoint saved");
+      if (ownerToken) sessionStorage.setItem(STORAGE_TOKEN, ownerToken);
+      else sessionStorage.removeItem(STORAGE_TOKEN);
+      setConnection(false, "Endpoint saved · not tested");
       $("settingsNote").textContent = "Saved on this device. Send a message to test the connection.";
     } catch (error) {
       $("settingsNote").textContent = error.message || "Enter a valid HTTPS URL.";
@@ -214,6 +221,9 @@
     endpoint = "";
     localStorage.removeItem(STORAGE_ENDPOINT);
     endpointInput.value = "";
+    ownerToken = "";
+    agentTokenInput.value = "";
+    sessionStorage.removeItem(STORAGE_TOKEN);
     setConnection(false, "Not connected");
     $("settingsNote").textContent = "Disconnected on this device.";
   });
