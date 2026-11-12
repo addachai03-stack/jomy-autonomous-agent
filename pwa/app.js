@@ -6,6 +6,7 @@
   const micButton = $("micButton");
   const micLabel = $("micLabel");
   const soundButton = $("soundButton");
+  const handsFreeButton = $("handsFreeButton");
   const messageInput = $("messageInput");
   const chatForm = $("chatForm");
   const messages = $("messages");
@@ -25,6 +26,8 @@
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
   let recognition = null;
   let listening = false;
+  let handsFree = false;
+  let waitingForCommand = false;
   let busy = false;
   let count = 0;
   let sessionId = sessionStorage.getItem("jomy_agent_session") || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
@@ -59,14 +62,43 @@
     }
   }
   function speak(text) {
-    if (!soundOn || !("speechSynthesis" in window)) return;
+    if (!soundOn || !("speechSynthesis" in window)) {
+      if (handsFree) startRecognition();
+      return;
+    }
+    if (recognition && listening) {
+      try { recognition.stop(); } catch (_) {}
+      listening = false;
+    }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "hi-IN";
     utterance.rate = 1;
     utterance.onstart = () => setState("speaking", "SPEAKING", "JOMY is replying.");
-    utterance.onend = () => setState("idle", "READY", "Your command center. Speak or type to begin.");
+    utterance.onend = () => {
+      setState("idle", handsFree ? "HANDS-FREE ACTIVE" : "READY", handsFree ? "Say JOMY, then give your command." : "Your command center. Speak or type to begin.");
+      if (handsFree) startRecognition();
+    };
     window.speechSynthesis.speak(utterance);
+  }
+  function startRecognition() {
+    if (!recognition || !handsFree || busy || listening) return;
+    try { recognition.start(); }
+    catch (_) { window.setTimeout(() => {
+      if (handsFree && !busy && !listening && !(window.speechSynthesis && window.speechSynthesis.speaking)) startRecognition();
+    }, 500); }
+  }
+  function stopHandsFree() {
+    handsFree = false;
+    waitingForCommand = false;
+    if (recognition && listening) {
+      try { recognition.stop(); } catch (_) {}
+    }
+    listening = false;
+    handsFreeButton.textContent = "Hands-free: Off";
+    handsFreeButton.setAttribute("aria-pressed", "false");
+    micLabel.textContent = "Tap to speak";
+    setState("idle", "READY", "Hands-free is off. Tap the mic to speak.");
   }
   function stopListening() {
     if (recognition && listening) recognition.stop();
@@ -86,12 +118,12 @@
     recognition = new SpeechRecognition();
     recognition.lang = "hi-IN";
     recognition.interimResults = true;
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.onstart = () => {
       listening = true;
-      micLabel.textContent = "Listening… tap to stop";
+      micLabel.textContent = handsFree ? "Listening for “JOMY”…" : "Listening… tap to stop";
       micButton.setAttribute("aria-label", "Stop voice input");
-      setState("listening", "LISTENING", "I'm listening. Say your command.");
+      setState("listening", handsFree ? "HANDS-FREE" : "LISTENING", handsFree ? "Say JOMY to wake me, then speak your command." : "I'm listening. Say your command.");
     };
     recognition.onresult = (event) => {
       let finalText = "";
@@ -100,21 +132,49 @@
         if (event.results[i].isFinal) finalText += event.results[i][0].transcript;
         else interimText += event.results[i][0].transcript;
       }
-      messageInput.value = finalText || interimText;
-      if (finalText) {
-        stopListening();
-        messageInput.focus();
+      if (!handsFree) {
+        messageInput.value = finalText || interimText;
+        if (finalText) {
+          stopListening();
+          messageInput.focus();
+        }
+        return;
       }
+      if (!finalText) return;
+      const wakePattern = /jomy|jo\s*my|जोमी|जो\s*मी/i;
+      const match = finalText.match(wakePattern);
+      if (!waitingForCommand && !match) return;
+      let command = waitingForCommand ? finalText : finalText.replace(wakePattern, "").trim();
+      if (!command) {
+        waitingForCommand = true;
+        try { recognition.stop(); } catch (_) {}
+        listening = false;
+        speak("हाँ, बोलिए।");
+        return;
+      }
+      waitingForCommand = false;
+      try { recognition.stop(); } catch (_) {}
+      listening = false;
+      sendMessage(command);
     };
     recognition.onerror = (event) => {
       listening = false;
-      micLabel.textContent = "Tap to speak";
-      setState("idle", "MIC ISSUE", event.error === "not-allowed" ? "Microphone permission was denied. You can type or use keyboard dictation." : "Voice input stopped. You can type your command.");
+      micLabel.textContent = handsFree ? "Hands-free paused" : "Tap to speak";
+      if (event.error === "not-allowed") {
+        stopHandsFree();
+        setState("idle", "MIC PERMISSION", "Allow microphone access in Safari to use voice.");
+      } else if (!handsFree) {
+        setState("idle", "MIC ISSUE", "Voice input stopped. You can type your command.");
+      }
     };
     recognition.onend = () => {
       listening = false;
-      micLabel.textContent = "Tap to speak";
-      if (!busy && orbStage.dataset.state === "listening") setState("idle", "READY", "Your command center. Speak or type to begin.");
+      if (handsFree && !busy && !(window.speechSynthesis && window.speechSynthesis.speaking)) {
+        startRecognition();
+      } else if (!handsFree && !busy && orbStage.dataset.state === "listening") {
+        micLabel.textContent = "Tap to speak";
+        setState("idle", "READY", "Your command center. Speak or type to begin.");
+      }
     };
   }
   async function sendMessage(rawText) {
@@ -148,6 +208,7 @@
     } catch (error) {
       const notice = "Connection problem: " + error.message + ". No task was confirmed as completed.";
       addMessage("agent", notice);
+      speak(notice);
       setState("idle", "CONNECTION ISSUE", "Check your API URL and server status.");
       setConnection(false, "Connection error");
     } finally {
@@ -163,10 +224,21 @@
   soundButton.textContent = soundOn ? "◖))" : "◖×";
   micButton.addEventListener("click", () => {
     if (!recognition) return;
-    if (listening) stopListening();
+    if (handsFree) stopHandsFree();
+    else if (listening) stopListening();
     else {
       try { recognition.start(); } catch (_) { setState("idle", "MIC BUSY", "Wait a moment, then try again."); }
     }
+  });
+  handsFreeButton.addEventListener("click", () => {
+    if (!recognition) return;
+    if (handsFree) { stopHandsFree(); return; }
+    handsFree = true;
+    waitingForCommand = false;
+    handsFreeButton.textContent = "Hands-free: On";
+    handsFreeButton.setAttribute("aria-pressed", "true");
+    voiceHint.textContent = "Keep JOMY open in the foreground. Say “JOMY”, wait for “हाँ, बोलिए”, then speak. Say “Stop listening” to turn it off. iPhone may pause listening when Safari is backgrounded or the screen locks.";
+    startRecognition();
   });
   soundButton.addEventListener("click", () => {
     soundOn = !soundOn;
