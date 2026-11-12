@@ -124,7 +124,7 @@
     messageInput.value = "";
     messageInput.style.height = "auto";
     if (!endpoint) {
-      const notice = "I can hear/read your command, but my action engine is not connected yet. Add your private HTTPS agent API in Settings to enable real tasks. I won't pretend a task was completed.";
+      const notice = "I received your message, but the standalone AI chat backend is not connected yet. Add your private HTTPS chat API in Settings to start chatting.";
       addMessage("agent", notice);
       speak(notice);
       return;
@@ -144,7 +144,7 @@
       if (!reply) throw new Error("The agent response did not include a reply string.");
       addMessage("agent", reply);
       speak(reply);
-      if (data.status === "connected") setConnection(true, "Connected");
+      setConnection(true, "Connected");
     } catch (error) {
       const notice = "Connection problem: " + error.message + ". No task was confirmed as completed.";
       addMessage("agent", notice);
