@@ -7,6 +7,5 @@ workers_dev = true
 binding = "AI"
 
 [vars]
-MCP_URL = "https://jomy-personal-mcp.addachai03.workers.dev/mcp"
 # Set ALLOWED_ORIGIN to the exact HTTPS origin serving the standalone agent UI before enabling browser requests.
-# Configure AGENT_OWNER_TOKEN and MCP_CLIENT_TOKEN as Worker secrets. Never commit token values.
+# Configure AGENT_OWNER_TOKEN as a Worker secret. Never commit its value.
