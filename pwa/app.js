@@ -111,6 +111,8 @@
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       micButton.disabled = true;
+      handsFreeButton.disabled = true;
+      handsFreeButton.textContent = "Voice unavailable";
       micLabel.textContent = "Use keyboard dictation";
       voiceHint.textContent = "This browser does not expose speech recognition. On iPhone, tap the keyboard microphone and dictate into the message box.";
       return;
