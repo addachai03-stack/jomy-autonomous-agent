@@ -14,7 +14,7 @@ A Cloudflare Worker API lives in `src/worker.js`. It provides owner bearer-token
 
 ### Required Worker configuration
 1. Enable the Workers AI binding in Cloudflare.
-2. Set Worker secrets `AGENT_OWNER_TOKEN` and `MCP_CLIENT_TOKEN`. The MCP token must be a separate client-scoped credential, never the MCP owner token.
+2. Set Worker secrets `AGENT_OWNER_TOKEN` and `MCP_CLIENT_TOKEN`. `AGENT_OWNER_TOKEN` must be a new, unique random secret (at least 32 characters); do not reuse the MCP token. `MCP_CLIENT_TOKEN` is the separate client-scoped token created for `jomy-autonomous-agent`, never the MCP owner token. On iPhone, generate the owner secret with a trusted password manager's random-password generator, use at least 32 characters, and save it privately. Never paste either secret into GitHub, chat, or the app's public source.
 3. Set `ALLOWED_ORIGIN` to the exact HTTPS origin hosting this standalone UI.
 4. Keep `MCP_URL` pointed at the existing JOMY PERSONAL MCP `/mcp` endpoint.
 5. Deploy only after separate explicit deployment approval.
