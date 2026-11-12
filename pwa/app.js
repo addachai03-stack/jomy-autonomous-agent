@@ -153,6 +153,10 @@
         return;
       }
       waitingForCommand = false;
+      if (/^(stop listening|stop|बंद करो|सुनना बंद करो)$/i.test(command.trim())) {
+        stopHandsFree();
+        return;
+      }
       try { recognition.stop(); } catch (_) {}
       listening = false;
       sendMessage(command);
@@ -214,7 +218,8 @@
     } finally {
       busy = false;
       $("sendButton").disabled = false;
-      if (orbStage.dataset.state === "thinking") setState("idle", "READY", "Your command center. Speak or type to begin.");
+      if (orbStage.dataset.state === "thinking") setState("idle", handsFree ? "HANDS-FREE ACTIVE" : "READY", handsFree ? "Say JOMY, then give your command." : "Your command center. Speak or type to begin.");
+      if (handsFree && !listening && !(window.speechSynthesis && window.speechSynthesis.speaking)) startRecognition();
     }
   }
 
