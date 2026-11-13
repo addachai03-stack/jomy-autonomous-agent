@@ -95,6 +95,7 @@
   }
   function stopHandsFree() {
     handsFree = false;
+    localStorage.setItem(STORAGE_HANDSFREE, "false");
     waitingForCommand = false;
     if (recognition && listening) {
       try { recognition.stop(); } catch (_) {}
