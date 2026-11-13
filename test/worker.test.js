@@ -272,3 +272,34 @@ test("Telegram bridge only prepares an owner approval and never executes a send"
     assert.equal(calls.some(call => call.tool === "approve_and_execute"), false);
   } finally { restore(); }
 });
+
+
+test("MCP bridge returns a safe actionable diagnostic when the Client token is rejected", async () => {
+  const restore = withMockMcpFetch(async () => new Response("unauthorized", { status: 401 }));
+  try {
+    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
+      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
+      body: JSON.stringify({ action: "status", mcpToken: MCP_CLIENT_TOKEN })
+    }), makeEnv());
+    assert.equal(response.status, 502);
+    const data = await response.json();
+    assert.equal(data.code, "MCP_AUTH_REJECTED");
+    assert.match(data.error, /dedicated Client token/);
+    assert.doesNotMatch(JSON.stringify(data), new RegExp(MCP_CLIENT_TOKEN));
+  } finally { restore(); }
+});
+
+test("MCP bridge hides upstream exception details and never echoes credentials", async () => {
+  const privateDetail = "provider-private-detail-" + MCP_CLIENT_TOKEN;
+  const restore = withMockMcpFetch(async () => { throw new Error(privateDetail); });
+  try {
+    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
+      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
+      body: JSON.stringify({ action: "status", mcpToken: MCP_CLIENT_TOKEN })
+    }), makeEnv());
+    assert.equal(response.status, 502);
+    const data = await response.json();
+    assert.equal(data.code, "MCP_UPSTREAM_ERROR");
+    assert.doesNotMatch(JSON.stringify(data), /provider-private-detail|test-mcp-client-token/);
+  } finally { restore(); }
+});
