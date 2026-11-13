@@ -535,6 +535,22 @@ import { createTask, addTask, transitionTask, retryTask, TASK_STATES } from "./t
     addMessage("user", text);
     messageInput.value = "";
     messageInput.style.height = "auto";
+    const explicitTask = text.match(/^(?:task|kaam)\\s*:\\s*([\\s\\S]+)$/i);
+    if (explicitTask && explicitTask[1].trim()) {
+      try {
+        const task = createTask(explicitTask[1].trim());
+        taskQueue = addTask(taskQueue, task);
+        saveTaskQueue();
+        renderTaskQueue();
+        wakeActivityBoard();
+        addMessage("agent", "Task queue mein add kar diya. Ab main safe plan banaunga; connected action approval ke bina execute nahi hoga.");
+        speak("Task add kar diya. Main iska plan bana raha hoon.");
+        planTask(task.id);
+      } catch (error) {
+        addMessage("agent", "Task add nahi hua: " + error.message);
+      }
+      return;
+    }
     const telegramText = extractTelegramMessage(text);
     if (telegramText) {
       busy = true;
