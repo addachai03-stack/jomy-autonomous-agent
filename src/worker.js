@@ -72,7 +72,16 @@ export default {
     const url = new URL(request.url);
     const origin = request.headers.get("Origin") || "";
     const allowedOrigin = env.ALLOWED_ORIGIN || "";
-    const corsOrigin = origin && allowedOrigin && origin === allowedOrigin ? origin : "";
+    let previewOrigin = false;
+    if (origin) {
+      try {
+        const parsedOrigin = new URL(origin);
+        previewOrigin = parsedOrigin.protocol === "https:" &&
+          parsedOrigin.hostname.endsWith(".jomy-agent-pwa.pages.dev") &&
+          parsedOrigin.username === "" && parsedOrigin.password === "";
+      } catch (_) {}
+    }
+    const corsOrigin = origin && (origin === allowedOrigin || previewOrigin) ? origin : "";
     if (request.method === "OPTIONS") {
       if (!corsOrigin) return new Response(null, { status: 403 });
       return new Response(null, { status: 204, headers: {
