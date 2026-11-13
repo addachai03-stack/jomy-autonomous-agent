@@ -1,14 +1,19 @@
 {
   "name": "JOMY Autonomous Agent",
-  "short_name": "JOMY Agent",
-  "description": "A clean, voice-first personal command interface.",
+  "short_name": "JOMY",
+  "description": "A private, voice-first personal AI companion.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f5f7fb",
-  "theme_color": "#f5f7fb",
+  "background_color": "#05070d",
+  "theme_color": "#05070d",
   "orientation": "portrait",
   "icons": [
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
   ]
 }
