@@ -272,3 +272,20 @@ test("Telegram bridge only prepares an owner approval and never executes a send"
     assert.equal(calls.some(call => call.tool === "approve_and_execute"), false);
   } finally { restore(); }
 });
+
+test("MCP bridge returns a safe diagnostic code for upstream authentication failures", async () => {
+  const restore = withMockMcpFetch(async () => new Response("private upstream detail", { status: 401 }));
+  try {
+    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
+      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
+      body: JSON.stringify({ action: "status", mcpToken: MCP_CLIENT_TOKEN })
+    }), makeEnv());
+    assert.equal(response.status, 502);
+    const data = await response.json();
+    assert.equal(data.diagnosticCode, "MCP_HTTP_401");
+    assert.equal(data.noMessageSent, true);
+    assert.ok(data.requestId);
+    assert.match(data.error, /Client token/);
+    assert.doesNotMatch(JSON.stringify(data), /private upstream detail|test-mcp-client-token/);
+  } finally { restore(); }
+});
