@@ -35,3 +35,9 @@ test("unknown action types are blocked, never promoted to executable actions", (
   assert.equal(plan.actionType, "unsupported");
   assert.equal(plan.requiresApproval, true);
 });
+
+test("Telegram intent must use a supported explicit send command", () => {
+  const raw = JSON.stringify({summary:"Prepare message",steps:["Review exact message"],actionType:"telegram.prepare"});
+  assert.equal(parseTaskPlan(raw, "Telegram par bhejo: Hello").actionType, "telegram.prepare");
+  assert.equal(parseTaskPlan(raw, "Telegram message send this").actionType, "unsupported");
+});
