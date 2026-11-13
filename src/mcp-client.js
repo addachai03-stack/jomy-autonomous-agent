@@ -7,7 +7,7 @@ async function readMcpResult(response) {
   if (!response.ok) throw new Error("MCP server returned HTTP " + response.status);
   if (!raw) return {};
   if (type.includes("text/event-stream")) {
-    const dataLines = raw.split(/\\r?\\n/).filter((line) => line.startsWith("data:"));
+    const dataLines = raw.split(/\r?\n/).filter((line) => line.startsWith("data:"));
     for (let i = dataLines.length - 1; i >= 0; i--) {
       try { return JSON.parse(dataLines[i].slice(5).trim()); } catch (_) {}
     }
@@ -78,10 +78,10 @@ async function callMcpTool(session, id, name, args = {}) {
   if (data.error) throw new Error(data.error.message || "MCP tool call failed");
   const result = data.result;
   if (!result || result.isError) {
-    const message = (result?.content || []).filter((item) => item.type === "text").map((item) => item.text).join("\\n");
+    const message = (result?.content || []).filter((item) => item.type === "text").map((item) => item.text).join("\n");
     throw new Error(message || "MCP tool call failed");
   }
-  return (result.content || []).filter((item) => item.type === "text").map((item) => item.text).join("\\n");
+  return (result.content || []).filter((item) => item.type === "text").map((item) => item.text).join("\n");
 }
 
 async function closeMcpSession(session) {
