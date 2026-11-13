@@ -45,6 +45,16 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
   let count = 0;
   let sessionId = sessionStorage.getItem("jomy_agent_session") || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
   sessionStorage.setItem("jomy_agent_session", sessionId);
+  const HISTORY_KEY = "jomy_agent_history_v1";
+  let conversationHistory = [];
+  try {
+    const savedHistory = JSON.parse(sessionStorage.getItem(HISTORY_KEY) || "[]");
+    if (Array.isArray(savedHistory)) conversationHistory = savedHistory.filter(item => item && ["user", "assistant"].includes(item.role) && typeof item.content === "string").slice(-10).map(item => ({ role: item.role, content: item.content.slice(0, 2000) }));
+  } catch (_) {}
+  function saveConversationHistory() {
+    conversationHistory = conversationHistory.slice(-10);
+    try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(conversationHistory)); } catch (_) {}
+  }
 
   function setState(state, label, detail) {
     orbStage.dataset.state = state;
@@ -56,6 +66,8 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
     connection.querySelector("span").textContent = label;
   }
   function addMessage(role, text) {
+    conversationHistory.push({ role: role === "user" ? "user" : "assistant", content: String(text).slice(0, 2000) });
+    saveConversationHistory();
     if (emptyState) emptyState.remove();
     const node = document.createElement("article");
     node.className = "message " + role;
@@ -359,7 +371,7 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(ownerToken ? { "Authorization": "Bearer " + ownerToken } : {}) },
-        body: JSON.stringify({ message: text, sessionId, locale: "hi-IN", client: "jomy-autonomous-agent" })
+        body: JSON.stringify({ message: text, history: conversationHistory.slice(0, -1).slice(-10), sessionId, locale: "hi-IN", client: "jomy-autonomous-agent" })
       });
       if (!response.ok) {
         let detail = "Agent endpoint returned HTTP " + response.status;
