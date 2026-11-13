@@ -75,7 +75,7 @@ function classifyMcpFailure(error) {
   if (name === "AbortError" || name === "TimeoutError") {
     return { code: "MCP_TIMEOUT", message: "MCP server timed out. Check that the MCP Worker is responding." };
   }
-  const http = message.match(/HTTP (\\d{3})/i);
+  const http = message.match(/HTTP (\d{3})/i);
   if (http) {
     const status = Number(http[1]);
     if (status === 401 || status === 403) {
