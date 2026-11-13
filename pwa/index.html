@@ -47,6 +47,12 @@
     <section class="activity" aria-label="Recent conversation">
       <button class="activity-toggle" id="activityToggle" aria-expanded="false"><span><i class="activity-dot"></i> RECENT ACTIVITY</span><span id="activityCount">0 messages</span><b id="activityChevron">＋</b></button>
       <div class="messages" id="messages" hidden><p class="empty-state" id="emptyState">Your conversation will appear here.</p></div>
+      <div class="task-panel" aria-label="Personal task queue">
+        <div class="task-heading"><span>MY TASK QUEUE</span><span id="taskCount">0/30</span></div>
+        <form class="task-form" id="taskForm"><label class="sr-only" for="taskInput">Add a task</label><input id="taskInput" maxlength="4000" placeholder="Add a task for JOMY to organize…" autocomplete="off"><button type="submit">ADD</button></form>
+        <div id="taskList" class="task-list" aria-live="polite"></div>
+        <p class="task-note">Saved on this iPhone only. Queue and planning statuses do not execute external actions.</p>
+      </div>
     </section>
     <footer class="footer"><span>JOMY AUTONOMOUS AGENT</span><span>OWNER CONTROL · SAFE BY DEFAULT</span></footer>
   </main>
