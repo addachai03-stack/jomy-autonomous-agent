@@ -162,8 +162,36 @@ export default {
           }, 200, corsOrigin);
         }
         return json({ error: "Unsupported MCP action." }, 400, corsOrigin);
-      } catch {
-        return json({ error: "JOMY MCP connection failed. Check the Client token and MCP service status. No message was sent." }, 502, corsOrigin);
+      } catch (error) {
+        const category = typeof error?.code === "string" && /^MCP_[A-Z0-9_]+$/.test(error.code)
+          ? error.code
+          : "MCP_UNCLASSIFIED";
+        const requestId = crypto.randomUUID();
+        // Never log request bodies, authorization headers, MCP tokens, or raw upstream errors.
+        console.warn("JOMY MCP bridge failure", JSON.stringify({
+          event: "mcp_bridge_failure",
+          requestId,
+          category
+        }));
+        const messages = {
+          MCP_HTTP_401: "MCP rejected the Client token (HTTP 401). Check that the dedicated client token is active.",
+          MCP_HTTP_403: "MCP denied this Client token (HTTP 403). Check its permissions.",
+          MCP_HTTP_404: "The MCP endpoint was not found (HTTP 404).",
+          MCP_HTTP_429: "MCP rate limit reached. Wait and try again.",
+          MCP_TIMEOUT: "MCP did not respond before the timeout.",
+          MCP_NETWORK: "The Agent Worker could not reach the MCP service.",
+          MCP_HANDSHAKE_FAILED: "MCP protocol initialization failed.",
+          MCP_INIT_REJECTED: "MCP rejected its initialization notification.",
+          MCP_INVALID_RESPONSE: "MCP returned an invalid response.",
+          MCP_RPC_ERROR: "MCP returned a protocol error.",
+          MCP_TOOL_ERROR: "MCP rejected a status tool request."
+        };
+        return json({
+          error: messages[category] || "MCP connection failed. Check the MCP service status.",
+          diagnosticCode: category,
+          requestId,
+          noMessageSent: true
+        }, 502, corsOrigin);
       }
     }
 
