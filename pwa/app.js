@@ -535,7 +535,7 @@ import { createTask, addTask, transitionTask, retryTask, TASK_STATES } from "./t
     addMessage("user", text);
     messageInput.value = "";
     messageInput.style.height = "auto";
-    const explicitTask = text.match(/^(?:task|kaam)\\s*:\\s*([\\s\\S]+)$/i);
+    const explicitTask = text.match(/^(?:task|kaam)\s*:\s*([\s\S]+)$/i);
     if (explicitTask && explicitTask[1].trim()) {
       try {
         const task = createTask(explicitTask[1].trim());
