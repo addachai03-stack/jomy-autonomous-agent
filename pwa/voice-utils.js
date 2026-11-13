@@ -12,8 +12,8 @@ export function parseWakeCommand(finalText, finalCandidates = [], waitingForComm
 export function extractTelegramMessage(text) {
   if (typeof text !== "string") return null;
   const patterns = [
-    /^(?:telegram|टेलीग्राम)\\s+(?:par|pe|पर|पे)\\s+(?:message\\s+)?(?:bhejo|bhej\\s+do|send\\s+karo|भेजो|भेज\\s+दो|संदेश\\s+भेजो)\\s*[:,-]?\\s*([\\s\\S]+)$/i,
-    /^(?:send|bhejo)\\s+(?:this\\s+)?on\\s+telegram\\s*[:,-]?\\s*([\\s\\S]+)$/i
+    /^(?:telegram|टेलीग्राम)\s+(?:par|pe|पर|पे)\s+(?:message\s+)?(?:bhejo|bhej\s+do|send\s+karo|भेजो|भेज\s+दो|संदेश\s+भेजो)\s*[:,-]?\s*([\s\S]+)$/i,
+    /^(?:send|bhejo)\s+(?:this\s+)?on\s+telegram\s*[:,-]?\s*([\s\S]+)$/i
   ];
   for (const pattern of patterns) {
     const match = text.trim().match(pattern);
