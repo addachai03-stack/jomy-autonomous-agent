@@ -50,19 +50,23 @@ test("health reports missing AI binding and does not claim ready", async () => {
   assert.equal(data.status, "configuration_required");
 });
 
-test("preflight accepts only the configured origin", async () => {
-  const allowed = await worker.fetch(makeRequest("/api/agent/chat", {
-    method: "OPTIONS",
-    headers: { Origin: ORIGIN }
-  }), makeEnv());
-  assert.equal(allowed.status, 204);
-  assert.equal(allowed.headers.get("access-control-allow-origin"), ORIGIN);
+test("preflight accepts the configured origin and HTTPS Pages previews only", async () => {
+  for (const origin of [ORIGIN, "https://fix-handsfree-hinglish-wake.jomy-agent-pwa.pages.dev"]) {
+    const allowed = await worker.fetch(makeRequest("/api/agent/chat", {
+      method: "OPTIONS",
+      headers: { Origin: origin }
+    }), makeEnv());
+    assert.equal(allowed.status, 204);
+    assert.equal(allowed.headers.get("access-control-allow-origin"), origin);
+  }
 
-  const denied = await worker.fetch(makeRequest("/api/agent/chat", {
-    method: "OPTIONS",
-    headers: { Origin: "https://attacker.example" }
-  }), makeEnv());
-  assert.equal(denied.status, 403);
+  for (const origin of ["https://attacker.example", "http://fix.jomy-agent-pwa.pages.dev", "https://jomy-agent-pwa.pages.dev.attacker.example"]) {
+    const denied = await worker.fetch(makeRequest("/api/agent/chat", {
+      method: "OPTIONS",
+      headers: { Origin: origin }
+    }), makeEnv());
+    assert.equal(denied.status, 403);
+  }
 });
 
 test("unknown paths and unsupported methods are rejected", async () => {
@@ -77,15 +81,20 @@ test("chat requires owner bearer authentication", async () => {
   assert.equal(response.status, 401);
 });
 
-test("chat rejects unapproved browser origins", async () => {
-  const response = await worker.fetch(makeRequest("/api/agent/chat", {
-    headers: {
-      Origin: "https://attacker.example",
-      Authorization: "Bearer " + OWNER_TOKEN
-    },
+test("chat accepts the approved preview origin and rejects unrelated origins", async () => {
+  const preview = "https://fix-handsfree-hinglish-wake.jomy-agent-pwa.pages.dev";
+  const allowed = await worker.fetch(makeRequest("/api/agent/chat", {
+    headers: { Origin: preview, Authorization: "Bearer " + OWNER_TOKEN },
     body: JSON.stringify({ message: "Hello" })
   }), makeEnv());
-  assert.equal(response.status, 403);
+  assert.equal(allowed.status, 200);
+  assert.equal(allowed.headers.get("access-control-allow-origin"), preview);
+
+  const denied = await worker.fetch(makeRequest("/api/agent/chat", {
+    headers: { Origin: "https://attacker.example", Authorization: "Bearer " + OWNER_TOKEN },
+    body: JSON.stringify({ message: "Hello" })
+  }), makeEnv());
+  assert.equal(denied.status, 403);
 });
 
 test("chat rejects non-JSON content types", async () => {
