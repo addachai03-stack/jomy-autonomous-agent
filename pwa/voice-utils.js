@@ -8,3 +8,16 @@ export function parseWakeCommand(finalText, finalCandidates = [], waitingForComm
   if (!transcript) return null;
   return transcript.replace(wakePattern, "").replace(/^[\s,!.]+/, "").trim();
 }
+
+export function extractTelegramMessage(text) {
+  if (typeof text !== "string") return null;
+  const patterns = [
+    /^(?:telegram|टेलीग्राम)\\s+(?:par|pe|पर|पे)\\s+(?:message\\s+)?(?:bhejo|bhej\\s+do|send\\s+karo|भेजो|भेज\\s+दो|संदेश\\s+भेजो)\\s*[:,-]?\\s*([\\s\\S]+)$/i,
+    /^(?:send|bhejo)\\s+(?:this\\s+)?on\\s+telegram\\s*[:,-]?\\s*([\\s\\S]+)$/i
+  ];
+  for (const pattern of patterns) {
+    const match = text.trim().match(pattern);
+    if (match && match[1]?.trim()) return match[1].trim();
+  }
+  return null;
+}
