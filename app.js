@@ -29,6 +29,7 @@
   let recognition = null;
   let listening = false;
   let busy = false;
+  let voiceSubmissionPending = false;
   let count = 0;
   let sessionId = sessionStorage.getItem("jomy_agent_session") || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
   sessionStorage.setItem("jomy_agent_session", sessionId);
@@ -104,9 +105,12 @@
         else interimText += event.results[i][0].transcript;
       }
       messageInput.value = finalText || interimText;
-      if (finalText) {
+      if (finalText && !busy && !voiceSubmissionPending) {
+        voiceSubmissionPending = true;
         stopListening();
-        messageInput.focus();
+        sendMessage(finalText).finally(() => {
+          voiceSubmissionPending = false;
+        });
       }
     };
     recognition.onerror = (event) => {
