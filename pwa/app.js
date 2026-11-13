@@ -1,5 +1,5 @@
 import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
-import { createTask, addTask, transitionTask, retryTask, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan } from "./task-planner.js";
 
 (() => {
@@ -29,6 +29,8 @@ import { parseTaskPlan } from "./task-planner.js";
     const savedTasks = JSON.parse(localStorage.getItem(TASK_QUEUE_KEY) || "[]");
     if (Array.isArray(savedTasks)) taskQueue = savedTasks.filter(task => task && typeof task.id === "string" && typeof task.title === "string" && ["queued", "planning", "awaiting_approval", "ready", "running", "retry_wait", "succeeded", "failed", "blocked"].includes(task.status)).slice(-30);
   } catch (_) {}
+  taskQueue = recoverInterruptedTasks(taskQueue);
+  try { localStorage.setItem(TASK_QUEUE_KEY, JSON.stringify(taskQueue)); } catch (_) {}
   const settingsDialog = $("settingsDialog");
   const endpointInput = $("endpointInput");
   const agentTokenInput = $("agentTokenInput");
