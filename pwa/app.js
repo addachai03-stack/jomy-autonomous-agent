@@ -27,6 +27,7 @@
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
   let recognition = null;
   let listening = false;
+  let recognitionBlocked = false;
   let handsFree = localStorage.getItem(STORAGE_HANDSFREE) !== "false";
   let waitingForCommand = false;
   let busy = false;
@@ -83,14 +84,13 @@
     window.speechSynthesis.speak(utterance);
   }
   function startRecognition() {
-    if (!recognition || !handsFree || busy || listening) return;
+    if (!recognition || !handsFree || busy || listening || recognitionBlocked) return;
     try { recognition.start(); }
     catch (_) {
-      if (handsFree) {
-        micLabel.textContent = "Tap anywhere to activate";
-        voiceHint.textContent = "Hands-free is ready. Tap anywhere once to let iPhone Safari start the microphone, then keep JOMY in the foreground.";
-        setState("idle", "READY TO ACTIVATE", "Tap anywhere once to start hands-free listening.");
-      }
+      recognitionBlocked = true;
+      micLabel.textContent = "Tap to retry microphone";
+      voiceHint.textContent = "Safari paused microphone startup. Tap the Hands-free button or microphone once to retry.";
+      setState("idle", "MICROPHONE PAUSED", "Tap once to retry voice listening.");
     }
   }
   function stopHandsFree() {
@@ -187,18 +187,28 @@
     };
     recognition.onerror = (event) => {
       listening = false;
+      const fatalVoiceErrors = ["not-allowed", "service-not-allowed", "audio-capture", "language-not-supported", "network"];
+      if (fatalVoiceErrors.includes(event.error)) recognitionBlocked = true;
       micLabel.textContent = handsFree ? "Hands-free paused" : "Tap to speak";
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
         micLabel.textContent = "Tap anywhere to retry";
-        voiceHint.textContent = "Allow microphone access for this website in iPhone Settings or Safari, then tap anywhere to retry hands-free.";
-        setState("idle", "MIC PERMISSION", "Microphone permission is needed. Tap anywhere after allowing it.");
-      } else if (!handsFree) {
-        setState("idle", "MIC ISSUE", "Voice input stopped. You can type your command.");
+        voiceHint.textContent = "Allow microphone access for this website in iPhone Settings or Safari, then tap Hands-free once to retry.";
+        setState("idle", "MIC PERMISSION", "Allow microphone access, then tap to retry.");
+      } else {
+        const message = event.error === "audio-capture"
+          ? "No microphone was found. Check iPhone microphone access."
+          : event.error === "network"
+            ? "Speech recognition network is unavailable. Check your connection."
+            : event.error === "no-speech"
+              ? "No speech detected. Say JOMY and try again."
+              : "Voice input paused (" + event.error + "). Tap the microphone to retry.";
+        voiceHint.textContent = message;
+        setState("idle", "VOICE PAUSED", message);
       }
     };
     recognition.onend = () => {
       listening = false;
-      if (handsFree && !busy && !(window.speechSynthesis && window.speechSynthesis.speaking)) {
+      if (handsFree && !recognitionBlocked && !busy && !(window.speechSynthesis && window.speechSynthesis.speaking)) {
         startRecognition();
       } else if (!handsFree && !busy && orbStage.dataset.state === "listening") {
         micLabel.textContent = "Tap to speak";
@@ -227,7 +237,14 @@
         headers: { "Content-Type": "application/json", ...(ownerToken ? { "Authorization": "Bearer " + ownerToken } : {}) },
         body: JSON.stringify({ message: text, sessionId, locale: "hi-IN", client: "jomy-autonomous-agent" })
       });
-      if (!response.ok) throw new Error("Agent endpoint returned HTTP " + response.status);
+      if (!response.ok) {
+        let detail = "Agent endpoint returned HTTP " + response.status;
+        try {
+          const errorData = await response.json();
+          if (typeof errorData.error === "string") detail = errorData.error;
+        } catch (_) {}
+        throw new Error(detail);
+      }
       const data = await response.json();
       const reply = typeof data.reply === "string" ? data.reply : typeof data.message === "string" ? data.message : "";
       if (!reply) throw new Error("The agent response did not include a reply string.");
@@ -253,11 +270,14 @@
   handsFreeButton.textContent = handsFree ? "Hands-free: On" : "Hands-free: Off";
   handsFreeButton.setAttribute("aria-pressed", String(handsFree));
   if (handsFree) {
-    voiceHint.textContent = "Hands-free starts automatically when Safari allows it. If iPhone blocks startup, tap anywhere once. Keep JOMY open in the foreground.";
+    voiceHint.textContent = "Tap Hands-free once to start. Say “JOMY”, wait for “हाँ, बोलिए”, then speak your command. Keep this page open; iPhone may pause listening in the background or when locked.";
     startRecognition();
   }
   document.addEventListener("pointerdown", () => {
-    if (handsFree && !listening && !busy && !(window.speechSynthesis && window.speechSynthesis.speaking)) startRecognition();
+    if (handsFree && !listening && !busy && !(window.speechSynthesis && window.speechSynthesis.speaking)) {
+      recognitionBlocked = false;
+      startRecognition();
+    }
   }, { capture: true, passive: true });
   soundButton.setAttribute("aria-pressed", String(soundOn));
   soundButton.textContent = soundOn ? "◖))" : "◖×";
@@ -266,7 +286,8 @@
     if (handsFree) stopHandsFree();
     else if (listening) stopListening();
     else {
-      try { recognition.start(); } catch (_) { setState("idle", "MIC BUSY", "Wait a moment, then try again."); }
+      recognitionBlocked = false;
+      try { recognition.start(); } catch (_) { setState("idle", "MIC PAUSED", "Wait a moment, then tap to retry."); }
     }
   });
   handsFreeButton.addEventListener("click", () => {
@@ -277,6 +298,7 @@
       return;
     }
     handsFree = true;
+    recognitionBlocked = false;
     localStorage.setItem(STORAGE_HANDSFREE, "true");
     waitingForCommand = false;
     handsFreeButton.textContent = "Hands-free: On";
