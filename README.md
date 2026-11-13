@@ -5,7 +5,7 @@ Standalone, compact, iPhone-first voice interface with a humanoid-inspired anima
 ## UI
 - Black-and-gold compact mobile UI and animated ready/listening/thinking/speaking orb states.
 - Browser speech recognition where available; iPhone keyboard dictation fallback.
-- Spoken replies using browser speech synthesis where available.
+- Optional hands-free wake-word mode (off by default), auto-send after wake + command, and spoken replies that resume listening when supported.
 - Collapsible conversation and locally stored endpoint + owner access token.
 - Installable PWA shell and offline caching for static assets.
 
@@ -32,4 +32,4 @@ The browser sends `Authorization: Bearer <owner token>` plus JSON `{ "message": 
 - Credentials remain in server-side secret storage; owner API token is entered locally on the user's device.
 - No dashboard files, databases, or production services are changed by this repository work.
 
-Voice recognition is browser-dependent. Some iPhone Safari versions do not expose the Web Speech Recognition API; use iOS keyboard dictation in the message field in that case.
+Voice recognition is browser-dependent. Enable Hands-free with a user tap; if Safari pauses microphone startup, tap the Hands-free button again to retry. Some iPhone Safari versions do not expose the Web Speech Recognition API; use iOS keyboard dictation in the message field in that case. iOS may suspend listening in the background or while the screen is locked, so always-on background wake-word listening is not guaranteed.
