@@ -40,7 +40,9 @@ import { parseTaskPlan } from "./task-planner.js";
   const STORAGE_HANDSFREE = "jomy_agent_handsfree_v1";
   const STORAGE_TOKEN = "jomy_agent_owner_token_v1";
   const STORAGE_MCP_TOKEN = "jomy_mcp_client_token_v1";
-  let endpoint = localStorage.getItem(STORAGE_ENDPOINT) || "";
+  const DEFAULT_ENDPOINT = "https://jomy-autonomous-agent-api.addachai03.workers.dev/api/agent/chat";
+  const storedEndpoint = localStorage.getItem(STORAGE_ENDPOINT);
+  let endpoint = storedEndpoint === null ? DEFAULT_ENDPOINT : storedEndpoint;
   let ownerToken = sessionStorage.getItem(STORAGE_TOKEN) || "";
   let mcpClientToken = sessionStorage.getItem(STORAGE_MCP_TOKEN) || "";
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
@@ -627,7 +629,7 @@ import { parseTaskPlan } from "./task-planner.js";
 
   renderTaskQueue();
   setupRecognition();
-  setConnection(false, endpoint ? "Endpoint saved · not tested" : "Not connected");
+  setConnection(false, endpoint ? "Endpoint ready · not tested" : "Not connected");
   handsFreeButton.textContent = handsFree ? "Hands-free: On" : "Hands-free: Off";
   handsFreeButton.setAttribute("aria-pressed", String(handsFree));
   if (handsFree) {
@@ -730,7 +732,7 @@ import { parseTaskPlan } from "./task-planner.js";
   $("testMcpConnection").addEventListener("click", testMcpConnection);
   $("clearEndpoint").addEventListener("click", () => {
     endpoint = "";
-    localStorage.removeItem(STORAGE_ENDPOINT);
+    localStorage.setItem(STORAGE_ENDPOINT, "");
     endpointInput.value = "";
     ownerToken = "";
     mcpClientToken = "";
