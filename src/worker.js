@@ -69,6 +69,40 @@ async function readBodyLimited(request) {
   }
 }
 
+function extractAiReply(result) {
+  if (typeof result === "string") return result.trim();
+  if (!result || typeof result !== "object") return "";
+  const candidates = [
+    result.response,
+    result.output_text,
+    result.text,
+    result.result?.response,
+    result.result?.output_text,
+    result.choices?.[0]?.message?.content,
+    result.result?.choices?.[0]?.message?.content
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+    if (Array.isArray(candidate)) {
+      const text = candidate
+        .filter(part => part && (part.type === "text" || typeof part.text === "string"))
+        .map(part => typeof part === "string" ? part : part.text || "")
+        .join("\\n").trim();
+      if (text) return text;
+    }
+  }
+  const output = Array.isArray(result.output) ? result.output : Array.isArray(result.result?.output) ? result.result.output : [];
+  for (const item of output) {
+    if (!Array.isArray(item?.content)) continue;
+    const text = item.content
+      .filter(part => part && (part.type === "output_text" || part.type === "text") && typeof part.text === "string")
+      .map(part => part.text)
+      .join("\\n").trim();
+    if (text) return text;
+  }
+  return "";
+}
+
 function classifyMcpFailure(error) {
   const name = error && typeof error.name === "string" ? error.name : "";
   const message = error && typeof error.message === "string" ? error.message : "";
@@ -217,11 +251,36 @@ export default {
         max_tokens: 450,
         temperature: 0.25
       });
-      const reply = typeof result?.response === "string" ? result.response.trim() : "";
-      if (!reply) throw new Error("Model returned an empty reply");
+      const reply = extractAiReply(result);
+      if (!reply) {
+        console.warn("JOMY_AI_EMPTY_RESPONSE", { model: MODEL, resultType: typeof result });
+        return json({
+          error: "The AI provider returned a response without readable text. No action was performed.",
+          code: "AI_EMPTY_RESPONSE"
+        }, 502, corsOrigin);
+      }
       return json({ reply, status: "ready", capabilities: ["chat"] }, 200, corsOrigin);
-    } catch {
-      return json({ error: "AI response could not be generated. No action was performed." }, 502, corsOrigin);
+    } catch (error) {
+      const status = Number(error?.status || error?.statusCode || error?.httpStatus || 0);
+      const name = typeof error?.name === "string" ? error.name : "Error";
+      const code = status === 429 ? "AI_RATE_LIMITED"
+        : status === 402 ? "AI_ALLOCATION_OR_BILLING"
+        : status === 408 || name === "AbortError" || name === "TimeoutError" ? "AI_TIMEOUT"
+        : status === 401 || status === 403 ? "AI_AUTH_OR_PERMISSION"
+        : status >= 500 ? "AI_PROVIDER_ERROR"
+        : "AI_REQUEST_FAILED";
+      // Never log prompts, response bodies, headers, tokens, or provider error messages.
+      console.error("JOMY_AI_REQUEST_FAILED", { code, status: status || null, errorName: name });
+      const message = code === "AI_RATE_LIMITED"
+        ? "The AI provider rate-limited this request. Please wait and retry."
+        : code === "AI_ALLOCATION_OR_BILLING"
+          ? "The AI provider reported an allocation or billing limit. Check Workers AI usage and billing."
+          : code === "AI_TIMEOUT"
+            ? "The AI provider timed out. Please retry."
+            : code === "AI_AUTH_OR_PERMISSION"
+              ? "The AI provider rejected this request due to an account or permission issue."
+              : "The AI provider could not complete this request. Check the diagnostic code with the service owner.";
+      return json({ error: message + " No action was performed.", code }, 502, corsOrigin);
     }
   }
 };
