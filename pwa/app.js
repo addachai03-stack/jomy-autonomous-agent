@@ -20,13 +20,14 @@
   const voiceHint = $("voiceHint");
   const STORAGE_ENDPOINT = "jomy_agent_endpoint_v1";
   const STORAGE_SOUND = "jomy_agent_sound_v1";
+  const STORAGE_HANDSFREE = "jomy_agent_handsfree_v1";
   const STORAGE_TOKEN = "jomy_agent_owner_token_v1";
   let endpoint = localStorage.getItem(STORAGE_ENDPOINT) || "";
   let ownerToken = sessionStorage.getItem(STORAGE_TOKEN) || "";
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
   let recognition = null;
   let listening = false;
-  let handsFree = false;
+  let handsFree = localStorage.getItem(STORAGE_HANDSFREE) !== "false";
   let waitingForCommand = false;
   let busy = false;
   let count = 0;
@@ -84,9 +85,13 @@
   function startRecognition() {
     if (!recognition || !handsFree || busy || listening) return;
     try { recognition.start(); }
-    catch (_) { window.setTimeout(() => {
-      if (handsFree && !busy && !listening && !(window.speechSynthesis && window.speechSynthesis.speaking)) startRecognition();
-    }, 500); }
+    catch (_) {
+      if (handsFree) {
+        micLabel.textContent = "Tap anywhere to activate";
+        voiceHint.textContent = "Hands-free is ready. Tap anywhere once to let iPhone Safari start the microphone, then keep JOMY in the foreground.";
+        setState("idle", "READY TO ACTIVATE", "Tap anywhere once to start hands-free listening.");
+      }
+    }
   }
   function stopHandsFree() {
     handsFree = false;
@@ -119,6 +124,7 @@
     }
     recognition = new SpeechRecognition();
     recognition.lang = "hi-IN";
+    recognition.maxAlternatives = 3;
     recognition.interimResults = true;
     recognition.continuous = true;
     recognition.onstart = () => {
@@ -130,9 +136,16 @@
     recognition.onresult = (event) => {
       let finalText = "";
       let interimText = "";
+      const finalCandidates = [];
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) finalText += event.results[i][0].transcript;
-        else interimText += event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalText += (finalText ? " " : "") + event.results[i][0].transcript;
+          for (let j = 0; j < event.results[i].length; j++) {
+            finalCandidates.push(event.results[i][j].transcript);
+          }
+        } else {
+          interimText += event.results[i][0].transcript;
+        }
       }
       if (!handsFree) {
         messageInput.value = finalText || interimText;
@@ -143,10 +156,13 @@
         return;
       }
       if (!finalText) return;
-      const wakePattern = /jomy|jo\s*my|जोमी|जो\s*मी/i;
-      const match = finalText.match(wakePattern);
-      if (!waitingForCommand && !match) return;
-      let command = waitingForCommand ? finalText : finalText.replace(wakePattern, "").trim();
+      // iOS Hindi dictation often renders “JOMY” as only “जो”.
+      // Accept common Hindi, English and Hinglish wake-word renderings.
+      const wakePattern = /(?:^|[\s,])(?:hey\s*)?(?:jomy|jo\s*my|jomi|jo|जोमी|जो\s*मी|जॉमी|ज्योमी)(?=$|[\s,.!?])/i;
+      const wakeCandidate = finalCandidates.find((candidate) => wakePattern.test(candidate)) || "";
+      if (!waitingForCommand && !wakeCandidate) return;
+      const sourceText = wakeCandidate || finalText;
+      let command = waitingForCommand ? finalText.trim() : sourceText.replace(wakePattern, "").replace(/^[\s,!.]+/, "").trim();
       if (!command) {
         waitingForCommand = true;
         try { recognition.stop(); } catch (_) {}
@@ -155,7 +171,7 @@
         return;
       }
       waitingForCommand = false;
-      if (/^(stop listening|stop|बंद करो|सुनना बंद करो)$/i.test(command.trim())) {
+      if (/^(stop listening|stop|बंद करो|सुनना बंद करो|सुनना रोको)$/i.test(command.trim())) {
         stopHandsFree();
         return;
       }
@@ -166,9 +182,10 @@
     recognition.onerror = (event) => {
       listening = false;
       micLabel.textContent = handsFree ? "Hands-free paused" : "Tap to speak";
-      if (event.error === "not-allowed") {
-        stopHandsFree();
-        setState("idle", "MIC PERMISSION", "Allow microphone access in Safari to use voice.");
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        micLabel.textContent = "Tap anywhere to retry";
+        voiceHint.textContent = "Allow microphone access for this website in iPhone Settings or Safari, then tap anywhere to retry hands-free.";
+        setState("idle", "MIC PERMISSION", "Microphone permission is needed. Tap anywhere after allowing it.");
       } else if (!handsFree) {
         setState("idle", "MIC ISSUE", "Voice input stopped. You can type your command.");
       }
@@ -227,6 +244,15 @@
 
   setupRecognition();
   setConnection(false, endpoint ? "Endpoint saved · not tested" : "Not connected");
+  handsFreeButton.textContent = handsFree ? "Hands-free: On" : "Hands-free: Off";
+  handsFreeButton.setAttribute("aria-pressed", String(handsFree));
+  if (handsFree) {
+    voiceHint.textContent = "Hands-free starts automatically when Safari allows it. If iPhone blocks startup, tap anywhere once. Keep JOMY open in the foreground.";
+    startRecognition();
+  }
+  document.addEventListener("pointerdown", () => {
+    if (handsFree && !listening && !busy && !(window.speechSynthesis && window.speechSynthesis.speaking)) startRecognition();
+  }, { capture: true, passive: true });
   soundButton.setAttribute("aria-pressed", String(soundOn));
   soundButton.textContent = soundOn ? "◖))" : "◖×";
   micButton.addEventListener("click", () => {
@@ -239,8 +265,13 @@
   });
   handsFreeButton.addEventListener("click", () => {
     if (!recognition) return;
-    if (handsFree) { stopHandsFree(); return; }
+    if (handsFree) {
+      localStorage.setItem(STORAGE_HANDSFREE, "false");
+      stopHandsFree();
+      return;
+    }
     handsFree = true;
+    localStorage.setItem(STORAGE_HANDSFREE, "true");
     waitingForCommand = false;
     handsFreeButton.textContent = "Hands-free: On";
     handsFreeButton.setAttribute("aria-pressed", "true");
