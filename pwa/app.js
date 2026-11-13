@@ -38,6 +38,7 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
   let handsFree = localStorage.getItem(STORAGE_HANDSFREE) === "true";
   let waitingForCommand = false;
   let busy = false;
+  let voiceSubmissionPending = false;
   let count = 0;
   let sessionId = sessionStorage.getItem("jomy_agent_session") || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
   sessionStorage.setItem("jomy_agent_session", sessionId);
@@ -171,9 +172,12 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
       }
       if (!handsFree) {
         messageInput.value = finalText || interimText;
-        if (finalText) {
+        if (finalText && !busy && !voiceSubmissionPending) {
+          voiceSubmissionPending = true;
           stopListening();
-          messageInput.focus();
+          sendMessage(finalText).finally(() => {
+            voiceSubmissionPending = false;
+          });
         }
         return;
       }
