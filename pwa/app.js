@@ -18,14 +18,17 @@ import { parseWakeCommand } from "./voice-utils.js";
   const settingsDialog = $("settingsDialog");
   const endpointInput = $("endpointInput");
   const agentTokenInput = $("agentTokenInput");
+  const mcpTokenInput = $("mcpTokenInput");
   const connection = $("connection");
   const voiceHint = $("voiceHint");
   const STORAGE_ENDPOINT = "jomy_agent_endpoint_v1";
   const STORAGE_SOUND = "jomy_agent_sound_v1";
   const STORAGE_HANDSFREE = "jomy_agent_handsfree_v1";
   const STORAGE_TOKEN = "jomy_agent_owner_token_v1";
+  const STORAGE_MCP_TOKEN = "jomy_mcp_client_token_v1";
   let endpoint = localStorage.getItem(STORAGE_ENDPOINT) || "";
   let ownerToken = sessionStorage.getItem(STORAGE_TOKEN) || "";
+  let mcpClientToken = sessionStorage.getItem(STORAGE_MCP_TOKEN) || "";
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
   let recognition = null;
   let listening = false;
@@ -226,12 +229,80 @@ import { parseWakeCommand } from "./voice-utils.js";
       }
     };
   }
+  function extractTelegramMessage(text) {
+    const patterns = [
+      /^(?:telegram|टेलीग्राम)\s+(?:par|pe|पर|पे)\s+(?:message\s+)?(?:bhejo|bhej\s+do|send\s+karo|भेजो|भेज\s+दो|संदेश\s+भेजो)\s*[:,-]?\s*([\s\S]+)$/i,
+      /^(?:send|bhejo)\s+(?:this\s+)?on\s+telegram\s*[:,-]?\s*([\s\S]+)$/i
+    ];
+    for (const pattern of patterns) {
+      const match = text.trim().match(pattern);
+      if (match && match[1]?.trim()) return match[1].trim();
+    }
+    return null;
+  }
+
+  async function callMcp(action, extra = {}) {
+    if (!endpoint || !ownerToken || !mcpClientToken) throw new Error("Settings mein Agent endpoint, Agent owner token aur JOMY MCP Client token set karo.");
+    const mcpEndpoint = endpoint.replace(/\/api\/agent\/chat\/?$/, "/api/agent/mcp");
+    if (mcpEndpoint === endpoint) throw new Error("Agent API URL ka path /api/agent/chat hona chahiye.");
+    const response = await fetch(mcpEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ownerToken },
+      body: JSON.stringify({ action, mcpToken: mcpClientToken, ...extra })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "MCP request failed (HTTP " + response.status + ").");
+    return data;
+  }
+
+  async function testMcpConnection() {
+    const previous = $("testMcpConnection").textContent;
+    $("testMcpConnection").disabled = true;
+    $("testMcpConnection").textContent = "Testing…";
+    try {
+      const data = await callMcp("status");
+      const server = data.system?.status || "unknown";
+      const telegram = data.telegram?.configured ? "configured" : "not configured";
+      $("settingsNote").textContent = "MCP connected · Server: " + server + " · Telegram: " + telegram + ".";
+      setConnection(true, "MCP Connected");
+    } catch (error) {
+      $("settingsNote").textContent = error.message;
+      setConnection(false, "MCP not connected");
+    } finally {
+      $("testMcpConnection").disabled = false;
+      $("testMcpConnection").textContent = previous;
+    }
+  }
+
   async function sendMessage(rawText) {
     const text = rawText.trim();
     if (!text || busy) return;
     addMessage("user", text);
     messageInput.value = "";
     messageInput.style.height = "auto";
+    const telegramText = extractTelegramMessage(text);
+    if (telegramText) {
+      busy = true;
+      $("sendButton").disabled = true;
+      setState("thinking", "PREPARING TELEGRAM", "Creating an approval request. Nothing will be sent yet.");
+      try {
+        const prepared = await callMcp("prepare_telegram", { text: telegramText });
+        const notice = "Telegram request prepared. Nothing was sent. Approval ID: " + prepared.approvalId + ". Open JOMY MCP Owner Admin and approve this exact request before the message is sent.";
+        addMessage("agent", notice);
+        speak(notice);
+        setConnection(true, "MCP Connected");
+      } catch (error) {
+        const notice = "Telegram request was not prepared: " + error.message + ". No message was sent.";
+        addMessage("agent", notice);
+        speak(notice);
+        setConnection(false, "MCP connection issue");
+      } finally {
+        busy = false;
+        $("sendButton").disabled = false;
+        if (handsFree && !listening && !(window.speechSynthesis && window.speechSynthesis.speaking)) startRecognition();
+      }
+      return;
+    }
     if (!endpoint) {
       const notice = "I received your message, but the standalone AI chat backend is not connected yet. Add your private HTTPS chat API in Settings to start chatting.";
       addMessage("agent", notice);
@@ -349,6 +420,7 @@ import { parseWakeCommand } from "./voice-utils.js";
   $("settingsButton").addEventListener("click", () => {
     endpointInput.value = endpoint;
     agentTokenInput.value = ownerToken;
+    mcpTokenInput.value = mcpClientToken;
     $("settingsNote").textContent = "";
     settingsDialog.showModal();
   });
@@ -359,22 +431,29 @@ import { parseWakeCommand } from "./voice-utils.js";
       if (url.protocol !== "https:" && url.hostname !== "localhost") throw new Error("Use HTTPS for the agent endpoint.");
       endpoint = url.toString();
       ownerToken = agentTokenInput.value.trim();
+      mcpClientToken = mcpTokenInput.value.trim();
       localStorage.setItem(STORAGE_ENDPOINT, endpoint);
       if (ownerToken) sessionStorage.setItem(STORAGE_TOKEN, ownerToken);
       else sessionStorage.removeItem(STORAGE_TOKEN);
+      if (mcpClientToken) sessionStorage.setItem(STORAGE_MCP_TOKEN, mcpClientToken);
+      else sessionStorage.removeItem(STORAGE_MCP_TOKEN);
       setConnection(false, "Endpoint saved · not tested");
       $("settingsNote").textContent = "Saved on this device. Send a message to test the connection.";
     } catch (error) {
       $("settingsNote").textContent = error.message || "Enter a valid HTTPS URL.";
     }
   });
+  $("testMcpConnection").addEventListener("click", testMcpConnection);
   $("clearEndpoint").addEventListener("click", () => {
     endpoint = "";
     localStorage.removeItem(STORAGE_ENDPOINT);
     endpointInput.value = "";
     ownerToken = "";
+    mcpClientToken = "";
     agentTokenInput.value = "";
+    mcpTokenInput.value = "";
     sessionStorage.removeItem(STORAGE_TOKEN);
+    sessionStorage.removeItem(STORAGE_MCP_TOKEN);
     setConnection(false, "Not connected");
     $("settingsNote").textContent = "Disconnected on this device.";
   });
