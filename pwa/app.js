@@ -39,6 +39,8 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
   let waitingForCommand = false;
   let busy = false;
   let voiceSubmissionPending = false;
+  let voiceFinalTranscript = "";
+  let voiceSendTimer = null;
   let count = 0;
   let sessionId = sessionStorage.getItem("jomy_agent_session") || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
   sessionStorage.setItem("jomy_agent_session", sessionId);
@@ -71,6 +73,15 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
       $("activityChevron").textContent = "−";
     }
   }
+  function unlockSpeech() {
+    if (!("speechSynthesis" in window) || !soundOn) return;
+    try {
+      const primer = new SpeechSynthesisUtterance(" ");
+      primer.volume = 0;
+      window.speechSynthesis.speak(primer);
+      window.speechSynthesis.resume();
+    } catch (_) {}
+  }
   function speak(text) {
     if (!soundOn || !("speechSynthesis" in window)) {
       speakingReply = false;
@@ -81,22 +92,29 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
       try { recognition.stop(); } catch (_) {}
       listening = false;
     }
-    window.speechSynthesis.cancel();
+    const synth = window.speechSynthesis;
+    synth.cancel();
     speakingReply = true;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "hi-IN";
-    utterance.rate = 1;
+    utterance.rate = 0.92;
+    const voices = synth.getVoices();
+    const hindiVoice = voices.find((voice) => /^hi([-_]|$)/i.test(voice.lang));
+    if (hindiVoice) utterance.voice = hindiVoice;
     utterance.onstart = () => setState("speaking", "SPEAKING", "JOMY is replying.");
     utterance.onend = () => {
       speakingReply = false;
       setState("idle", handsFree ? "HANDS-FREE ACTIVE" : "READY", handsFree ? "Say JOMY, then give your command." : "Your command center. Speak or type to begin.");
       if (handsFree) startRecognition();
     };
-    utterance.onerror = () => {
+    utterance.onerror = (event) => {
       speakingReply = false;
+      voiceHint.textContent = "Reply text is ready, but iPhone audio playback failed (" + (event.error || "unknown") + "). Tap Sound once, then try again.";
+      setState("idle", "AUDIO PAUSED", "Tap Sound to re-enable voice replies.");
       if (handsFree) startRecognition();
     };
-    window.speechSynthesis.speak(utterance);
+    synth.resume();
+    synth.speak(utterance);
   }
   function startRecognition() {
     if (!recognition || !handsFree || busy || listening || recognitionStarting || recognitionBlocked || speakingReply) return;
@@ -132,6 +150,18 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
     micLabel.textContent = "Tap to speak";
     micButton.setAttribute("aria-label", "Start voice input");
     if (!busy) setState("idle", "READY", "Your command center. Speak or type to begin.");
+  }
+  function submitVoiceTranscript() {
+    const transcript = voiceFinalTranscript.trim();
+    if (!transcript || busy || voiceSubmissionPending) return;
+    clearTimeout(voiceSendTimer);
+    voiceSendTimer = null;
+    voiceFinalTranscript = "";
+    voiceSubmissionPending = true;
+    stopListening();
+    sendMessage(transcript).finally(() => {
+      voiceSubmissionPending = false;
+    });
   }
   function setupRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -171,13 +201,15 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
         }
       }
       if (!handsFree) {
-        messageInput.value = finalText || interimText;
-        if (finalText && !busy && !voiceSubmissionPending) {
-          voiceSubmissionPending = true;
-          stopListening();
-          sendMessage(finalText).finally(() => {
-            voiceSubmissionPending = false;
-          });
+        if (finalText) {
+          voiceFinalTranscript = [voiceFinalTranscript, finalText].filter(Boolean).join(" ").trim();
+          messageInput.value = voiceFinalTranscript;
+          if (!busy && !voiceSubmissionPending) {
+            clearTimeout(voiceSendTimer);
+            voiceSendTimer = setTimeout(() => submitVoiceTranscript(), 900);
+          }
+        } else if (!voiceFinalTranscript) {
+          messageInput.value = interimText;
         }
         return;
       }
@@ -225,9 +257,13 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
     recognition.onend = () => {
       recognitionStarting = false;
       listening = false;
+      if (!handsFree && voiceFinalTranscript && !voiceSubmissionPending) {
+        clearTimeout(voiceSendTimer);
+        voiceSendTimer = setTimeout(() => submitVoiceTranscript(), 250);
+      }
       if (handsFree && !recognitionBlocked && !busy && !speakingReply && !(window.speechSynthesis && window.speechSynthesis.speaking)) {
         startRecognition();
-      } else if (!handsFree && !busy && orbStage.dataset.state === "listening") {
+      } else if (!handsFree && !busy && !voiceFinalTranscript && orbStage.dataset.state === "listening") {
         micLabel.textContent = "Tap to speak";
         setState("idle", "READY", "Your command center. Speak or type to begin.");
       }
@@ -354,6 +390,7 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
   soundButton.setAttribute("aria-pressed", String(soundOn));
   soundButton.textContent = soundOn ? "◖))" : "◖×";
   micButton.addEventListener("click", () => {
+    unlockSpeech();
     if (!recognition) return;
     if (handsFree) stopHandsFree();
     else if (listening) stopListening();
@@ -364,6 +401,7 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
     }
   });
   handsFreeButton.addEventListener("click", () => {
+    unlockSpeech();
     if (!recognition) return;
     if (handsFree && listening) {
       stopHandsFree();
@@ -385,6 +423,7 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
   });
   soundButton.addEventListener("click", () => {
     soundOn = !soundOn;
+    if (soundOn) unlockSpeech();
     localStorage.setItem(STORAGE_SOUND, String(soundOn));
     soundButton.setAttribute("aria-pressed", String(soundOn));
     soundButton.textContent = soundOn ? "◖))" : "◖×";
