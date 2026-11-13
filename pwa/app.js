@@ -173,18 +173,17 @@
         return;
       }
       if (!finalText) return;
-      // iOS Hindi dictation may put the wake word in an alternative transcript.
-      // Use alternatives only to detect the wake word; keep the full primary
-      // transcript for command extraction so the spoken request is not lost.
-      const wakePattern = /(?:^|[\s,])(?:hey\s*)?(?:jomy|jo\s*my|jomi|jo|जोमी|जो\s*मी|जॉमी|ज्योमी)(?=$|[\s,.!?])/i;
-      const wakeCandidate = finalCandidates.find((candidate) => wakePattern.test(candidate)) || "";
-      const wakeMatch = finalText.match(wakePattern);
-      if (!waitingForCommand && !wakeMatch && !wakeCandidate) return;
+      // Hindi speech recognition may put the wake word in an alternative transcript.
+      // Extract the command from the same transcript that actually contains the wake word.
+      // Avoid standalone "jo": it is a common Hindi word and causes false wake-ups.
+      const wakePattern = /(?:^|[\\s,])(?:hey\\s*)?(?:jomy|jo\\s*my|jomi|जोमी|जो\\s*मी|जॉमी|ज्योमी)(?=$|[\\s,.!?])/i;
+      const wakeTranscript = wakePattern.test(finalText)
+        ? finalText
+        : finalCandidates.find((candidate) => wakePattern.test(candidate)) || "";
+      if (!waitingForCommand && !wakeTranscript) return;
       let command = waitingForCommand
         ? finalText.trim()
-        : wakeMatch
-          ? finalText.replace(wakePattern, "").replace(/^[\s,!.]+/, "").trim()
-          : finalText.trim();
+        : wakeTranscript.replace(wakePattern, "").replace(/^[\\s,!.]+/, "").trim();
       if (!command) {
         waitingForCommand = true;
         try { recognition.stop(); } catch (_) {}
