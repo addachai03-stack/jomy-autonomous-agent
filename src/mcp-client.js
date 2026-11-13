@@ -1,25 +1,42 @@
 const MCP_URL = "https://jomy-personal-mcp.addachai03.workers.dev/mcp";
 const PROTOCOL_VERSION = "2025-03-26";
 
+function mcpError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+async function requestMcp(init) {
+  try {
+    return await fetch(MCP_URL, init);
+  } catch (error) {
+    if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+      throw mcpError("MCP_TIMEOUT", "MCP request timed out");
+    }
+    throw mcpError("MCP_NETWORK", "MCP request could not be completed");
+  }
+}
+
 async function readMcpResult(response) {
   const type = response.headers.get("content-type") || "";
   const raw = await response.text();
-  if (!response.ok) throw new Error("MCP server returned HTTP " + response.status);
+  if (!response.ok) throw mcpError("MCP_HTTP_" + response.status, "MCP server returned HTTP " + response.status);
   if (!raw) return {};
   if (type.includes("text/event-stream")) {
     const dataLines = raw.split(/\r?\n/).filter((line) => line.startsWith("data:"));
     for (let i = dataLines.length - 1; i >= 0; i--) {
       try { return JSON.parse(dataLines[i].slice(5).trim()); } catch (_) {}
     }
-    throw new Error("MCP server returned an unreadable event stream");
+    throw mcpError("MCP_INVALID_RESPONSE", "MCP server returned an unreadable event stream");
   }
   try { return JSON.parse(raw); } catch (_) {
-    throw new Error("MCP server returned an invalid response");
+    throw mcpError("MCP_INVALID_RESPONSE", "MCP server returned an invalid response");
   }
 }
 
 async function createMcpSession(token) {
-  const response = await fetch(MCP_URL, {
+  const response = await requestMcp({
     method: "POST",
     headers: {
       "Authorization": "Bearer " + token,
@@ -41,8 +58,8 @@ async function createMcpSession(token) {
   const sessionId = response.headers.get("Mcp-Session-Id");
   const selectedVersion = response.headers.get("MCP-Protocol-Version") || PROTOCOL_VERSION;
   const data = await readMcpResult(response);
-  if (data.error) throw new Error(data.error.message || "MCP initialization failed");
-  if (!data.result?.protocolVersion) throw new Error("MCP initialization was not confirmed");
+  if (data.error) throw mcpError("MCP_RPC_ERROR", "MCP initialization failed");
+  if (!data.result?.protocolVersion) throw mcpError("MCP_HANDSHAKE_FAILED", "MCP initialization was not confirmed");
   const headers = {
     "Authorization": "Bearer " + token,
     "Content-Type": "application/json",
@@ -50,20 +67,20 @@ async function createMcpSession(token) {
     "MCP-Protocol-Version": selectedVersion,
     ...(sessionId ? { "Mcp-Session-Id": sessionId } : {})
   };
-  const notification = await fetch(MCP_URL, {
+  const notification = await requestMcp({
     method: "POST",
     headers,
     body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized", params: {} }),
     signal: AbortSignal.timeout(12000)
   });
   if (!(notification.ok || notification.status === 202)) {
-    throw new Error("MCP initialization notification was rejected");
+    throw mcpError("MCP_INIT_REJECTED", "MCP initialization notification was rejected");
   }
   return { headers, sessionId };
 }
 
 async function callMcpTool(session, id, name, args = {}) {
-  const response = await fetch(MCP_URL, {
+  const response = await requestMcp({
     method: "POST",
     headers: session.headers,
     body: JSON.stringify({
@@ -75,11 +92,11 @@ async function callMcpTool(session, id, name, args = {}) {
     signal: AbortSignal.timeout(12000)
   });
   const data = await readMcpResult(response);
-  if (data.error) throw new Error(data.error.message || "MCP tool call failed");
+  if (data.error) throw mcpError("MCP_RPC_ERROR", "MCP tool call failed");
   const result = data.result;
   if (!result || result.isError) {
     const message = (result?.content || []).filter((item) => item.type === "text").map((item) => item.text).join("\n");
-    throw new Error(message || "MCP tool call failed");
+    throw mcpError("MCP_TOOL_ERROR", "MCP tool call failed");
   }
   return (result.content || []).filter((item) => item.type === "text").map((item) => item.text).join("\n");
 }
