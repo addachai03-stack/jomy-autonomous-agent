@@ -116,7 +116,7 @@ import { createTask, addTask, transitionTask, retryTask, TASK_STATES } from "./t
       task = transitionTask(task, TASK_STATES.PLANNING);
       updateTask(taskId, () => task);
       if (!endpoint || !ownerToken) throw new Error("Settings mein Agent API URL aur Owner token save karo.");
-      const planUrl = endpoint.replace(/\\/api\\/agent\\/chat\\/?$/, "/api/agent/plan");
+      const planUrl = endpoint.replace(/\/api\/agent\/chat\/?$/, "/api/agent/plan");
       if (planUrl === endpoint) throw new Error("Agent API URL ka path /api/agent/chat hona chahiye.");
       const response = await fetch(planUrl, {
         method: "POST",
