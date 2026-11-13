@@ -5,7 +5,7 @@ Standalone, compact, iPhone-first voice interface with a humanoid-inspired anima
 ## UI
 - Black-and-gold compact mobile UI and animated ready/listening/thinking/speaking orb states.
 - Browser speech recognition where available; iPhone keyboard dictation fallback.
-- Optional hands-free wake-word mode (off by default), auto-send after wake + command, and spoken replies that resume listening when supported.
+- Optional hands-free wake-word mode (off by default), tested Hindi/Hinglish wake-word parsing, auto-send after wake + command, and spoken replies that resume listening when supported.
 - Collapsible conversation and locally stored endpoint + owner access token.
 - Installable PWA shell and offline caching for static assets.
 
