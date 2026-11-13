@@ -318,3 +318,44 @@ test("MCP bridge identifies a missing MCP route separately from authentication f
     assert.match(data.error, /endpoint or HTTP method/);
   } finally { restore(); }
 });
+
+
+test("chat extracts text from supported Workers AI response shapes", async () => {
+  const responses = [
+    { response: "reply from response" },
+    { output_text: "reply from output_text" },
+    { output: [{ type: "message", content: [{ type: "output_text", text: "reply from output" }] }] },
+    { choices: [{ message: { content: "reply from choices" } }] }
+  ];
+  for (const result of responses) {
+    const response = await worker.fetch(makeRequest("/api/agent/chat", {
+      headers: { Authorization: "Bearer " + OWNER_TOKEN },
+      body: JSON.stringify({ message: "Hello" })
+    }), makeEnv({ AI: { async run() { return result; } } }));
+    assert.equal(response.status, 200);
+    assert.ok((await response.json()).reply.startsWith("reply from"));
+  }
+});
+
+test("chat returns a safe diagnostic when the model returns no readable text", async () => {
+  const response = await worker.fetch(makeRequest("/api/agent/chat", {
+    headers: { Authorization: "Bearer " + OWNER_TOKEN },
+    body: JSON.stringify({ message: "Hello" })
+  }), makeEnv({ AI: { async run() { return { output: [] }; } } }));
+  assert.equal(response.status, 502);
+  const data = await response.json();
+  assert.equal(data.code, "AI_EMPTY_RESPONSE");
+  assert.match(data.error, /No action was performed/);
+});
+
+test("chat classifies AI rate limits without exposing provider details", async () => {
+  const response = await worker.fetch(makeRequest("/api/agent/chat", {
+    headers: { Authorization: "Bearer " + OWNER_TOKEN },
+    body: JSON.stringify({ message: "Hello" })
+  }), makeEnv({ AI: { async run() { const error = new Error("private provider detail"); error.status = 429; throw error; } } }));
+  assert.equal(response.status, 502);
+  const data = await response.json();
+  assert.equal(data.code, "AI_RATE_LIMITED");
+  assert.match(data.error, /rate-limited/);
+  assert.doesNotMatch(JSON.stringify(data), /private provider detail/);
+});
