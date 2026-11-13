@@ -303,3 +303,18 @@ test("MCP bridge hides upstream exception details and never echoes credentials",
     assert.doesNotMatch(JSON.stringify(data), /provider-private-detail|test-mcp-client-token/);
   } finally { restore(); }
 });
+
+
+test("MCP bridge identifies a missing MCP route separately from authentication failures", async () => {
+  const restore = withMockMcpFetch(async () => new Response("not found", { status: 404 }));
+  try {
+    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
+      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
+      body: JSON.stringify({ action: "status", mcpToken: MCP_CLIENT_TOKEN })
+    }), makeEnv());
+    assert.equal(response.status, 502);
+    const data = await response.json();
+    assert.equal(data.code, "MCP_ENDPOINT_MISMATCH");
+    assert.match(data.error, /endpoint or HTTP method/);
+  } finally { restore(); }
+});
