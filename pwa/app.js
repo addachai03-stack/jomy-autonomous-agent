@@ -160,14 +160,14 @@
       // iOS Hindi dictation may put the wake word in an alternative transcript.
       // Use alternatives only to detect the wake word; keep the full primary
       // transcript for command extraction so the spoken request is not lost.
-      const wakePattern = /(?:^|[\\s,])(?:hey\\s*)?(?:jomy|jo\\s*my|jomi|jo|जोमी|जो\\s*मी|जॉमी|ज्योमी)(?=$|[\\s,.!?])/i;
+      const wakePattern = /(?:^|[\s,])(?:hey\s*)?(?:jomy|jo\s*my|jomi|jo|जोमी|जो\s*मी|जॉमी|ज्योमी)(?=$|[\s,.!?])/i;
       const wakeCandidate = finalCandidates.find((candidate) => wakePattern.test(candidate)) || "";
       const wakeMatch = finalText.match(wakePattern);
       if (!waitingForCommand && !wakeMatch && !wakeCandidate) return;
       let command = waitingForCommand
         ? finalText.trim()
         : wakeMatch
-          ? finalText.replace(wakePattern, "").replace(/^[\\s,!.]+/, "").trim()
+          ? finalText.replace(wakePattern, "").replace(/^[\s,!.]+/, "").trim()
           : finalText.trim();
       if (!command) {
         waitingForCommand = true;
