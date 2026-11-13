@@ -140,6 +140,27 @@ import { createTask, addTask, transitionTask, retryTask, TASK_STATES } from "./t
       }
     }
   }
+  async function runReadOnlyTask(taskId) {
+    let task = taskQueue.find(item => item.id === taskId);
+    if (!task || task.status !== TASK_STATES.READY || task.plan?.actionType !== "mcp.status") return;
+    try {
+      task = transitionTask(task, TASK_STATES.RUNNING);
+      updateTask(taskId, () => task);
+      const result = await callMcp("status");
+      const completed = transitionTask(task, TASK_STATES.SUCCEEDED);
+      completed.result = {
+        systemStatus: result.system?.status || "unknown",
+        telegramConfigured: Boolean(result.telegram?.configured)
+      };
+      updateTask(taskId, () => completed);
+    } catch (error) {
+      const current = taskQueue.find(item => item.id === taskId);
+      if (current?.status === TASK_STATES.RUNNING) {
+        const failed = transitionTask(current, TASK_STATES.FAILED, { error: error.message });
+        updateTask(taskId, () => failed);
+      }
+    }
+  }
   async function prepareTaskApproval(taskId) {
     const task = taskQueue.find(item => item.id === taskId);
     if (!task || task.status !== TASK_STATES.AWAITING_APPROVAL || task.plan?.actionType !== "telegram.prepare" || task.approvalId) return;
@@ -202,6 +223,11 @@ import { createTask, addTask, transitionTask, retryTask, TASK_STATES } from "./t
         note.textContent = "Plan ready · No external action has been executed.";
         details.append(note);
       }
+      if (task.status === TASK_STATES.SUCCEEDED && task.result) {
+        const result = document.createElement("small");
+        result.textContent = "Read-only check complete · MCP: " + task.result.systemStatus + " · Telegram: " + (task.result.telegramConfigured ? "configured" : "not configured");
+        details.append(result);
+      }
       if (task.status === TASK_STATES.BLOCKED) {
         const note = document.createElement("small");
         note.textContent = "Needs an integration that is not connected. Nothing was executed.";
@@ -227,6 +253,14 @@ import { createTask, addTask, transitionTask, retryTask, TASK_STATES } from "./t
         planButton.textContent = task.status === TASK_STATES.FAILED ? "RETRY PLAN" : "PLAN";
         planButton.addEventListener("click", () => planTask(task.id));
         actions.append(planButton);
+      }
+      if (task.status === TASK_STATES.READY && task.plan?.actionType === "mcp.status") {
+        const statusButton = document.createElement("button");
+        statusButton.type = "button";
+        statusButton.className = "task-action";
+        statusButton.textContent = "CHECK MCP STATUS";
+        statusButton.addEventListener("click", () => runReadOnlyTask(task.id));
+        actions.append(statusButton);
       }
       if (task.status === TASK_STATES.AWAITING_APPROVAL && task.plan?.actionType === "telegram.prepare" && !task.approvalId) {
         const approveButton = document.createElement("button");
