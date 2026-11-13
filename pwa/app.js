@@ -248,6 +248,11 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
     $("testMcpConnection").disabled = true;
     $("testMcpConnection").textContent = "Testing…";
     try {
+      endpoint = endpointInput.value.trim();
+      ownerToken = agentTokenInput.value.trim();
+      mcpClientToken = mcpTokenInput.value.trim();
+      if (ownerToken) sessionStorage.setItem(STORAGE_TOKEN, ownerToken);
+      if (mcpClientToken) sessionStorage.setItem(STORAGE_MCP_TOKEN, mcpClientToken);
       const data = await callMcp("status");
       const server = data.system?.status || "unknown";
       const telegram = data.telegram?.configured ? "configured" : "not configured";
