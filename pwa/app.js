@@ -1,5 +1,5 @@
 import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
-import { createTask, addTask } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, TASK_STATES } from "./task-engine.js";
 
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -17,6 +17,7 @@ import { createTask, addTask } from "./task-engine.js";
   const activityCount = $("activityCount");
   const activityToggle = $("activityToggle");
   const activityBoard = document.querySelector(".activity");
+  const taskPanel = $("taskPanel");
   const taskForm = $("taskForm");
   const taskInput = $("taskInput");
   const taskList = $("taskList");
@@ -101,6 +102,65 @@ import { createTask, addTask } from "./task-engine.js";
     taskQueue = taskQueue.slice(-30);
     try { localStorage.setItem(TASK_QUEUE_KEY, JSON.stringify(taskQueue)); } catch (_) {}
   }
+  function updateTask(taskId, updater) {
+    taskQueue = taskQueue.map(task => task.id === taskId ? updater(task) : task);
+    saveTaskQueue();
+    renderTaskQueue();
+  }
+  async function planTask(taskId) {
+    let task = taskQueue.find(item => item.id === taskId);
+    if (!task) return;
+    try {
+      if (task.status === TASK_STATES.FAILED) task = retryTask(task);
+      if (task.status !== TASK_STATES.QUEUED) return;
+      task = transitionTask(task, TASK_STATES.PLANNING);
+      updateTask(taskId, () => task);
+      if (!endpoint || !ownerToken) throw new Error("Settings mein Agent API URL aur Owner token save karo.");
+      const planUrl = endpoint.replace(/\\/api\\/agent\\/chat\\/?$/, "/api/agent/plan");
+      if (planUrl === endpoint) throw new Error("Agent API URL ka path /api/agent/chat hona chahiye.");
+      const response = await fetch(planUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ownerToken },
+        body: JSON.stringify({ task: task.title })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.plan) throw new Error(data.error || "Task planning failed.");
+      const plan = data.plan;
+      const nextStatus = plan.actionType === "unsupported"
+        ? TASK_STATES.BLOCKED
+        : plan.requiresApproval ? TASK_STATES.AWAITING_APPROVAL : TASK_STATES.READY;
+      const planned = transitionTask(task, nextStatus, { steps: plan.steps });
+      planned.plan = plan;
+      updateTask(taskId, () => planned);
+    } catch (error) {
+      const current = taskQueue.find(item => item.id === taskId);
+      if (current && current.status === TASK_STATES.PLANNING) {
+        const failed = transitionTask(current, TASK_STATES.FAILED, { error: error.message });
+        updateTask(taskId, () => failed);
+      }
+    }
+  }
+  async function prepareTaskApproval(taskId) {
+    const task = taskQueue.find(item => item.id === taskId);
+    if (!task || task.status !== TASK_STATES.AWAITING_APPROVAL || task.plan?.actionType !== "telegram.prepare" || task.approvalId) return;
+    const telegramText = extractTelegramMessage(task.title);
+    if (!telegramText) {
+      updateTask(taskId, current => ({ ...current, approvalError: "Use exact format: Telegram par bhejo: [message]" }));
+      return;
+    }
+    try {
+      const prepared = await callMcp("prepare_telegram", { text: telegramText });
+      updateTask(taskId, current => ({
+        ...current,
+        approvalId: prepared.approvalId,
+        approvalExpiresAt: prepared.expiresAt || null,
+        approvalStatus: "pending_owner_approval",
+        approvalError: null
+      }));
+    } catch (error) {
+      updateTask(taskId, current => ({ ...current, approvalError: error.message }));
+    }
+  }
   function renderTaskQueue() {
     taskCount.textContent = taskQueue.length + "/30";
     taskList.replaceChildren();
@@ -121,6 +181,61 @@ import { createTask, addTask } from "./task-engine.js";
       const status = document.createElement("small");
       status.textContent = task.status.replaceAll("_", " ").toUpperCase() + " · " + new Date(task.updatedAt || task.createdAt).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" });
       details.append(title, status);
+      if (task.plan?.summary) {
+        const summary = document.createElement("p");
+        summary.className = "task-summary";
+        summary.textContent = task.plan.summary;
+        details.append(summary);
+      }
+      if (Array.isArray(task.steps) && task.steps.length) {
+        const steps = document.createElement("ol");
+        steps.className = "task-steps";
+        for (const step of task.steps) {
+          const line = document.createElement("li");
+          line.textContent = step;
+          steps.append(line);
+        }
+        details.append(steps);
+      }
+      if (task.status === TASK_STATES.READY) {
+        const note = document.createElement("small");
+        note.textContent = "Plan ready · No external action has been executed.";
+        details.append(note);
+      }
+      if (task.status === TASK_STATES.BLOCKED) {
+        const note = document.createElement("small");
+        note.textContent = "Needs an integration that is not connected. Nothing was executed.";
+        details.append(note);
+      }
+      if (task.approvalId) {
+        const approval = document.createElement("small");
+        approval.textContent = "Pending in Owner Admin · ID: " + task.approvalId + " · Nothing sent";
+        details.append(approval);
+      }
+      if (task.lastError || task.approvalError) {
+        const error = document.createElement("small");
+        error.className = "task-error";
+        error.textContent = task.approvalError || task.lastError;
+        details.append(error);
+      }
+      const actions = document.createElement("div");
+      actions.className = "task-actions";
+      if (task.status === TASK_STATES.QUEUED || task.status === TASK_STATES.FAILED) {
+        const planButton = document.createElement("button");
+        planButton.type = "button";
+        planButton.className = "task-action";
+        planButton.textContent = task.status === TASK_STATES.FAILED ? "RETRY PLAN" : "PLAN";
+        planButton.addEventListener("click", () => planTask(task.id));
+        actions.append(planButton);
+      }
+      if (task.status === TASK_STATES.AWAITING_APPROVAL && task.plan?.actionType === "telegram.prepare" && !task.approvalId) {
+        const approveButton = document.createElement("button");
+        approveButton.type = "button";
+        approveButton.className = "task-action";
+        approveButton.textContent = "REQUEST OWNER APPROVAL";
+        approveButton.addEventListener("click", () => prepareTaskApproval(task.id));
+        actions.append(approveButton);
+      }
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "task-remove";
@@ -131,25 +246,14 @@ import { createTask, addTask } from "./task-engine.js";
         saveTaskQueue();
         renderTaskQueue();
       });
-      item.append(details, remove);
+      actions.append(remove);
+      item.append(details, actions);
       taskList.append(item);
     }
   }
-  taskForm.addEventListener("submit", event => {
-    event.preventDefault();
-    const value = taskInput.value.trim();
-    if (!value) return;
-    if (taskQueue.length >= 30) {
-      taskCount.textContent = "Queue full";
-      return;
-    }
-    taskQueue = addTask(taskQueue, createTask(value));
-    saveTaskQueue();
-    renderTaskQueue();
-    taskInput.value = "";
-  });
   function wakeActivityBoard() {
     messages.hidden = false;
+    taskPanel.hidden = false;
     activityToggle.setAttribute("aria-expanded", "true");
     $("activityChevron").textContent = "−";
     if (emptyState) emptyState.textContent = "JOMY is awake. Tell me what you need.";
@@ -536,6 +640,7 @@ import { createTask, addTask } from "./task-engine.js";
     const open = activityToggle.getAttribute("aria-expanded") !== "true";
     activityToggle.setAttribute("aria-expanded", String(open));
     messages.hidden = !open;
+    taskPanel.hidden = !open;
     $("activityChevron").textContent = open ? "−" : "＋";
   });
   $("settingsButton").addEventListener("click", () => {
