@@ -84,29 +84,48 @@ async function callMcpTool(session, id, name, args = {}) {
   return (result.content || []).filter((item) => item.type === "text").map((item) => item.text).join("\\n");
 }
 
+async function closeMcpSession(session) {
+  if (!session.sessionId) return;
+  try {
+    await fetch(MCP_URL, {
+      method: "DELETE",
+      headers: session.headers,
+      signal: AbortSignal.timeout(4000)
+    });
+  } catch (_) {}
+}
+
 export async function getMcpStatus(token) {
   const session = await createMcpSession(token);
-  const [systemRaw, telegramRaw] = await Promise.all([
-    callMcpTool(session, 2, "system_status"),
-    callMcpTool(session, 3, "telegram_status")
-  ]);
-  let system, telegram;
   try {
-    system = JSON.parse(systemRaw);
-    telegram = JSON.parse(telegramRaw);
-  } catch (_) {
-    throw new Error("MCP status response could not be parsed");
+    const [systemRaw, telegramRaw] = await Promise.all([
+      callMcpTool(session, 2, "system_status"),
+      callMcpTool(session, 3, "telegram_status")
+    ]);
+    let system, telegram;
+    try {
+      system = JSON.parse(systemRaw);
+      telegram = JSON.parse(telegramRaw);
+    } catch (_) {
+      throw new Error("MCP status response could not be parsed");
+    }
+    return { system, telegram };
+  } finally {
+    await closeMcpSession(session);
   }
-  return { system, telegram };
 }
 
 export async function prepareTelegramMessage(token, text) {
   const session = await createMcpSession(token);
-  const raw = await callMcpTool(session, 2, "prepare_action", {
-    action: "telegram.send_message",
-    args: { text }
-  });
-  try { return JSON.parse(raw); } catch (_) {
-    return { status: "rejected", message: raw };
+  try {
+    const raw = await callMcpTool(session, 2, "prepare_action", {
+      action: "telegram.send_message",
+      args: { text }
+    });
+    try { return JSON.parse(raw); } catch (_) {
+      return { status: "rejected", message: raw };
+    }
+  } finally {
+    await closeMcpSession(session);
   }
 }
