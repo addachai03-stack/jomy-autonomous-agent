@@ -141,9 +141,17 @@
         headers: { "Content-Type": "application/json", ...(ownerToken ? { "Authorization": "Bearer " + ownerToken } : {}) },
         body: JSON.stringify({ message: text, sessionId, locale: "hi-IN", client: "jomy-autonomous-agent" })
       });
-      if (!response.ok) throw new Error("Agent endpoint returned HTTP " + response.status);
-      const data = await response.json();
-      const reply = typeof data.reply === "string" ? data.reply : typeof data.message === "string" ? data.message : "";
+      let data = {};
+      try { data = await response.json(); } catch (_) {}
+      if (!response.ok) {
+        const code = typeof data.code === "string" ? " [" + data.code + "]" : "";
+        const detail = typeof data.error === "string" && data.error.trim()
+          ? data.error.trim()
+          : "Agent endpoint returned HTTP " + response.status;
+        throw new Error(detail + code);
+      }
+      const reply = typeof data.reply === "string" ? data.reply.trim()
+        : typeof data.message === "string" ? data.message.trim() : "";
       if (!reply) throw new Error("The agent response did not include a reply string.");
       addMessage("agent", reply);
       speak(reply);
