@@ -26,6 +26,8 @@ jobs:
         run: npm install --no-package-lock
       - name: Validate PWA JavaScript syntax
         run: node --check pwa/app.js
+      - name: Validate voice utility module syntax
+        run: node --check pwa/voice-utils.js
       - name: Validate PWA manifest JSON
         run: node -e "JSON.parse(require('node:fs').readFileSync('pwa/manifest.json', 'utf8'))"
       - name: Run Worker API tests
