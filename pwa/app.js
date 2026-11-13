@@ -15,6 +15,7 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
   const emptyState = $("emptyState");
   const activityCount = $("activityCount");
   const activityToggle = $("activityToggle");
+  const activityBoard = document.querySelector(".activity");
   const settingsDialog = $("settingsDialog");
   const endpointInput = $("endpointInput");
   const agentTokenInput = $("agentTokenInput");
@@ -72,6 +73,14 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
       activityToggle.setAttribute("aria-expanded", "true");
       $("activityChevron").textContent = "−";
     }
+  }
+  function wakeActivityBoard() {
+    messages.hidden = false;
+    activityToggle.setAttribute("aria-expanded", "true");
+    $("activityChevron").textContent = "−";
+    if (emptyState) emptyState.textContent = "JOMY is awake. Tell me what you need.";
+    activityBoard.classList.add("is-awake");
+    window.setTimeout(() => activityBoard.classList.remove("is-awake"), 2600);
   }
   function unlockSpeech() {
     if (!("speechSynthesis" in window) || !soundOn) return;
@@ -217,6 +226,7 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
       const command = parseWakeCommand(finalText, finalCandidates, waitingForCommand);
       if (command === null) return;
       if (!command) {
+        wakeActivityBoard();
         waitingForCommand = true;
         try { recognition.stop(); } catch (_) {}
         listening = false;
