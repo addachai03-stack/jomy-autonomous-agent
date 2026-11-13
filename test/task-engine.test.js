@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  TASK_STATES, createTask, addTask, transitionTask, retryTask,
+  TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
   actionPolicy, createActionProposal
 } from "../src/task-engine.js";
 
@@ -66,4 +66,32 @@ test("task steps are validated and capped", () => {
   const task = createTask("Steps");
   const planning = transitionTask(task, TASK_STATES.PLANNING);
   assert.throws(() => transitionTask(planning, TASK_STATES.READY, {steps:["x".repeat(241)]}), /Task steps/);
+});
+
+
+test("startup recovery marks interrupted planning, running and retry-wait tasks as failed", () => {
+  const queued = createTask("Still queued", 0);
+  const planning = { ...createTask("Interrupted planning", 0), status: TASK_STATES.PLANNING };
+  const running = { ...createTask("Interrupted action", 0), status: TASK_STATES.RUNNING, attempts: 1 };
+  const retryWait = { ...createTask("Interrupted retry", 0), status: TASK_STATES.RETRY_WAIT };
+  const approved = { ...createTask("Waiting for owner", 0), status: TASK_STATES.AWAITING_APPROVAL, approvalId: "approval-1" };
+  const succeeded = { ...createTask("Already complete", 0), status: TASK_STATES.SUCCEEDED };
+
+  const recovered = recoverInterruptedTasks([queued, planning, running, retryWait, approved, succeeded], 9000);
+
+  assert.equal(recovered[0].status, TASK_STATES.QUEUED);
+  assert.equal(recovered[1].status, TASK_STATES.FAILED);
+  assert.match(recovered[1].lastError, /while planning/);
+  assert.equal(recovered[2].status, TASK_STATES.FAILED);
+  assert.equal(recovered[2].attempts, 1);
+  assert.match(recovered[2].lastError, /No completion was confirmed/);
+  assert.equal(recovered[3].status, TASK_STATES.FAILED);
+  assert.equal(recovered[4].status, TASK_STATES.AWAITING_APPROVAL);
+  assert.equal(recovered[4].approvalId, "approval-1");
+  assert.equal(recovered[5].status, TASK_STATES.SUCCEEDED);
+  assert.equal(recovered[1].updatedAt, new Date(9000).toISOString());
+});
+
+test("startup recovery safely handles a non-array queue", () => {
+  assert.deepEqual(recoverInterruptedTasks(null), []);
 });
