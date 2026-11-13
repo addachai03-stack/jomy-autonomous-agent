@@ -14,8 +14,8 @@ export function parseTaskPlan(raw, taskTitle) {
   }
   let actionType = ACTION_TYPES.has(value.actionType) ? value.actionType : "unsupported";
   const explicitTelegramSend = typeof taskTitle === "string" &&
-    /telegram|टेलीग्राम/i.test(taskTitle) &&
-    /(bhej|send|post|message|भेज|संदेश)/i.test(taskTitle);
+    /^(?:telegram|टेलीग्राम)\s+(?:par|pe|पर|पे)\s+(?:message\s+)?(?:bhejo|bhej\s+do|send\s+karo|भेजो|भेज\s+दो|संदेश\s+भेजो)\s*[:,-]?\s*[\s\S]+$/i.test(taskTitle.trim()) ||
+    (typeof taskTitle === "string" && /^(?:send|bhejo)\s+(?:this\s+)?on\s+telegram\s*[:,-]?\s*[\s\S]+$/i.test(taskTitle.trim()));
   if (actionType === "telegram.prepare" && !explicitTelegramSend) actionType = "unsupported";
   if (actionType === "mcp.status" && !/mcp\s*(status|स्थिति)|status\s*(of\s*)?mcp/i.test(taskTitle || "")) actionType = "unsupported";
   return {
