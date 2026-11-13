@@ -69,6 +69,32 @@ async function readBodyLimited(request) {
   }
 }
 
+function classifyMcpFailure(error) {
+  const name = error && typeof error.name === "string" ? error.name : "";
+  const message = error && typeof error.message === "string" ? error.message : "";
+  if (name === "AbortError" || name === "TimeoutError") {
+    return { code: "MCP_TIMEOUT", message: "MCP server timed out. Check that the MCP Worker is responding." };
+  }
+  const http = message.match(/HTTP (\\d{3})/i);
+  if (http) {
+    const status = Number(http[1]);
+    if (status === 401 || status === 403) {
+      return { code: "MCP_AUTH_REJECTED", message: "MCP rejected the Client token or its permissions. Verify that it is an active dedicated Client token." };
+    }
+    if (status === 404 || status === 405) {
+      return { code: "MCP_ENDPOINT_MISMATCH", message: "MCP endpoint or HTTP method was not accepted. Check the MCP service route." };
+    }
+    return { code: "MCP_HTTP_ERROR", message: "MCP server returned HTTP " + status + "." };
+  }
+  if (/invalid response|unreadable event stream|initialization was not confirmed|protocol/i.test(message)) {
+    return { code: "MCP_PROTOCOL_ERROR", message: "MCP server responded, but its protocol handshake or response was invalid." };
+  }
+  if (name === "TypeError") {
+    return { code: "MCP_NETWORK_ERROR", message: "Agent Worker could not reach the MCP server. Check MCP Worker availability and network access." };
+  }
+  return { code: "MCP_UPSTREAM_ERROR", message: "MCP request failed during initialization or tool execution. Check MCP Worker logs for the matching request." };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -162,8 +188,17 @@ export default {
           }, 200, corsOrigin);
         }
         return json({ error: "Unsupported MCP action." }, 400, corsOrigin);
-      } catch {
-        return json({ error: "JOMY MCP connection failed. Check the Client token and MCP service status. No message was sent." }, 502, corsOrigin);
+      } catch (error) {
+        const diagnostic = classifyMcpFailure(error);
+        // Log only a fixed diagnostic code and error class; never log request bodies or credentials.
+        console.warn("JOMY_MCP_BRIDGE_FAILURE", {
+          code: diagnostic.code,
+          errorName: error && typeof error.name === "string" ? error.name : "Error"
+        });
+        return json({
+          error: diagnostic.message + " No message was sent.",
+          code: diagnostic.code
+        }, 502, corsOrigin);
       }
     }
 
