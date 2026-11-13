@@ -1,4 +1,5 @@
 import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
+import { createTask, addTask } from "./task-engine.js";
 
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -16,6 +17,16 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
   const activityCount = $("activityCount");
   const activityToggle = $("activityToggle");
   const activityBoard = document.querySelector(".activity");
+  const taskForm = $("taskForm");
+  const taskInput = $("taskInput");
+  const taskList = $("taskList");
+  const taskCount = $("taskCount");
+  const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1";
+  let taskQueue = [];
+  try {
+    const savedTasks = JSON.parse(localStorage.getItem(TASK_QUEUE_KEY) || "[]");
+    if (Array.isArray(savedTasks)) taskQueue = savedTasks.filter(task => task && typeof task.id === "string" && typeof task.title === "string" && ["queued", "planning", "awaiting_approval", "ready", "running", "retry_wait", "succeeded", "failed", "blocked"].includes(task.status)).slice(-30);
+  } catch (_) {}
   const settingsDialog = $("settingsDialog");
   const endpointInput = $("endpointInput");
   const agentTokenInput = $("agentTokenInput");
@@ -86,6 +97,57 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
       $("activityChevron").textContent = "−";
     }
   }
+  function saveTaskQueue() {
+    taskQueue = taskQueue.slice(-30);
+    try { localStorage.setItem(TASK_QUEUE_KEY, JSON.stringify(taskQueue)); } catch (_) {}
+  }
+  function renderTaskQueue() {
+    taskCount.textContent = taskQueue.length + "/30";
+    taskList.replaceChildren();
+    if (!taskQueue.length) {
+      const empty = document.createElement("p");
+      empty.className = "task-empty";
+      empty.textContent = "No tasks yet. Add a task you want JOMY to organize.";
+      taskList.append(empty);
+      return;
+    }
+    for (const task of taskQueue) {
+      const item = document.createElement("article");
+      item.className = "task-item";
+      const details = document.createElement("div");
+      details.className = "task-details";
+      const title = document.createElement("strong");
+      title.textContent = task.title;
+      const status = document.createElement("small");
+      status.textContent = task.status.replaceAll("_", " ").toUpperCase() + " · " + new Date(task.updatedAt || task.createdAt).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" });
+      details.append(title, status);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "task-remove";
+      remove.textContent = "×";
+      remove.setAttribute("aria-label", "Remove task");
+      remove.addEventListener("click", () => {
+        taskQueue = taskQueue.filter(entry => entry.id !== task.id);
+        saveTaskQueue();
+        renderTaskQueue();
+      });
+      item.append(details, remove);
+      taskList.append(item);
+    }
+  }
+  taskForm.addEventListener("submit", event => {
+    event.preventDefault();
+    const value = taskInput.value.trim();
+    if (!value) return;
+    if (taskQueue.length >= 30) {
+      taskCount.textContent = "Queue full";
+      return;
+    }
+    taskQueue = addTask(taskQueue, createTask(value));
+    saveTaskQueue();
+    renderTaskQueue();
+    taskInput.value = "";
+  });
   function wakeActivityBoard() {
     messages.hidden = false;
     activityToggle.setAttribute("aria-expanded", "true");
@@ -401,6 +463,7 @@ import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
     }
   }
 
+  renderTaskQueue();
   setupRecognition();
   setConnection(false, endpoint ? "Endpoint saved · not tested" : "Not connected");
   handsFreeButton.textContent = handsFree ? "Hands-free: On" : "Hands-free: Off";
