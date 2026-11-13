@@ -1,3 +1,5 @@
+import { getMcpStatus, prepareTelegramMessage } from "./mcp-client.js";
+
 const MODEL = "@cf/openai/gpt-oss-20b";
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_BODY_BYTES = 16_384;
@@ -126,6 +128,43 @@ export default {
     let payload;
     try { payload = JSON.parse(rawBody); } catch { return json({ error: "Invalid JSON" }, 400, corsOrigin); }
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) return json({ error: "Invalid request body" }, 400, corsOrigin);
+    if (isMcpRoute) {
+      const mcpToken = typeof payload.mcpToken === "string" ? payload.mcpToken.trim() : "";
+      if (mcpToken.length < 32 || mcpToken.length > 512) {
+        return json({ error: "A valid JOMY MCP Client token is required." }, 400, corsOrigin);
+      }
+      try {
+        if (payload.action === "status") {
+          const status = await getMcpStatus(mcpToken);
+          return json({
+            status: "connected",
+            system: status.system,
+            telegram: status.telegram,
+            capabilities: ["mcp_status", "telegram_prepare"]
+          }, 200, corsOrigin);
+        }
+        if (payload.action === "prepare_telegram") {
+          const text = typeof payload.text === "string" ? payload.text.trim() : "";
+          if (!text || text.length > 4000) {
+            return json({ error: "Telegram message must be 1–4000 characters." }, 400, corsOrigin);
+          }
+          const prepared = await prepareTelegramMessage(mcpToken, text);
+          if (prepared.status !== "pending_owner_approval") {
+            return json({ error: prepared.message || prepared.warning || "MCP did not create a pending approval.", prepared }, 409, corsOrigin);
+          }
+          return json({
+            status: "pending_owner_approval",
+            approvalId: prepared.approvalId,
+            expiresAt: prepared.expiresAt,
+            warning: "Nothing was sent. Approve this exact request in JOMY MCP Owner Admin."
+          }, 200, corsOrigin);
+        }
+        return json({ error: "Unsupported MCP action." }, 400, corsOrigin);
+      } catch {
+        return json({ error: "JOMY MCP connection failed. Check the Client token and MCP service status. No message was sent." }, 502, corsOrigin);
+      }
+    }
+
     const message = typeof payload.message === "string" ? payload.message.trim() : "";
     if (!message || message.length > MAX_MESSAGE_LENGTH) return json({ error: "Message must be 1–4000 characters" }, 400, corsOrigin);
     if (!env.AI) return json({ error: "Cloudflare Workers AI binding is not configured" }, 503, corsOrigin);
