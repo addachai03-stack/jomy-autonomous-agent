@@ -27,7 +27,7 @@ jobs:
       - name: Validate PWA JavaScript syntax
         run: node --check pwa/app.js
       - name: Validate voice and task utility module syntax
-        run: node --check pwa/voice-utils.js && node --check pwa/task-engine.js && node --check src/task-planner.js
+        run: node --check pwa/voice-utils.js && node --check pwa/task-engine.js && node --check pwa/task-planner.js && node --check src/task-planner.js
       - name: Validate MCP bridge JavaScript syntax
         run: node --check src/mcp-client.js && node --check src/worker.js
       - name: Validate PWA manifest JSON
