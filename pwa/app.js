@@ -1,3 +1,5 @@
+import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
+
 (() => {
   const $ = (id) => document.getElementById(id);
   const orbStage = $("orbStage");
@@ -16,17 +18,24 @@
   const settingsDialog = $("settingsDialog");
   const endpointInput = $("endpointInput");
   const agentTokenInput = $("agentTokenInput");
+  const mcpTokenInput = $("mcpTokenInput");
   const connection = $("connection");
   const voiceHint = $("voiceHint");
   const STORAGE_ENDPOINT = "jomy_agent_endpoint_v1";
   const STORAGE_SOUND = "jomy_agent_sound_v1";
+  const STORAGE_HANDSFREE = "jomy_agent_handsfree_v1";
   const STORAGE_TOKEN = "jomy_agent_owner_token_v1";
+  const STORAGE_MCP_TOKEN = "jomy_mcp_client_token_v1";
   let endpoint = localStorage.getItem(STORAGE_ENDPOINT) || "";
   let ownerToken = sessionStorage.getItem(STORAGE_TOKEN) || "";
+  let mcpClientToken = sessionStorage.getItem(STORAGE_MCP_TOKEN) || "";
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
   let recognition = null;
   let listening = false;
-  let handsFree = false;
+  let recognitionBlocked = false;
+  let recognitionStarting = false;
+  let speakingReply = false;
+  let handsFree = localStorage.getItem(STORAGE_HANDSFREE) === "true";
   let waitingForCommand = false;
   let busy = false;
   let count = 0;
@@ -63,6 +72,7 @@
   }
   function speak(text) {
     if (!soundOn || !("speechSynthesis" in window)) {
+      speakingReply = false;
       if (handsFree) startRecognition();
       return;
     }
@@ -71,30 +81,45 @@
       listening = false;
     }
     window.speechSynthesis.cancel();
+    speakingReply = true;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "hi-IN";
     utterance.rate = 1;
     utterance.onstart = () => setState("speaking", "SPEAKING", "JOMY is replying.");
     utterance.onend = () => {
+      speakingReply = false;
       setState("idle", handsFree ? "HANDS-FREE ACTIVE" : "READY", handsFree ? "Say JOMY, then give your command." : "Your command center. Speak or type to begin.");
+      if (handsFree) startRecognition();
+    };
+    utterance.onerror = () => {
+      speakingReply = false;
       if (handsFree) startRecognition();
     };
     window.speechSynthesis.speak(utterance);
   }
   function startRecognition() {
-    if (!recognition || !handsFree || busy || listening) return;
-    try { recognition.start(); }
-    catch (_) { window.setTimeout(() => {
-      if (handsFree && !busy && !listening && !(window.speechSynthesis && window.speechSynthesis.speaking)) startRecognition();
-    }, 500); }
+    if (!recognition || !handsFree || busy || listening || recognitionStarting || recognitionBlocked || speakingReply) return;
+    try {
+      recognitionStarting = true;
+      recognition.start();
+    }
+    catch (_) {
+      recognitionStarting = false;
+      recognitionBlocked = true;
+      micLabel.textContent = "Tap to retry microphone";
+      voiceHint.textContent = "Safari paused microphone startup. Tap the Hands-free button or microphone once to retry.";
+      setState("idle", "MICROPHONE PAUSED", "Tap once to retry voice listening.");
+    }
   }
   function stopHandsFree() {
     handsFree = false;
+    localStorage.setItem(STORAGE_HANDSFREE, "false");
     waitingForCommand = false;
     if (recognition && listening) {
       try { recognition.stop(); } catch (_) {}
     }
     listening = false;
+    recognitionStarting = false;
     handsFreeButton.textContent = "Hands-free: Off";
     handsFreeButton.setAttribute("aria-pressed", "false");
     micLabel.textContent = "Tap to speak";
@@ -119,9 +144,12 @@
     }
     recognition = new SpeechRecognition();
     recognition.lang = "hi-IN";
+    recognition.maxAlternatives = 3;
     recognition.interimResults = true;
     recognition.continuous = true;
     recognition.onstart = () => {
+      recognitionStarting = false;
+      recognitionBlocked = false;
       listening = true;
       micLabel.textContent = handsFree ? "Listening for “JOMY”…" : "Listening… tap to stop";
       micButton.setAttribute("aria-label", "Stop voice input");
@@ -130,9 +158,16 @@
     recognition.onresult = (event) => {
       let finalText = "";
       let interimText = "";
+      const finalCandidates = [];
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) finalText += event.results[i][0].transcript;
-        else interimText += event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalText += (finalText ? " " : "") + event.results[i][0].transcript;
+          for (let j = 0; j < event.results[i].length; j++) {
+            finalCandidates.push(event.results[i][j].transcript);
+          }
+        } else {
+          interimText += event.results[i][0].transcript;
+        }
       }
       if (!handsFree) {
         messageInput.value = finalText || interimText;
@@ -143,10 +178,8 @@
         return;
       }
       if (!finalText) return;
-      const wakePattern = /jomy|jo\s*my|जोमी|जो\s*मी/i;
-      const match = finalText.match(wakePattern);
-      if (!waitingForCommand && !match) return;
-      let command = waitingForCommand ? finalText : finalText.replace(wakePattern, "").trim();
+      const command = parseWakeCommand(finalText, finalCandidates, waitingForCommand);
+      if (command === null) return;
       if (!command) {
         waitingForCommand = true;
         try { recognition.stop(); } catch (_) {}
@@ -155,7 +188,7 @@
         return;
       }
       waitingForCommand = false;
-      if (/^(stop listening|stop|बंद करो|सुनना बंद करो)$/i.test(command.trim())) {
+      if (/^(stop listening|stop|बंद करो|सुनना बंद करो|सुनना रोको)$/i.test(command.trim())) {
         stopHandsFree();
         return;
       }
@@ -164,18 +197,31 @@
       sendMessage(command);
     };
     recognition.onerror = (event) => {
+      recognitionStarting = false;
       listening = false;
+      const fatalVoiceErrors = ["not-allowed", "service-not-allowed", "audio-capture", "language-not-supported", "network"];
+      if (fatalVoiceErrors.includes(event.error)) recognitionBlocked = true;
       micLabel.textContent = handsFree ? "Hands-free paused" : "Tap to speak";
-      if (event.error === "not-allowed") {
-        stopHandsFree();
-        setState("idle", "MIC PERMISSION", "Allow microphone access in Safari to use voice.");
-      } else if (!handsFree) {
-        setState("idle", "MIC ISSUE", "Voice input stopped. You can type your command.");
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        micLabel.textContent = "Tap anywhere to retry";
+        voiceHint.textContent = "Allow microphone access for this website in iPhone Settings or Safari, then tap Hands-free once to retry.";
+        setState("idle", "MIC PERMISSION", "Allow microphone access, then tap to retry.");
+      } else {
+        const message = event.error === "audio-capture"
+          ? "No microphone was found. Check iPhone microphone access."
+          : event.error === "network"
+            ? "Speech recognition network is unavailable. Check your connection."
+            : event.error === "no-speech"
+              ? "No speech detected. Say JOMY and try again."
+              : "Voice input paused (" + event.error + "). Tap the microphone to retry.";
+        voiceHint.textContent = message;
+        setState("idle", "VOICE PAUSED", message);
       }
     };
     recognition.onend = () => {
+      recognitionStarting = false;
       listening = false;
-      if (handsFree && !busy && !(window.speechSynthesis && window.speechSynthesis.speaking)) {
+      if (handsFree && !recognitionBlocked && !busy && !speakingReply && !(window.speechSynthesis && window.speechSynthesis.speaking)) {
         startRecognition();
       } else if (!handsFree && !busy && orbStage.dataset.state === "listening") {
         micLabel.textContent = "Tap to speak";
@@ -183,12 +229,73 @@
       }
     };
   }
+  async function callMcp(action, extra = {}) {
+    if (!endpoint || !ownerToken || !mcpClientToken) throw new Error("Settings mein Agent endpoint, Agent owner token aur JOMY MCP Client token set karo.");
+    const mcpEndpoint = endpoint.replace(/\/api\/agent\/chat\/?$/, "/api/agent/mcp");
+    if (mcpEndpoint === endpoint) throw new Error("Agent API URL ka path /api/agent/chat hona chahiye.");
+    const response = await fetch(mcpEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ownerToken },
+      body: JSON.stringify({ action, mcpToken: mcpClientToken, ...extra })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "MCP request failed (HTTP " + response.status + ").");
+    return data;
+  }
+
+  async function testMcpConnection() {
+    const previous = $("testMcpConnection").textContent;
+    $("testMcpConnection").disabled = true;
+    $("testMcpConnection").textContent = "Testing…";
+    try {
+      endpoint = endpointInput.value.trim();
+      ownerToken = agentTokenInput.value.trim();
+      mcpClientToken = mcpTokenInput.value.trim();
+      if (ownerToken) sessionStorage.setItem(STORAGE_TOKEN, ownerToken);
+      if (mcpClientToken) sessionStorage.setItem(STORAGE_MCP_TOKEN, mcpClientToken);
+      const data = await callMcp("status");
+      const server = data.system?.status || "unknown";
+      const telegram = data.telegram?.configured ? "configured" : "not configured";
+      $("settingsNote").textContent = "MCP connected · Server: " + server + " · Telegram: " + telegram + ".";
+      setConnection(true, "MCP Connected");
+    } catch (error) {
+      $("settingsNote").textContent = error.message;
+      setConnection(false, "MCP not connected");
+    } finally {
+      $("testMcpConnection").disabled = false;
+      $("testMcpConnection").textContent = previous;
+    }
+  }
+
   async function sendMessage(rawText) {
     const text = rawText.trim();
     if (!text || busy) return;
     addMessage("user", text);
     messageInput.value = "";
     messageInput.style.height = "auto";
+    const telegramText = extractTelegramMessage(text);
+    if (telegramText) {
+      busy = true;
+      $("sendButton").disabled = true;
+      setState("thinking", "PREPARING TELEGRAM", "Creating an approval request. Nothing will be sent yet.");
+      try {
+        const prepared = await callMcp("prepare_telegram", { text: telegramText });
+        const notice = "Telegram request prepared. Nothing was sent. Approval ID: " + prepared.approvalId + ". Open JOMY MCP Owner Admin and approve this exact request before the message is sent.";
+        addMessage("agent", notice);
+        speak(notice);
+        setConnection(true, "MCP Connected");
+      } catch (error) {
+        const notice = "Telegram request was not prepared: " + error.message + ". No message was sent.";
+        addMessage("agent", notice);
+        speak(notice);
+        setConnection(false, "MCP connection issue");
+      } finally {
+        busy = false;
+        $("sendButton").disabled = false;
+        if (handsFree && !listening && !(window.speechSynthesis && window.speechSynthesis.speaking)) startRecognition();
+      }
+      return;
+    }
     if (!endpoint) {
       const notice = "I received your message, but the standalone AI chat backend is not connected yet. Add your private HTTPS chat API in Settings to start chatting.";
       addMessage("agent", notice);
@@ -204,7 +311,14 @@
         headers: { "Content-Type": "application/json", ...(ownerToken ? { "Authorization": "Bearer " + ownerToken } : {}) },
         body: JSON.stringify({ message: text, sessionId, locale: "hi-IN", client: "jomy-autonomous-agent" })
       });
-      if (!response.ok) throw new Error("Agent endpoint returned HTTP " + response.status);
+      if (!response.ok) {
+        let detail = "Agent endpoint returned HTTP " + response.status;
+        try {
+          const errorData = await response.json();
+          if (typeof errorData.error === "string") detail = errorData.error;
+        } catch (_) {}
+        throw new Error(detail);
+      }
       const data = await response.json();
       const reply = typeof data.reply === "string" ? data.reply : typeof data.message === "string" ? data.message : "";
       if (!reply) throw new Error("The agent response did not include a reply string.");
@@ -227,6 +341,12 @@
 
   setupRecognition();
   setConnection(false, endpoint ? "Endpoint saved · not tested" : "Not connected");
+  handsFreeButton.textContent = handsFree ? "Hands-free: On" : "Hands-free: Off";
+  handsFreeButton.setAttribute("aria-pressed", String(handsFree));
+  if (handsFree) {
+    voiceHint.textContent = "Tap Hands-free once to start. Say “JOMY”, wait for “हाँ, बोलिए”, then speak your command. Keep this page open; iPhone may pause listening in the background or when locked.";
+    startRecognition();
+  }
   soundButton.setAttribute("aria-pressed", String(soundOn));
   soundButton.textContent = soundOn ? "◖))" : "◖×";
   micButton.addEventListener("click", () => {
@@ -234,13 +354,25 @@
     if (handsFree) stopHandsFree();
     else if (listening) stopListening();
     else {
-      try { recognition.start(); } catch (_) { setState("idle", "MIC BUSY", "Wait a moment, then try again."); }
+      recognitionBlocked = false;
+      recognitionStarting = true;
+      try { recognition.start(); } catch (_) { recognitionStarting = false; setState("idle", "MIC PAUSED", "Wait a moment, then tap to retry."); }
     }
   });
   handsFreeButton.addEventListener("click", () => {
     if (!recognition) return;
-    if (handsFree) { stopHandsFree(); return; }
+    if (handsFree && listening) {
+      stopHandsFree();
+      return;
+    }
+    if (handsFree && !listening) {
+      recognitionBlocked = false;
+      startRecognition();
+      return;
+    }
     handsFree = true;
+    recognitionBlocked = false;
+    localStorage.setItem(STORAGE_HANDSFREE, "true");
     waitingForCommand = false;
     handsFreeButton.textContent = "Hands-free: On";
     handsFreeButton.setAttribute("aria-pressed", "true");
@@ -252,7 +384,11 @@
     localStorage.setItem(STORAGE_SOUND, String(soundOn));
     soundButton.setAttribute("aria-pressed", String(soundOn));
     soundButton.textContent = soundOn ? "◖))" : "◖×";
-    if (!soundOn && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (!soundOn && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      speakingReply = false;
+      if (handsFree) startRecognition();
+    }
   });
   chatForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -277,6 +413,7 @@
   $("settingsButton").addEventListener("click", () => {
     endpointInput.value = endpoint;
     agentTokenInput.value = ownerToken;
+    mcpTokenInput.value = mcpClientToken;
     $("settingsNote").textContent = "";
     settingsDialog.showModal();
   });
@@ -287,22 +424,29 @@
       if (url.protocol !== "https:" && url.hostname !== "localhost") throw new Error("Use HTTPS for the agent endpoint.");
       endpoint = url.toString();
       ownerToken = agentTokenInput.value.trim();
+      mcpClientToken = mcpTokenInput.value.trim();
       localStorage.setItem(STORAGE_ENDPOINT, endpoint);
       if (ownerToken) sessionStorage.setItem(STORAGE_TOKEN, ownerToken);
       else sessionStorage.removeItem(STORAGE_TOKEN);
+      if (mcpClientToken) sessionStorage.setItem(STORAGE_MCP_TOKEN, mcpClientToken);
+      else sessionStorage.removeItem(STORAGE_MCP_TOKEN);
       setConnection(false, "Endpoint saved · not tested");
       $("settingsNote").textContent = "Saved on this device. Send a message to test the connection.";
     } catch (error) {
       $("settingsNote").textContent = error.message || "Enter a valid HTTPS URL.";
     }
   });
+  $("testMcpConnection").addEventListener("click", testMcpConnection);
   $("clearEndpoint").addEventListener("click", () => {
     endpoint = "";
     localStorage.removeItem(STORAGE_ENDPOINT);
     endpointInput.value = "";
     ownerToken = "";
+    mcpClientToken = "";
     agentTokenInput.value = "";
+    mcpTokenInput.value = "";
     sessionStorage.removeItem(STORAGE_TOKEN);
+    sessionStorage.removeItem(STORAGE_MCP_TOKEN);
     setConnection(false, "Not connected");
     $("settingsNote").textContent = "Disconnected on this device.";
   });

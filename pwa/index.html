@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#f5f7fb">
-  <meta name="description" content="JOMY Autonomous Agent — a private voice-first command interface.">
+  <meta name="theme-color" content="#05070d">
+  <meta name="description" content="JOMY — a private, voice-first personal AI command interface.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="JOMY Agent">
@@ -24,8 +24,8 @@
       </div>
     </header>
     <section class="hero" aria-labelledby="agentTitle">
-      <p class="eyebrow">PERSONAL COMMAND INTELLIGENCE</p>
-      <h1 id="agentTitle">I'm listening<span class="gold-dot">.</span></h1>
+      <p class="eyebrow">YOUR PERSONAL AI COMPANION</p>
+      <h1 id="agentTitle">JOMY<span class="gold-dot">.</span></h1>
       <p class="subline" id="statusText" aria-live="polite">Your command center. Speak or type to begin.</p>
       <div class="orb-stage" id="orbStage" data-state="idle">
         <div class="orb-aura"></div><div class="orb-ring ring-one"></div><div class="orb-ring ring-two"></div>
@@ -37,11 +37,12 @@
         <button class="handsfree-button" id="handsFreeButton" type="button" aria-pressed="false">Hands-free: Off</button>
         <button class="sound-button" id="soundButton" aria-pressed="true" aria-label="Toggle spoken replies">◖))</button>
       </div>
-      <p class="voice-hint" id="voiceHint">Voice input availability depends on your browser. iPhone keyboard dictation is a fallback.</p>
+      <p class="voice-hint" id="voiceHint">Tap Hands-free once to start. Say “JOMY” and then give your command. Keep this page open while using voice.</p>
     </section>
     <section class="composer" aria-label="Message the agent">
       <form id="chatForm"><label class="sr-only" for="messageInput">Your command</label><textarea id="messageInput" rows="1" maxlength="4000" placeholder="Tell JOMY what you need…" enterkeyhint="send"></textarea><button class="send-button" id="sendButton" type="submit" aria-label="Send message">↑</button></form>
       <div class="composer-foot"><span>PRIVATE SESSION</span><span>Enter to send · Shift + Enter for new line</span></div>
+      <p class="voice-hint">Telegram command: “Telegram par bhejo: [message]”. JOMY only prepares it; Owner approval is required before sending.</p>
     </section>
     <section class="activity" aria-label="Recent conversation">
       <button class="activity-toggle" id="activityToggle" aria-expanded="false"><span><i class="activity-dot"></i> RECENT ACTIVITY</span><span id="activityCount">0 messages</span><b id="activityChevron">＋</b></button>
@@ -54,11 +55,13 @@
     <div class="dialog-body">
       <label for="endpointInput">Secure API URL</label><input id="endpointInput" type="url" placeholder="https://your-agent.example.com/api/agent/chat" autocomplete="url">
       <label for="agentTokenInput" style="display:block;margin-top:14px">Owner access token</label><input id="agentTokenInput" type="password" placeholder="Private token · saved on this iPhone" autocomplete="off" autocapitalize="none" spellcheck="false">
-      <p>Use an HTTPS endpoint you control. The URL is saved in this browser; the dedicated agent access token stays only for this browser session. Never enter your MCP owner token, provider API keys, GitHub tokens or Cloudflare tokens here.</p>
+      <label for="mcpTokenInput" style="display:block;margin-top:14px">JOMY MCP Client token</label><input id="mcpTokenInput" type="password" placeholder="Dedicated Client token only" autocomplete="off" autocapitalize="none" spellcheck="false">
+      <button class="quiet-button" id="testMcpConnection" type="button" style="margin-top:12px">Test MCP connection</button>
+      <p>Use an HTTPS endpoint you control. The URL is saved in this browser; the dedicated agent access token stays only for this browser session. Use only a dedicated JOMY MCP Client token (not the MCP Owner token). The MCP token is kept in this browser session and sent through your authenticated Agent Worker; never paste secrets into chat.</p>
       <div class="dialog-actions"><button class="quiet-button" id="clearEndpoint" type="button">Disconnect</button><button class="primary-button" id="saveEndpoint" type="button">Save endpoint</button></div>
       <p class="settings-note" id="settingsNote" role="status"></p>
     </div>
   </dialog>
-  <script src="/app.js" defer></script>
+  <script type="module" src="/app.js"></script>
 </body>
 </html>
