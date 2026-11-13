@@ -10,7 +10,7 @@ Standalone, compact, iPhone-first voice interface with a humanoid-inspired anima
 - Installable PWA shell and offline caching for static assets.
 
 ## Backend API (source only; not deployed)
-A standalone Cloudflare Worker API lives in `src/worker.js`. It provides owner bearer-token authentication and Cloudflare Workers AI chat. It has no MCP integration, Telegram integration, external service tools, financial actions, secret changes, deletes, or deployments.
+A standalone Cloudflare Worker API source copy lives in `src/worker.js`; the existing API Worker is managed and deployed separately. It provides owner bearer-token authentication and Cloudflare Workers AI chat. It has no MCP integration, Telegram integration, external service tools, financial actions, secret changes, deletes, or deployments.
 
 ### Required Worker configuration
 1. Enable the Workers AI binding in Cloudflare.
@@ -18,7 +18,7 @@ A standalone Cloudflare Worker API lives in `src/worker.js`. It provides owner b
 3. Set `ALLOWED_ORIGIN` to the exact HTTPS origin hosting this standalone UI.
 4. Deploy only after separate explicit deployment approval.
 
-The model uses `@cf/meta/llama-3.1-8b-instruct` through Workers AI. Confirm account availability and free daily allowance in Cloudflare first; usage beyond any free allowance may be billable.
+The model source is `@cf/openai/gpt-oss-20b` through Workers AI. Keep this source aligned with the separately managed Worker deployment. Confirm account availability and free daily allowance in Cloudflare first; usage beyond any free allowance may be billable.
 
 ## Local API development
 Requires Node.js/npm and Wrangler. Run `npm install`, configure the local secret and AI binding, then `npm run dev:api`. Health endpoint: `/health`; chat endpoint: `POST /api/agent/chat`.
