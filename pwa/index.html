@@ -54,7 +54,9 @@
     <div class="dialog-body">
       <label for="endpointInput">Secure API URL</label><input id="endpointInput" type="url" placeholder="https://your-agent.example.com/api/agent/chat" autocomplete="url">
       <label for="agentTokenInput" style="display:block;margin-top:14px">Owner access token</label><input id="agentTokenInput" type="password" placeholder="Private token · saved on this iPhone" autocomplete="off" autocapitalize="none" spellcheck="false">
-      <p>Use an HTTPS endpoint you control. The URL is saved in this browser; the dedicated agent access token stays only for this browser session. Never enter your MCP owner token, provider API keys, GitHub tokens or Cloudflare tokens here.</p>
+      <label for="mcpTokenInput" style="display:block;margin-top:14px">JOMY MCP Client token</label><input id="mcpTokenInput" type="password" placeholder="Dedicated Client token only" autocomplete="off" autocapitalize="none" spellcheck="false">
+      <button class="quiet-button" id="testMcpConnection" type="button" style="margin-top:12px">Test MCP connection</button>
+      <p>Use an HTTPS endpoint you control. The URL is saved in this browser; the dedicated agent access token stays only for this browser session. Use only a dedicated JOMY MCP Client token (not the MCP Owner token). The MCP token is kept in this browser session and sent through your authenticated Agent Worker; never paste secrets into chat.</p>
       <div class="dialog-actions"><button class="quiet-button" id="clearEndpoint" type="button">Disconnect</button><button class="primary-button" id="saveEndpoint" type="button">Save endpoint</button></div>
       <p class="settings-note" id="settingsNote" role="status"></p>
     </div>
