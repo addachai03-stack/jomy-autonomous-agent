@@ -29,6 +29,7 @@
   let listening = false;
   let recognitionBlocked = false;
   let recognitionStarting = false;
+  let speakingReply = false;
   let handsFree = localStorage.getItem(STORAGE_HANDSFREE) === "true";
   let waitingForCommand = false;
   let busy = false;
@@ -66,6 +67,7 @@
   }
   function speak(text) {
     if (!soundOn || !("speechSynthesis" in window)) {
+      speakingReply = false;
       if (handsFree) startRecognition();
       return;
     }
@@ -74,18 +76,24 @@
       listening = false;
     }
     window.speechSynthesis.cancel();
+    speakingReply = true;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "hi-IN";
     utterance.rate = 1;
     utterance.onstart = () => setState("speaking", "SPEAKING", "JOMY is replying.");
     utterance.onend = () => {
+      speakingReply = false;
       setState("idle", handsFree ? "HANDS-FREE ACTIVE" : "READY", handsFree ? "Say JOMY, then give your command." : "Your command center. Speak or type to begin.");
+      if (handsFree) startRecognition();
+    };
+    utterance.onerror = () => {
+      speakingReply = false;
       if (handsFree) startRecognition();
     };
     window.speechSynthesis.speak(utterance);
   }
   function startRecognition() {
-    if (!recognition || !handsFree || busy || listening || recognitionStarting || recognitionBlocked) return;
+    if (!recognition || !handsFree || busy || listening || recognitionStarting || recognitionBlocked || speakingReply) return;
     try {
       recognitionStarting = true;
       recognition.start();
@@ -218,7 +226,7 @@
     recognition.onend = () => {
       recognitionStarting = false;
       listening = false;
-      if (handsFree && !recognitionBlocked && !busy && !(window.speechSynthesis && window.speechSynthesis.speaking)) {
+      if (handsFree && !recognitionBlocked && !busy && !speakingReply && !(window.speechSynthesis && window.speechSynthesis.speaking)) {
         startRecognition();
       } else if (!handsFree && !busy && orbStage.dataset.state === "listening") {
         micLabel.textContent = "Tap to speak";
@@ -320,7 +328,11 @@
     localStorage.setItem(STORAGE_SOUND, String(soundOn));
     soundButton.setAttribute("aria-pressed", String(soundOn));
     soundButton.textContent = soundOn ? "◖))" : "◖×";
-    if (!soundOn && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (!soundOn && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      speakingReply = false;
+      if (handsFree) startRecognition();
+    }
   });
   chatForm.addEventListener("submit", (event) => {
     event.preventDefault();
