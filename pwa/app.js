@@ -1,4 +1,4 @@
-import { parseWakeCommand } from "./voice-utils.js";
+import { parseWakeCommand, extractTelegramMessage } from "./voice-utils.js";
 
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -229,18 +229,6 @@ import { parseWakeCommand } from "./voice-utils.js";
       }
     };
   }
-  function extractTelegramMessage(text) {
-    const patterns = [
-      /^(?:telegram|टेलीग्राम)\s+(?:par|pe|पर|पे)\s+(?:message\s+)?(?:bhejo|bhej\s+do|send\s+karo|भेजो|भेज\s+दो|संदेश\s+भेजो)\s*[:,-]?\s*([\s\S]+)$/i,
-      /^(?:send|bhejo)\s+(?:this\s+)?on\s+telegram\s*[:,-]?\s*([\s\S]+)$/i
-    ];
-    for (const pattern of patterns) {
-      const match = text.trim().match(pattern);
-      if (match && match[1]?.trim()) return match[1].trim();
-    }
-    return null;
-  }
-
   async function callMcp(action, extra = {}) {
     if (!endpoint || !ownerToken || !mcpClientToken) throw new Error("Settings mein Agent endpoint, Agent owner token aur JOMY MCP Client token set karo.");
     const mcpEndpoint = endpoint.replace(/\/api\/agent\/chat\/?$/, "/api/agent/mcp");
