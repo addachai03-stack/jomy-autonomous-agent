@@ -359,3 +359,86 @@ test("chat classifies AI rate limits without exposing provider details", async (
   assert.match(data.error, /rate-limited/);
   assert.doesNotMatch(JSON.stringify(data), /private provider detail/);
 });
+
+
+test("task planning requires owner authentication and validates task input", async () => {
+  const unauthenticated = await worker.fetch(makeRequest("/api/agent/plan", {
+    body: JSON.stringify({ task: "Plan my day" })
+  }), makeEnv());
+  assert.equal(unauthenticated.status, 401);
+
+  for (const task of [" ", "x".repeat(4001)]) {
+    const invalid = await worker.fetch(makeRequest("/api/agent/plan", {
+      headers: { Authorization: "Bearer " + OWNER_TOKEN },
+      body: JSON.stringify({ task })
+    }), makeEnv());
+    assert.equal(invalid.status, 400);
+  }
+});
+
+test("task planner returns validated steps and never claims execution", async () => {
+  const response = await worker.fetch(makeRequest("/api/agent/plan", {
+    headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
+    body: JSON.stringify({ task: "Plan my day" })
+  }), makeEnv({
+    AI: {
+      async run(model, input) {
+        assert.equal(model, "@cf/openai/gpt-oss-20b");
+        assert.match(input.messages[0].content, /Return ONLY one JSON object/);
+        return { response: JSON.stringify({
+          summary: "Make a practical daily plan",
+          steps: ["List priorities", "Order tasks by urgency"],
+          actionType: "none"
+        }) };
+      }
+    }
+  }));
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.status, "planned");
+  assert.equal(data.executed, false);
+  assert.deepEqual(data.plan.steps, ["List priorities", "Order tasks by urgency"]);
+  assert.equal(data.plan.actionType, "none");
+});
+
+test("task planner gates Telegram preparation and blocks unknown external actions", async () => {
+  const telegram = await worker.fetch(makeRequest("/api/agent/plan", {
+    headers: { Authorization: "Bearer " + OWNER_TOKEN },
+    body: JSON.stringify({ task: "Telegram par bhejo: Namaste" })
+  }), makeEnv({
+    AI: { async run() { return { response: JSON.stringify({
+      summary: "Prepare Telegram message",
+      steps: ["Review the exact message"],
+      actionType: "telegram.prepare"
+    }) }; } }
+  }));
+  const telegramData = await telegram.json();
+  assert.equal(telegramData.plan.actionType, "telegram.prepare");
+  assert.equal(telegramData.plan.requiresApproval, true);
+  assert.equal(telegramData.executed, false);
+
+  const unsupported = await worker.fetch(makeRequest("/api/agent/plan", {
+    headers: { Authorization: "Bearer " + OWNER_TOKEN },
+    body: JSON.stringify({ task: "Transfer money to my friend" })
+  }), makeEnv({
+    AI: { async run() { return { response: JSON.stringify({
+      summary: "Review transfer request",
+      steps: ["Verify recipient details"],
+      actionType: "financial.transfer"
+    }) }; } }
+  }));
+  const unsupportedData = await unsupported.json();
+  assert.equal(unsupportedData.plan.actionType, "unsupported");
+  assert.equal(unsupportedData.plan.requiresApproval, true);
+});
+
+test("task planner rejects malformed model output without performing actions", async () => {
+  const response = await worker.fetch(makeRequest("/api/agent/plan", {
+    headers: { Authorization: "Bearer " + OWNER_TOKEN },
+    body: JSON.stringify({ task: "Plan a project" })
+  }), makeEnv({ AI: { async run() { return { response: "not json" }; } } }));
+  assert.equal(response.status, 502);
+  const data = await response.json();
+  assert.equal(data.code, "TASK_PLAN_FAILED");
+  assert.match(data.error, /No action was performed/);
+});
