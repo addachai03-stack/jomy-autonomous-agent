@@ -28,6 +28,8 @@ jobs:
         run: node --check pwa/app.js
       - name: Validate voice utility module syntax
         run: node --check pwa/voice-utils.js
+      - name: Validate MCP bridge JavaScript syntax
+        run: node --check src/mcp-client.js && node --check src/worker.js
       - name: Validate PWA manifest JSON
         run: node -e "JSON.parse(require('node:fs').readFileSync('pwa/manifest.json', 'utf8'))"
       - name: Run Worker API tests
