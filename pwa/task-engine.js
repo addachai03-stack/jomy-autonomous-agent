@@ -73,6 +73,24 @@ export function transitionTask(task, nextState, details = {}, now = Date.now()) 
   return updated;
 }
 
+export function recoverInterruptedTasks(queue, now = Date.now()) {
+  if (!Array.isArray(queue)) return [];
+  return queue.map(task => {
+    if (!task || ![TASK_STATES.PLANNING, TASK_STATES.RUNNING, TASK_STATES.RETRY_WAIT].includes(task.status)) return task;
+    const reason = task.status === TASK_STATES.PLANNING
+      ? "App closed or refreshed while planning. Review and retry the plan."
+      : task.status === TASK_STATES.RUNNING
+        ? "App closed or refreshed during a task. No completion was confirmed; review before retrying."
+        : "A scheduled retry was interrupted by an app restart. Review and retry when ready.";
+    return {
+      ...task,
+      status: TASK_STATES.FAILED,
+      lastError: reason,
+      updatedAt: timestamp(now)
+    };
+  });
+}
+
 export function retryTask(task, now = Date.now()) {
   if (!task || ![TASK_STATES.FAILED, TASK_STATES.RETRY_WAIT].includes(task.status)) {
     throw new Error("Only failed or retry-wait tasks can be retried.");
