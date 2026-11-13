@@ -23,7 +23,7 @@ function makeEnv(overrides = {}) {
     ALLOWED_ORIGIN: ORIGIN,
     AI: {
       async run(model, input) {
-        assert.equal(model, "@cf/meta/llama-3.1-8b-instruct");
+        assert.equal(model, "@cf/openai/gpt-oss-20b");
         assert.equal(input.messages.at(-1).role, "user");
         return { response: "Namaste! Main JOMY hoon." };
       }
