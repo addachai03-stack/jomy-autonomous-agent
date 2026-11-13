@@ -1,4 +1,4 @@
-const MODEL = "@cf/meta/llama-3.1-8b-instruct";
+const MODEL = "@cf/openai/gpt-oss-20b";
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_BODY_BYTES = 16_384;
 
