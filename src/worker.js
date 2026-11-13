@@ -106,7 +106,9 @@ export default {
         originConfigured
       });
     }
-    if (url.pathname !== "/api/agent/chat" || request.method !== "POST") {
+    const isChatRoute = url.pathname === "/api/agent/chat";
+    const isMcpRoute = url.pathname === "/api/agent/mcp";
+    if ((!isChatRoute && !isMcpRoute) || request.method !== "POST") {
       return json({ error: "Not found" }, 404, corsOrigin);
     }
     if (origin && (!corsOrigin || !allowedOrigin)) return json({ error: "Origin not allowed" }, 403);
