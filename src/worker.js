@@ -1,4 +1,4 @@
-import { getMcpStatus, prepareTelegramMessage } from "./mcp-client.js";
+import { getMcpStatus, getApprovalStatus, prepareTelegramMessage } from "./mcp-client.js";
 import { parseTaskPlan } from "./task-planner.js";
 
 const MODEL = "@cf/openai/gpt-oss-20b";
@@ -208,6 +208,23 @@ export default {
             system: status.system,
             telegram: status.telegram,
             capabilities: ["mcp_status", "telegram_prepare"]
+          }, 200, corsOrigin);
+        }
+        if (payload.action === "approval_status") {
+          const approvalId = typeof payload.approvalId === "string" ? payload.approvalId.trim() : "";
+          if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(approvalId)) {
+            return json({ error: "A valid approval ID is required." }, 400, corsOrigin);
+          }
+          const approval = await getApprovalStatus(mcpToken, approvalId);
+          return json({
+            status: "approval_status",
+            approval: {
+              id: approval.id,
+              action: approval.action,
+              status: approval.status,
+              createdAt: approval.createdAt,
+              expiresAt: approval.expiresAt
+            }
           }, 200, corsOrigin);
         }
         if (payload.action === "prepare_telegram") {
