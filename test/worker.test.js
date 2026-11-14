@@ -171,192 +171,13 @@ test("chat converts model failures to a safe 502 response", async () => {
 });
 
 
-const MCP_CLIENT_TOKEN = "test-mcp-client-token-long-enough-for-unit-tests";
-
-function withMockMcpFetch(handler) {
-  const original = globalThis.fetch;
-  globalThis.fetch = handler;
-  return () => { globalThis.fetch = original; };
-}
-
-function mockRestResponse(tool, args = {}) {
-  if (tool === "system_status") return Response.json({ ok: true, result: { content: [{ type: "text", text: JSON.stringify({ status: "online", financialActions: "disabled" }) }] } });
-  if (tool === "telegram_status") return Response.json({ ok: true, result: { content: [{ type: "text", text: JSON.stringify({ configured: true, botTokenPresent: true, ownerChatIdPresent: true }) }] } });
-  if (tool === "get_approval_status") return Response.json({ ok: true, result: { content: [{ type: "text", text: JSON.stringify({ approvalId: args.approvalId, action: "telegram.send_message", status: "pending", createdAt: "2026-11-14T10:00:00.000Z", expiresAt: "2026-11-14T10:05:00.000Z", args: { text: "must not leak" } }) }] } });
-  if (tool === "prepare_action") return Response.json({ ok: true, result: { content: [{ type: "text", text: JSON.stringify({ approvalId: "123e4567-e89b-42d3-a456-426614174000", status: "pending_owner_approval", expiresAt: "2026-11-13T17:00:00.000Z" }) }] } });
-  return Response.json({ ok: true, result: { content: [{ type: "text", text: "unknown tool" }], isError: true } });
-}
-
-test("MCP bridge requires the Agent owner token", async () => {
+test("MCP bridge route is no longer exposed by the Agent Worker", async () => {
   const response = await worker.fetch(makeRequest("/api/agent/mcp", {
-    headers: { Origin: ORIGIN },
-    body: JSON.stringify({ action: "status", mcpToken: MCP_CLIENT_TOKEN })
+    headers: { Authorization: "Bearer " + OWNER_TOKEN },
+    body: JSON.stringify({ action: "status", mcpToken: "unused" })
   }), makeEnv());
-  assert.equal(response.status, 401);
+  assert.equal(response.status, 404);
 });
-
-test("MCP bridge rejects missing or short client tokens without contacting MCP", async () => {
-  let called = false;
-  const restore = withMockMcpFetch(async () => { called = true; throw new Error("must not call"); });
-  try {
-    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
-      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
-      body: JSON.stringify({ action: "status", mcpToken: "short" })
-    }), makeEnv());
-    assert.equal(response.status, 400);
-    assert.equal(called, false);
-  } finally { restore(); }
-});
-
-test("MCP status bridge uses the REST adapter and returns safe integration status", async () => {
-  const calls = [];
-  const restore = withMockMcpFetch(async (url, options) => {
-    const body = options.method === "POST" && options.body ? JSON.parse(options.body) : {};
-    calls.push({ method: options.method, tool: body.tool });
-    return mockRestResponse(body.tool, body.arguments);
-  });
-  try {
-    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
-      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
-      body: JSON.stringify({ action: "status", mcpToken: MCP_CLIENT_TOKEN })
-    }), makeEnv());
-    assert.equal(response.status, 200);
-    const data = await response.json();
-    assert.equal(data.status, "connected");
-    assert.equal(data.system.status, "online");
-    assert.equal(data.telegram.configured, true);
-    assert.deepEqual(data.capabilities, ["mcp_status", "telegram_prepare"]);
-    assert.ok(calls.some(call => call.tool === "system_status"));
-    assert.ok(calls.some(call => call.tool === "telegram_status"));
-    assert.equal(calls.length, 2);
-    assert.ok(calls.every(call => call.method === "POST"));
-  } finally { restore(); }
-});
-
-test("approval status bridge returns only the safe status fields", async () => {
-  const calls = [];
-  const restore = withMockMcpFetch(async (url, options) => {
-    const body = options.method === "POST" && options.body ? JSON.parse(options.body) : {};
-    calls.push({ method: options.method, tool: body.tool, args: body.arguments });
-    return mockRestResponse(body.tool, body.arguments);
-  });
-  try {
-    const approvalId = "123e4567-e89b-42d3-a456-426614174000";
-    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
-      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
-      body: JSON.stringify({ action: "approval_status", mcpToken: MCP_CLIENT_TOKEN, approvalId })
-    }), makeEnv());
-    assert.equal(response.status, 200);
-    const data = await response.json();
-    assert.equal(data.approval.id, approvalId);
-    assert.equal(data.approval.status, "pending");
-    assert.equal(data.approval.action, "telegram.send_message");
-    assert.equal("args" in data.approval, false);
-    assert.ok(calls.some(call => call.tool === "get_approval_status" && call.args.approvalId === approvalId));
-  } finally { restore(); }
-});
-
-test("approval status bridge rejects malformed IDs before contacting MCP", async () => {
-  let called = false;
-  const restore = withMockMcpFetch(async () => { called = true; throw new Error("must not call"); });
-  try {
-    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
-      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
-      body: JSON.stringify({ action: "approval_status", mcpToken: MCP_CLIENT_TOKEN, approvalId: "not-a-uuid" })
-    }), makeEnv());
-    assert.equal(response.status, 400);
-    assert.equal(called, false);
-  } finally { restore(); }
-});
-
-test("Telegram bridge only prepares an owner approval and never executes a send", async () => {
-  const calls = [];
-  const restore = withMockMcpFetch(async (url, options) => {
-    const body = options.method === "POST" && options.body ? JSON.parse(options.body) : {};
-    calls.push({ method: options.method, tool: body.tool, args: body.arguments });
-    return mockRestResponse(body.tool, body.arguments);
-  });
-  try {
-    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
-      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
-      body: JSON.stringify({ action: "prepare_telegram", mcpToken: MCP_CLIENT_TOKEN, text: "Hello from JOMY" })
-    }), makeEnv());
-    assert.equal(response.status, 200);
-    const data = await response.json();
-    assert.equal(data.status, "pending_owner_approval");
-    assert.equal(data.approvalId, "123e4567-e89b-42d3-a456-426614174000");
-    const prepareCall = calls.find(call => call.tool === "prepare_action");
-    assert.equal(prepareCall.args.action, "telegram.send_message");
-    assert.equal(prepareCall.args.args.text, "Hello from JOMY");
-    assert.equal(calls.some(call => call.tool === "approve_and_execute"), false);
-  } finally { restore(); }
-});
-
-
-test("MCP bridge returns a safe actionable diagnostic when the Client token is rejected", async () => {
-  const restore = withMockMcpFetch(async () => new Response("unauthorized", { status: 401 }));
-  try {
-    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
-      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
-      body: JSON.stringify({ action: "status", mcpToken: MCP_CLIENT_TOKEN })
-    }), makeEnv());
-    assert.equal(response.status, 502);
-    const data = await response.json();
-    assert.equal(data.code, "MCP_AUTH_REJECTED");
-    assert.match(data.error, /dedicated Client token/);
-    assert.doesNotMatch(JSON.stringify(data), new RegExp(MCP_CLIENT_TOKEN));
-  } finally { restore(); }
-});
-
-test("MCP bridge hides upstream exception details and never echoes credentials", async () => {
-  const privateDetail = "provider-private-detail-" + MCP_CLIENT_TOKEN;
-  const restore = withMockMcpFetch(async () => { throw new Error(privateDetail); });
-  try {
-    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
-      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
-      body: JSON.stringify({ action: "status", mcpToken: MCP_CLIENT_TOKEN })
-    }), makeEnv());
-    assert.equal(response.status, 502);
-    const data = await response.json();
-    assert.equal(data.code, "MCP_UPSTREAM_ERROR");
-    assert.doesNotMatch(JSON.stringify(data), /provider-private-detail|test-mcp-client-token/);
-  } finally { restore(); }
-});
-
-
-test("MCP bridge exposes safe REST route diagnostics without upstream body text", async () => {
-  const restore = withMockMcpFetch(async () => new Response("private upstream body must not be exposed", { status: 405 }));
-  try {
-    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
-      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
-      body: JSON.stringify({ action: "status", mcpToken: MCP_CLIENT_TOKEN })
-    }), makeEnv());
-    assert.equal(response.status, 502);
-    const data = await response.json();
-    assert.equal(data.code, "MCP_ENDPOINT_MISMATCH");
-    assert.equal(data.stage, "system_status");
-    assert.equal(data.upstreamStatus, 405);
-    assert.match(data.error, /system_status \(HTTP 405\)/);
-    assert.doesNotMatch(JSON.stringify(data), /private upstream body|test-mcp-client-token/);
-  } finally { restore(); }
-});
-
-test("MCP bridge identifies a missing MCP route separately from authentication failures", async () => {
-  const restore = withMockMcpFetch(async () => new Response("not found", { status: 404 }));
-  try {
-    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
-      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
-      body: JSON.stringify({ action: "status", mcpToken: MCP_CLIENT_TOKEN })
-    }), makeEnv());
-    assert.equal(response.status, 502);
-    const data = await response.json();
-    assert.equal(data.code, "MCP_ENDPOINT_MISMATCH");
-    assert.equal(data.stage, "system_status");
-    assert.equal(data.upstreamStatus, 404);
-    assert.match(data.error, /during system_status \(HTTP 404\)/);
-  } finally { restore(); }
-});
-
 
 test("chat extracts text from supported Workers AI response shapes", async () => {
   const responses = [
@@ -439,35 +260,21 @@ test("task planner returns validated steps and never claims execution", async ()
   assert.equal(data.plan.actionType, "none");
 });
 
-test("task planner gates Telegram preparation and blocks unknown external actions", async () => {
-  const telegram = await worker.fetch(makeRequest("/api/agent/plan", {
+test("task planner blocks external integrations and financial actions", async () => {
+  const response = await worker.fetch(makeRequest("/api/agent/plan", {
     headers: { Authorization: "Bearer " + OWNER_TOKEN },
-    body: JSON.stringify({ task: "Telegram par bhejo: Namaste" })
+    body: JSON.stringify({ task: "Send a Telegram message" })
   }), makeEnv({
     AI: { async run() { return { response: JSON.stringify({
-      summary: "Prepare Telegram message",
-      steps: ["Review the exact message"],
-      actionType: "telegram.prepare"
+      summary: "External messaging is unavailable",
+      steps: ["Use a supported messaging app manually"],
+      actionType: "unsupported"
     }) }; } }
   }));
-  const telegramData = await telegram.json();
-  assert.equal(telegramData.plan.actionType, "telegram.prepare");
-  assert.equal(telegramData.plan.requiresApproval, true);
-  assert.equal(telegramData.executed, false);
-
-  const unsupported = await worker.fetch(makeRequest("/api/agent/plan", {
-    headers: { Authorization: "Bearer " + OWNER_TOKEN },
-    body: JSON.stringify({ task: "Transfer money to my friend" })
-  }), makeEnv({
-    AI: { async run() { return { response: JSON.stringify({
-      summary: "Review transfer request",
-      steps: ["Verify recipient details"],
-      actionType: "financial.transfer"
-    }) }; } }
-  }));
-  const unsupportedData = await unsupported.json();
-  assert.equal(unsupportedData.plan.actionType, "unsupported");
-  assert.equal(unsupportedData.plan.requiresApproval, true);
+  const data = await response.json();
+  assert.equal(data.plan.actionType, "unsupported");
+  assert.equal(data.plan.requiresApproval, true);
+  assert.equal(data.executed, false);
 });
 
 test("task planner rejects malformed model output without performing actions", async () => {
