@@ -197,6 +197,9 @@ function mockMcpResponse(method, params = {}) {
   if (method === "tools/call" && params.name === "telegram_status") {
     return Response.json({ jsonrpc: "2.0", id: 3, result: { content: [{ type: "text", text: JSON.stringify({ configured: true, botTokenPresent: true, ownerChatIdPresent: true }) }] } });
   }
+  if (method === "tools/call" && params.name === "get_approval_status") {
+    return Response.json({ jsonrpc: "2.0", id: 2, result: { content: [{ type: "text", text: JSON.stringify({ id: params.arguments.approvalId, action: "telegram.send_message", status: "pending", createdAt: "2026-11-14T10:00:00.000Z", expiresAt: "2026-11-14T10:05:00.000Z", args: { text: "must not leak" } }) }] } });
+  }
   if (method === "tools/call" && params.name === "prepare_action") {
     return Response.json({ jsonrpc: "2.0", id: 2, result: { content: [{ type: "text", text: JSON.stringify({ approvalId: "123e4567-e89b-42d3-a456-426614174000", status: "pending_owner_approval", expiresAt: "2026-11-13T17:00:00.000Z" }) }] } });
   }
@@ -247,6 +250,42 @@ test("MCP status bridge negotiates MCP and returns safe integration status", asy
     assert.ok(calls.some(call => call.tool === "system_status"));
     assert.ok(calls.some(call => call.tool === "telegram_status"));
     assert.ok(calls.some(call => call.method === "DELETE"));
+  } finally { restore(); }
+});
+
+test("approval status bridge returns only the safe status fields", async () => {
+  const calls = [];
+  const restore = withMockMcpFetch(async (url, options) => {
+    const body = options.method === "POST" && options.body ? JSON.parse(options.body) : {};
+    calls.push({ method: options.method, rpc: body.method, tool: body.params?.name, args: body.params?.arguments });
+    return mockMcpResponse(options.method === "DELETE" ? "DELETE" : body.method, body.params);
+  });
+  try {
+    const approvalId = "123e4567-e89b-42d3-a456-426614174000";
+    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
+      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
+      body: JSON.stringify({ action: "approval_status", mcpToken: MCP_CLIENT_TOKEN, approvalId })
+    }), makeEnv());
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.approval.id, approvalId);
+    assert.equal(data.approval.status, "pending");
+    assert.equal(data.approval.action, "telegram.send_message");
+    assert.equal("args" in data.approval, false);
+    assert.ok(calls.some(call => call.tool === "get_approval_status" && call.args.approvalId === approvalId));
+  } finally { restore(); }
+});
+
+test("approval status bridge rejects malformed IDs before contacting MCP", async () => {
+  let called = false;
+  const restore = withMockMcpFetch(async () => { called = true; throw new Error("must not call"); });
+  try {
+    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
+      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
+      body: JSON.stringify({ action: "approval_status", mcpToken: MCP_CLIENT_TOKEN, approvalId: "not-a-uuid" })
+    }), makeEnv());
+    assert.equal(response.status, 400);
+    assert.equal(called, false);
   } finally { restore(); }
 });
 
