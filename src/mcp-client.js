@@ -57,7 +57,8 @@ async function createMcpSession(token) {
     signal: AbortSignal.timeout(12000)
   });
   if (!(notification.ok || notification.status === 202)) {
-    const detail = await notification.text().catch(() => "");\n    throw new Error("MCP server returned HTTP " + notification.status + " during initialized notification" + (detail ? ": " + detail.slice(0, 240).replace(/[\\r\\n]+/g, " ") : ""));
+    const detail = await notification.text().catch(() => "");
+    throw new Error("MCP server returned HTTP " + notification.status + " during initialized notification" + (detail ? ": " + detail.slice(0, 240).replace(/[\\r\\n]+/g, " ") : ""));
   }
   return { headers, sessionId };
 }
