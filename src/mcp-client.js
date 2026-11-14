@@ -4,7 +4,7 @@ const PROTOCOL_VERSION = "2025-03-26";
 async function readMcpResult(response, stage = "request") {
   const type = response.headers.get("content-type") || "";
   const raw = await response.text();
-  if (!response.ok) throw new Error("MCP server returned HTTP " + response.status + " during " + stage + (raw ? ": " + raw.slice(0, 240).replace(/[\\r\\n]+/g, " ") : ""));
+  if (!response.ok) throw new Error("MCP server returned HTTP " + response.status + " during " + stage + (raw ? ": " + raw.slice(0, 240).replace(/[\r\n]+/g, " ") : ""));
   if (!raw) return {};
   if (type.includes("text/event-stream")) {
     const dataLines = raw.split(/\r?\n/).filter((line) => line.startsWith("data:"));
@@ -58,7 +58,7 @@ async function createMcpSession(token) {
   });
   if (!(notification.ok || notification.status === 202)) {
     const detail = await notification.text().catch(() => "");
-    throw new Error("MCP server returned HTTP " + notification.status + " during initialized notification" + (detail ? ": " + detail.slice(0, 240).replace(/[\\r\\n]+/g, " ") : ""));
+    throw new Error("MCP server returned HTTP " + notification.status + " during initialized notification" + (detail ? ": " + detail.slice(0, 240).replace(/[\r\n]+/g, " ") : ""));
   }
   return { headers, sessionId };
 }
