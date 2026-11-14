@@ -110,7 +110,7 @@ function extractAiReply(result) {
 function classifyMcpFailure(error) {
   const name = error && typeof error.name === "string" ? error.name : "";
   const message = error && typeof error.message === "string" ? error.message : "";
-  const stageMatch = message.match(/during (initialize|initialized notification|tools\/call [A-Za-z0-9_.-]+)/i);
+  const stageMatch = message.match(/during (initialized notification|initialize|tools\/call [A-Za-z0-9_.-]+)/i);
   const stage = stageMatch ? stageMatch[1] : "upstream request";
   if (name === "AbortError" || name === "TimeoutError") {
     return { code: "MCP_TIMEOUT", stage, message: "MCP server timed out during " + stage + ". Check MCP Worker availability." };
