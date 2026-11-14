@@ -273,8 +273,8 @@ test("Telegram bridge only prepares an owner approval and never executes a send"
   const calls = [];
   const restore = withMockMcpFetch(async (url, options) => {
     const body = options.method === "POST" && options.body ? JSON.parse(options.body) : {};
-    calls.push({ method: options.method, rpc: body.method, tool: body.params?.name, args: body.params?.arguments });
-    return mockMcpResponse(options.method === "DELETE" ? "DELETE" : body.method, body.params);
+    calls.push({ method: options.method, tool: body.tool, args: body.arguments });
+    return mockRestResponse(body.tool, body.arguments);
   });
   try {
     const response = await worker.fetch(makeRequest("/api/agent/mcp", {
