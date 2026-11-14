@@ -15,17 +15,21 @@
   const settingsDialog = $("settingsDialog");
   const endpointInput = $("endpointInput");
   const agentTokenInput = $("agentTokenInput");
+  const mcpTokenInput = $("mcpTokenInput");
   const connection = $("connection");
   const voiceHint = $("voiceHint");
   const STORAGE_ENDPOINT = "jomy_agent_endpoint_v1";
   const STORAGE_SOUND = "jomy_agent_sound_v1";
   const STORAGE_TOKEN = "jomy_agent_owner_token_v1";
+  const STORAGE_MCP_TOKEN = "jomy_agent_mcp_client_token_v1";
   let endpoint = localStorage.getItem(STORAGE_ENDPOINT) || "";
   let ownerToken = sessionStorage.getItem(STORAGE_TOKEN) || "";
+  let mcpToken = sessionStorage.getItem(STORAGE_MCP_TOKEN) || "";
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
   let recognition = null;
   let listening = false;
   let busy = false;
+  let voiceSubmissionPending = false;
   let count = 0;
   let sessionId = sessionStorage.getItem("jomy_agent_session") || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
   sessionStorage.setItem("jomy_agent_session", sessionId);
@@ -101,9 +105,12 @@
         else interimText += event.results[i][0].transcript;
       }
       messageInput.value = finalText || interimText;
-      if (finalText) {
+      if (finalText && !busy && !voiceSubmissionPending) {
+        voiceSubmissionPending = true;
         stopListening();
-        messageInput.focus();
+        sendMessage(finalText).finally(() => {
+          voiceSubmissionPending = false;
+        });
       }
     };
     recognition.onerror = (event) => {
@@ -138,9 +145,17 @@
         headers: { "Content-Type": "application/json", ...(ownerToken ? { "Authorization": "Bearer " + ownerToken } : {}) },
         body: JSON.stringify({ message: text, sessionId, locale: "hi-IN", client: "jomy-autonomous-agent" })
       });
-      if (!response.ok) throw new Error("Agent endpoint returned HTTP " + response.status);
-      const data = await response.json();
-      const reply = typeof data.reply === "string" ? data.reply : typeof data.message === "string" ? data.message : "";
+      let data = {};
+      try { data = await response.json(); } catch (_) {}
+      if (!response.ok) {
+        const code = typeof data.code === "string" ? " [" + data.code + "]" : "";
+        const detail = typeof data.error === "string" && data.error.trim()
+          ? data.error.trim()
+          : "Agent endpoint returned HTTP " + response.status;
+        throw new Error(detail + code);
+      }
+      const reply = typeof data.reply === "string" ? data.reply.trim()
+        : typeof data.message === "string" ? data.message.trim() : "";
       if (!reply) throw new Error("The agent response did not include a reply string.");
       addMessage("agent", reply);
       speak(reply);
@@ -198,6 +213,7 @@
   $("settingsButton").addEventListener("click", () => {
     endpointInput.value = endpoint;
     agentTokenInput.value = ownerToken;
+    mcpTokenInput.value = mcpToken;
     $("settingsNote").textContent = "";
     settingsDialog.showModal();
   });
@@ -211,10 +227,68 @@
       localStorage.setItem(STORAGE_ENDPOINT, endpoint);
       if (ownerToken) sessionStorage.setItem(STORAGE_TOKEN, ownerToken);
       else sessionStorage.removeItem(STORAGE_TOKEN);
+      mcpToken = mcpTokenInput.value.trim();
+      if (mcpToken) sessionStorage.setItem(STORAGE_MCP_TOKEN, mcpToken);
+      else sessionStorage.removeItem(STORAGE_MCP_TOKEN);
       setConnection(false, "Endpoint saved · not tested");
       $("settingsNote").textContent = "Saved on this device. Send a message to test the connection.";
     } catch (error) {
       $("settingsNote").textContent = error.message || "Enter a valid HTTPS URL.";
+    }
+  });
+  $("testMcpConnection").addEventListener("click", async () => {
+    const rawEndpoint = endpointInput.value.trim() || endpoint;
+    const testOwnerToken = agentTokenInput.value.trim() || ownerToken;
+    const testMcpToken = mcpTokenInput.value.trim() || mcpToken;
+    const note = $("settingsNote");
+    if (!rawEndpoint || !testOwnerToken || !testMcpToken) {
+      note.textContent = "Enter the Secure API URL, Owner access token and dedicated MCP Client token first.";
+      return;
+    }
+    let mcpUrl;
+    try {
+      const parsed = new URL(rawEndpoint);
+      if (parsed.protocol !== "https:" && parsed.hostname !== "localhost") throw new Error("Use an HTTPS Agent API endpoint.");
+      if (!/\/api\/agent\/chat\/?$/.test(parsed.pathname)) throw new Error("Secure API URL must end with /api/agent/chat.");
+      parsed.pathname = parsed.pathname.replace(/\/api\/agent\/chat\/?$/, "/api/agent/mcp");
+      parsed.search = "";
+      parsed.hash = "";
+      mcpUrl = parsed.toString();
+    } catch (error) {
+      note.textContent = error.message || "Enter a valid Agent API URL.";
+      return;
+    }
+    const testButton = $("testMcpConnection");
+    testButton.disabled = true;
+    testButton.textContent = "Testing…";
+    note.textContent = "Checking MCP authentication and status…";
+    try {
+      const response = await fetch(mcpUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + testOwnerToken
+        },
+        body: JSON.stringify({ action: "status", mcpToken: testMcpToken }),
+        signal: AbortSignal.timeout(20000)
+      });
+      let data = {};
+      try { data = await response.json(); } catch (_) {}
+      if (!response.ok) {
+        const code = typeof data.code === "string" ? data.code : "HTTP_" + response.status;
+        throw new Error(code + ": " + (data.error || "MCP connection was rejected."));
+      }
+      if (data.status !== "connected") throw new Error(data.error || "MCP did not confirm the connection.");
+      ownerToken = testOwnerToken;
+      mcpToken = testMcpToken;
+      sessionStorage.setItem(STORAGE_TOKEN, ownerToken);
+      sessionStorage.setItem(STORAGE_MCP_TOKEN, mcpToken);
+      note.textContent = "Connected — MCP authentication and status check passed.";
+    } catch (error) {
+      note.textContent = "Connection failed: " + (error.name === "TimeoutError" ? "MCP_TIMEOUT: request timed out." : error.message || "Network error.");
+    } finally {
+      testButton.disabled = false;
+      testButton.textContent = "Test MCP connection";
     }
   });
   $("clearEndpoint").addEventListener("click", () => {
@@ -222,8 +296,11 @@
     localStorage.removeItem(STORAGE_ENDPOINT);
     endpointInput.value = "";
     ownerToken = "";
+    mcpToken = "";
     agentTokenInput.value = "";
+    mcpTokenInput.value = "";
     sessionStorage.removeItem(STORAGE_TOKEN);
+    sessionStorage.removeItem(STORAGE_MCP_TOKEN);
     setConnection(false, "Not connected");
     $("settingsNote").textContent = "Disconnected on this device.";
   });
