@@ -173,6 +173,30 @@ import { parseTaskPlan } from "./task-planner.js";
       }
     }
   }
+  async function refreshTaskApprovalStatus(taskId) {
+    const task = taskQueue.find(item => item.id === taskId);
+    if (!task?.approvalId || task.approvalRefreshing) return;
+    updateTask(taskId, current => ({ ...current, approvalRefreshing: true, approvalError: null }));
+    try {
+      const data = await callMcp("approval_status", { approvalId: task.approvalId });
+      const approval = data.approval;
+      if (!approval || approval.id !== task.approvalId || typeof approval.status !== "string") {
+        throw new Error("MCP returned an invalid approval status.");
+      }
+      updateTask(taskId, current => ({
+        ...current,
+        approvalStatus: approval.status,
+        approvalAction: approval.action || current.approvalAction || "unknown",
+        approvalCheckedAt: new Date().toISOString(),
+        approvalExpiresAt: approval.expiresAt || current.approvalExpiresAt || null,
+        approvalRefreshing: false,
+        approvalError: null
+      }));
+    } catch (error) {
+      updateTask(taskId, current => ({ ...current, approvalRefreshing: false, approvalError: error.message }));
+    }
+  }
+
   async function prepareTaskApproval(taskId) {
     const task = taskQueue.find(item => item.id === taskId);
     if (!task || task.status !== TASK_STATES.AWAITING_APPROVAL || task.plan?.actionType !== "telegram.prepare" || task.approvalId) return;
@@ -247,8 +271,13 @@ import { parseTaskPlan } from "./task-planner.js";
       }
       if (task.approvalId) {
         const approval = document.createElement("small");
-        approval.textContent = "Pending in Owner Admin · ID: " + task.approvalId + " · Nothing sent";
+        approval.textContent = "Owner approval · " + String(task.approvalStatus || "pending_owner_approval").replaceAll("_", " ").toUpperCase() + " · " + (task.approvalAction || "telegram.send_message");
         details.append(approval);
+        if (task.approvalCheckedAt) {
+          const checked = document.createElement("small");
+          checked.textContent = "Last checked · " + new Date(task.approvalCheckedAt).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" });
+          details.append(checked);
+        }
       }
       if (task.lastError || task.approvalError) {
         const error = document.createElement("small");
@@ -273,6 +302,15 @@ import { parseTaskPlan } from "./task-planner.js";
         statusButton.textContent = "CHECK MCP STATUS";
         statusButton.addEventListener("click", () => runReadOnlyTask(task.id));
         actions.append(statusButton);
+      }
+      if (task.approvalId) {
+        const refreshButton = document.createElement("button");
+        refreshButton.type = "button";
+        refreshButton.className = "task-action";
+        refreshButton.textContent = task.approvalRefreshing ? "CHECKING…" : "REFRESH STATUS";
+        refreshButton.disabled = Boolean(task.approvalRefreshing);
+        refreshButton.addEventListener("click", () => refreshTaskApprovalStatus(task.id));
+        actions.append(refreshButton);
       }
       if (task.status === TASK_STATES.AWAITING_APPROVAL && task.plan?.actionType === "telegram.prepare" && !task.approvalId) {
         const approveButton = document.createElement("button");
