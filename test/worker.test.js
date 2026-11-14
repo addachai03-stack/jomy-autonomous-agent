@@ -336,7 +336,7 @@ test("MCP bridge exposes safe REST route diagnostics without upstream body text"
     assert.equal(data.code, "MCP_ENDPOINT_MISMATCH");
     assert.equal(data.stage, "system_status");
     assert.equal(data.upstreamStatus, 405);
-    assert.match(data.error, /system_status \\(HTTP 405\\)/);
+    assert.match(data.error, /system_status \(HTTP 405\)/);
     assert.doesNotMatch(JSON.stringify(data), /private upstream body|test-mcp-client-token/);
   } finally { restore(); }
 });
@@ -353,7 +353,7 @@ test("MCP bridge identifies a missing MCP route separately from authentication f
     assert.equal(data.code, "MCP_ENDPOINT_MISMATCH");
     assert.equal(data.stage, "system_status");
     assert.equal(data.upstreamStatus, 404);
-    assert.match(data.error, /during system_status \\(HTTP 404\\)/);
+    assert.match(data.error, /during system_status \(HTTP 404\)/);
   } finally { restore(); }
 });
 
