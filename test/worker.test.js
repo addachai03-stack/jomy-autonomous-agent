@@ -344,6 +344,33 @@ test("MCP bridge hides upstream exception details and never echoes credentials",
 });
 
 
+test("MCP bridge exposes safe stage and HTTP method diagnostics without upstream body text", async () => {
+  const restore = withMockMcpFetch(async (url, options) => {
+    const body = JSON.parse(options.body);
+    if (body.method === "initialize") {
+      return new Response(JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        result: { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "jomy-test", version: "1" } }
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return new Response("private upstream body must not be exposed", { status: 405 });
+  });
+  try {
+    const response = await worker.fetch(makeRequest("/api/agent/mcp", {
+      headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
+      body: JSON.stringify({ action: "status", mcpToken: MCP_CLIENT_TOKEN })
+    }), makeEnv());
+    assert.equal(response.status, 502);
+    const data = await response.json();
+    assert.equal(data.code, "MCP_ENDPOINT_MISMATCH");
+    assert.equal(data.stage, "initialized notification");
+    assert.equal(data.upstreamStatus, 405);
+    assert.match(data.error, /initialized notification \(HTTP 405\)/);
+    assert.doesNotMatch(JSON.stringify(data), /private upstream body|test-mcp-client-token/);
+  } finally { restore(); }
+});
+
 test("MCP bridge identifies a missing MCP route separately from authentication failures", async () => {
   const restore = withMockMcpFetch(async () => new Response("not found", { status: 404 }));
   try {
@@ -354,7 +381,9 @@ test("MCP bridge identifies a missing MCP route separately from authentication f
     assert.equal(response.status, 502);
     const data = await response.json();
     assert.equal(data.code, "MCP_ENDPOINT_MISMATCH");
-    assert.match(data.error, /endpoint or HTTP method/);
+    assert.equal(data.stage, "initialize");
+    assert.equal(data.upstreamStatus, 404);
+    assert.match(data.error, /during initialize \(HTTP 404\)/);
   } finally { restore(); }
 });
 
