@@ -20,7 +20,7 @@
       <a class="brand" href="/" aria-label="JOMY home"><span class="brand-mark">J</span><span>JOMY <small>AI AGENT</small></span></a>
       <div class="top-actions">
         <span class="connection" id="connection"><i></i><span>Not connected</span></span>
-        <button class="icon-button" id="settingsButton" aria-label="Connection settings" title="Connection settings">⚙</button>
+        <button class="icon-button" id="settingsButton" type="button" aria-label="Connection settings" title="Connection settings" onclick="(()=>{const d=document.getElementById('settingsDialog');if(d&&!d.open&&typeof d.showModal==='function')d.showModal()})()">⚙</button>
       </div>
     </header>
     <section class="hero" aria-labelledby="agentTitle">
