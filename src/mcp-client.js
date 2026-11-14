@@ -115,6 +115,26 @@ export async function getMcpStatus(token) {
   }
 }
 
+export async function getApprovalStatus(token, approvalId) {
+  const session = await createMcpSession(token);
+  try {
+    const raw = await callMcpTool(session, 2, "get_approval_status", { approvalId });
+    let result;
+    try { result = JSON.parse(raw); } catch (_) {
+      throw new Error("MCP approval status response could not be parsed");
+    }
+    return {
+      id: typeof result.id === "string" ? result.id : approvalId,
+      action: typeof result.action === "string" ? result.action : "unknown",
+      status: typeof result.status === "string" ? result.status : "unknown",
+      createdAt: typeof result.createdAt === "string" ? result.createdAt : null,
+      expiresAt: typeof result.expiresAt === "string" ? result.expiresAt : null
+    };
+  } finally {
+    await closeMcpSession(session);
+  }
+}
+
 export async function prepareTelegramMessage(token, text) {
   const session = await createMcpSession(token);
   try {
