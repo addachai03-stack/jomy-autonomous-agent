@@ -42,7 +42,6 @@
     <section class="composer" aria-label="Message the agent">
       <form id="chatForm"><label class="sr-only" for="messageInput">Your command</label><textarea id="messageInput" rows="1" maxlength="4000" placeholder="Tell JOMY what you need…" enterkeyhint="send"></textarea><button class="send-button" id="sendButton" type="submit" aria-label="Send message">↑</button></form>
       <div class="composer-foot"><span>PRIVATE SESSION</span><span>Enter to send · Shift + Enter for new line</span></div>
-      <p class="voice-hint">Telegram command: “Telegram par bhejo: [message]”. JOMY only prepares it; Owner approval is required before sending.</p>
     </section>
     <section class="activity" aria-label="Recent conversation">
       <button class="activity-toggle" id="activityToggle" aria-expanded="false"><span><i class="activity-dot"></i> RECENT ACTIVITY</span><span id="activityCount">0 messages</span><b id="activityChevron">＋</b></button>
@@ -61,9 +60,7 @@
     <div class="dialog-body">
       <label for="endpointInput">Secure API URL</label><input id="endpointInput" type="url" placeholder="https://your-agent.example.com/api/agent/chat" autocomplete="url">
       <label for="agentTokenInput" style="display:block;margin-top:14px">Owner access token</label><input id="agentTokenInput" type="password" placeholder="Private token · saved on this iPhone" autocomplete="off" autocapitalize="none" spellcheck="false">
-      <label for="mcpTokenInput" style="display:block;margin-top:14px">JOMY MCP Client token</label><input id="mcpTokenInput" type="password" placeholder="Dedicated Client token only" autocomplete="off" autocapitalize="none" spellcheck="false">
-      <button class="quiet-button" id="testMcpConnection" type="button" style="margin-top:12px">Test MCP connection</button>
-      <p>Use an HTTPS endpoint you control. The URL is saved in this browser; the dedicated agent access token stays only for this browser session. Use only a dedicated JOMY MCP Client token (not the MCP Owner token). The MCP token is kept in this browser session and sent through your authenticated Agent Worker; never paste secrets into chat.</p>
+      <p>Use your secure HTTPS Agent API URL. The URL is saved in this browser; your private Agent access token stays only for this browser session. No MCP or external messaging integration is connected.</p>
       <div class="dialog-actions"><button class="quiet-button" id="clearEndpoint" type="button">Disconnect</button><button class="primary-button" id="saveEndpoint" type="button">Save endpoint</button></div>
       <p class="settings-note" id="settingsNote" role="status"></p>
     </div>
