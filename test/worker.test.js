@@ -351,9 +351,9 @@ test("MCP bridge identifies a missing MCP route separately from authentication f
     assert.equal(response.status, 502);
     const data = await response.json();
     assert.equal(data.code, "MCP_ENDPOINT_MISMATCH");
-    assert.equal(data.stage, "initialize");
+    assert.equal(data.stage, "system_status");
     assert.equal(data.upstreamStatus, 404);
-    assert.match(data.error, /during initialize \(HTTP 404\)/);
+    assert.match(data.error, /during system_status \\(HTTP 404\\)/);
   } finally { restore(); }
 });
 
