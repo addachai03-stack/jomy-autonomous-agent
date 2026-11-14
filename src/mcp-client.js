@@ -12,14 +12,14 @@ async function callMcpTool(token, name, args = {}) {
     signal: AbortSignal.timeout(12000)
   });
 
+  if (!response.ok) {
+    throw new Error("MCP REST adapter returned HTTP " + response.status + " during " + name);
+  }
   let payload;
   try {
     payload = await response.json();
   } catch (_) {
     throw new Error("MCP REST adapter returned an invalid JSON response during " + name);
-  }
-  if (!response.ok) {
-    throw new Error("MCP REST adapter returned HTTP " + response.status + " during " + name);
   }
   if (!payload || payload.ok !== true || !payload.result) {
     const code = typeof payload?.error === "string" ? payload.error : "request_rejected";
