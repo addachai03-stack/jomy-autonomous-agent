@@ -1,10 +1,10 @@
 const MCP_URL = "https://jomy-personal-mcp.addachai03.workers.dev/mcp";
 const PROTOCOL_VERSION = "2025-03-26";
 
-async function readMcpResult(response) {
+async function readMcpResult(response, stage = "request") {
   const type = response.headers.get("content-type") || "";
   const raw = await response.text();
-  if (!response.ok) throw new Error("MCP server returned HTTP " + response.status);
+  if (!response.ok) throw new Error("MCP server returned HTTP " + response.status + " during " + stage + (raw ? ": " + raw.slice(0, 240).replace(/[\\r\\n]+/g, " ") : ""));
   if (!raw) return {};
   if (type.includes("text/event-stream")) {
     const dataLines = raw.split(/\r?\n/).filter((line) => line.startsWith("data:"));
@@ -40,9 +40,9 @@ async function createMcpSession(token) {
   });
   const sessionId = response.headers.get("Mcp-Session-Id");
   const selectedVersion = response.headers.get("MCP-Protocol-Version") || PROTOCOL_VERSION;
-  const data = await readMcpResult(response);
+  const data = await readMcpResult(response, "initialize");
   if (data.error) throw new Error(data.error.message || "MCP initialization failed");
-  if (!data.result?.protocolVersion) throw new Error("MCP initialization was not confirmed");
+  if (!data.result?.protocolVersion) throw new Error("MCP initialization was not confirmed (initialize response lacked protocolVersion)");
   const headers = {
     "Authorization": "Bearer " + token,
     "Content-Type": "application/json",
@@ -57,7 +57,7 @@ async function createMcpSession(token) {
     signal: AbortSignal.timeout(12000)
   });
   if (!(notification.ok || notification.status === 202)) {
-    throw new Error("MCP initialization notification was rejected");
+    const detail = await notification.text().catch(() => "");\n    throw new Error("MCP server returned HTTP " + notification.status + " during initialized notification" + (detail ? ": " + detail.slice(0, 240).replace(/[\\r\\n]+/g, " ") : ""));
   }
   return { headers, sessionId };
 }
@@ -74,7 +74,7 @@ async function callMcpTool(session, id, name, args = {}) {
     }),
     signal: AbortSignal.timeout(12000)
   });
-  const data = await readMcpResult(response);
+  const data = await readMcpResult(response, "tools/call " + name);
   if (data.error) throw new Error(data.error.message || "MCP tool call failed");
   const result = data.result;
   if (!result || result.isError) {
