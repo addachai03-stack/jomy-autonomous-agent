@@ -29,7 +29,25 @@ import { parseTaskPlan } from "./task-planner.js";
     const savedTasks = JSON.parse(localStorage.getItem(TASK_QUEUE_KEY) || "[]");
     if (Array.isArray(savedTasks)) taskQueue = savedTasks.filter(task => task && typeof task.id === "string" && typeof task.title === "string" && ["queued", "planning", "awaiting_approval", "ready", "running", "retry_wait", "succeeded", "failed", "blocked"].includes(task.status)).slice(-30);
   } catch (_) {}
-  taskQueue = recoverInterruptedTasks(taskQueue);
+  taskQueue = recoverInterruptedTasks(taskQueue).map(task => {
+    if (task.plan && ["mcp.status", "telegram.prepare"].includes(task.plan.actionType)) {
+      const migrated = {
+        ...task,
+        status: TASK_STATES.BLOCKED,
+        plan: { ...task.plan, actionType: "unsupported", requiresApproval: true },
+        lastError: "External integrations are no longer available in JOMY Agent."
+      };
+      delete migrated.approvalId;
+      delete migrated.approvalStatus;
+      delete migrated.approvalAction;
+      delete migrated.approvalError;
+      delete migrated.approvalExpiresAt;
+      delete migrated.approvalCheckedAt;
+      delete migrated.approvalRefreshing;
+      return migrated;
+    }
+    return task;
+  });
   try { localStorage.setItem(TASK_QUEUE_KEY, JSON.stringify(taskQueue)); } catch (_) {}
   const settingsDialog = $("settingsDialog");
   const endpointInput = $("endpointInput");
