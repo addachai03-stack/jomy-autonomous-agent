@@ -179,33 +179,12 @@ function withMockMcpFetch(handler) {
   return () => { globalThis.fetch = original; };
 }
 
-function mockMcpResponse(method, params = {}) {
-  if (method === "initialize") {
-    return new Response(JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      result: { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "jomy-test", version: "1" } }
-    }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", "Mcp-Session-Id": "test-session", "MCP-Protocol-Version": "2025-03-26" }
-    });
-  }
-  if (method === "notifications/initialized") return new Response(null, { status: 202 });
-  if (method === "tools/call" && params.name === "system_status") {
-    return Response.json({ jsonrpc: "2.0", id: 2, result: { content: [{ type: "text", text: JSON.stringify({ status: "online", financialActions: "disabled" }) }] } });
-  }
-  if (method === "tools/call" && params.name === "telegram_status") {
-    return Response.json({ jsonrpc: "2.0", id: 3, result: { content: [{ type: "text", text: JSON.stringify({ configured: true, botTokenPresent: true, ownerChatIdPresent: true }) }] } });
-  }
-  if (method === "tools/call" && params.name === "get_approval_status") {
-    return Response.json({ jsonrpc: "2.0", id: 2, result: { content: [{ type: "text", text: JSON.stringify({ id: params.arguments.approvalId, action: "telegram.send_message", status: "pending", createdAt: "2026-11-14T10:00:00.000Z", expiresAt: "2026-11-14T10:05:00.000Z", args: { text: "must not leak" } }) }] } });
-  }
-  if (method === "tools/call" && params.name === "prepare_action") {
-    return Response.json({ jsonrpc: "2.0", id: 2, result: { content: [{ type: "text", text: JSON.stringify({ approvalId: "123e4567-e89b-42d3-a456-426614174000", status: "pending_owner_approval", expiresAt: "2026-11-13T17:00:00.000Z" }) }] } });
-  }
-  if (method === "tools/call") return Response.json({ jsonrpc: "2.0", id: 4, result: { content: [{ type: "text", text: "unknown tool" }], isError: true } });
-  if (method === "DELETE") return new Response(null, { status: 200 });
-  throw new Error("Unexpected MCP request: " + method);
+function mockRestResponse(tool, args = {}) {
+  if (tool === "system_status") return Response.json({ ok: true, result: { content: [{ type: "text", text: JSON.stringify({ status: "online", financialActions: "disabled" }) }] } });
+  if (tool === "telegram_status") return Response.json({ ok: true, result: { content: [{ type: "text", text: JSON.stringify({ configured: true, botTokenPresent: true, ownerChatIdPresent: true }) }] } });
+  if (tool === "get_approval_status") return Response.json({ ok: true, result: { content: [{ type: "text", text: JSON.stringify({ approvalId: args.approvalId, action: "telegram.send_message", status: "pending", createdAt: "2026-11-14T10:00:00.000Z", expiresAt: "2026-11-14T10:05:00.000Z", args: { text: "must not leak" } }) }] } });
+  if (tool === "prepare_action") return Response.json({ ok: true, result: { content: [{ type: "text", text: JSON.stringify({ approvalId: "123e4567-e89b-42d3-a456-426614174000", status: "pending_owner_approval", expiresAt: "2026-11-13T17:00:00.000Z" }) }] } });
+  return Response.json({ ok: true, result: { content: [{ type: "text", text: "unknown tool" }], isError: true } });
 }
 
 test("MCP bridge requires the Agent owner token", async () => {
@@ -229,12 +208,12 @@ test("MCP bridge rejects missing or short client tokens without contacting MCP",
   } finally { restore(); }
 });
 
-test("MCP status bridge negotiates MCP and returns safe integration status", async () => {
+test("MCP status bridge uses the REST adapter and returns safe integration status", async () => {
   const calls = [];
   const restore = withMockMcpFetch(async (url, options) => {
     const body = options.method === "POST" && options.body ? JSON.parse(options.body) : {};
-    calls.push({ method: options.method, rpc: body.method, tool: body.params?.name });
-    return mockMcpResponse(options.method === "DELETE" ? "DELETE" : body.method, body.params);
+    calls.push({ method: options.method, tool: body.tool });
+    return mockRestResponse(body.tool, body.arguments);
   });
   try {
     const response = await worker.fetch(makeRequest("/api/agent/mcp", {
@@ -249,7 +228,8 @@ test("MCP status bridge negotiates MCP and returns safe integration status", asy
     assert.deepEqual(data.capabilities, ["mcp_status", "telegram_prepare"]);
     assert.ok(calls.some(call => call.tool === "system_status"));
     assert.ok(calls.some(call => call.tool === "telegram_status"));
-    assert.ok(calls.some(call => call.method === "DELETE"));
+    assert.equal(calls.length, 2);
+    assert.ok(calls.every(call => call.method === "POST"));
   } finally { restore(); }
 });
 
@@ -257,8 +237,8 @@ test("approval status bridge returns only the safe status fields", async () => {
   const calls = [];
   const restore = withMockMcpFetch(async (url, options) => {
     const body = options.method === "POST" && options.body ? JSON.parse(options.body) : {};
-    calls.push({ method: options.method, rpc: body.method, tool: body.params?.name, args: body.params?.arguments });
-    return mockMcpResponse(options.method === "DELETE" ? "DELETE" : body.method, body.params);
+    calls.push({ method: options.method, tool: body.tool, args: body.arguments });
+    return mockRestResponse(body.tool, body.arguments);
   });
   try {
     const approvalId = "123e4567-e89b-42d3-a456-426614174000";
@@ -293,8 +273,8 @@ test("Telegram bridge only prepares an owner approval and never executes a send"
   const calls = [];
   const restore = withMockMcpFetch(async (url, options) => {
     const body = options.method === "POST" && options.body ? JSON.parse(options.body) : {};
-    calls.push({ method: options.method, rpc: body.method, tool: body.params?.name, args: body.params?.arguments });
-    return mockMcpResponse(options.method === "DELETE" ? "DELETE" : body.method, body.params);
+    calls.push({ method: options.method, tool: body.tool, args: body.arguments });
+    return mockRestResponse(body.tool, body.arguments);
   });
   try {
     const response = await worker.fetch(makeRequest("/api/agent/mcp", {
@@ -344,18 +324,8 @@ test("MCP bridge hides upstream exception details and never echoes credentials",
 });
 
 
-test("MCP bridge exposes safe stage and HTTP method diagnostics without upstream body text", async () => {
-  const restore = withMockMcpFetch(async (url, options) => {
-    const body = JSON.parse(options.body);
-    if (body.method === "initialize") {
-      return new Response(JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        result: { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "jomy-test", version: "1" } }
-      }), { status: 200, headers: { "content-type": "application/json" } });
-    }
-    return new Response("private upstream body must not be exposed", { status: 405 });
-  });
+test("MCP bridge exposes safe REST route diagnostics without upstream body text", async () => {
+  const restore = withMockMcpFetch(async () => new Response("private upstream body must not be exposed", { status: 405 }));
   try {
     const response = await worker.fetch(makeRequest("/api/agent/mcp", {
       headers: { Origin: ORIGIN, Authorization: "Bearer " + OWNER_TOKEN },
@@ -364,9 +334,9 @@ test("MCP bridge exposes safe stage and HTTP method diagnostics without upstream
     assert.equal(response.status, 502);
     const data = await response.json();
     assert.equal(data.code, "MCP_ENDPOINT_MISMATCH");
-    assert.equal(data.stage, "initialized notification");
+    assert.equal(data.stage, "system_status");
     assert.equal(data.upstreamStatus, 405);
-    assert.match(data.error, /initialized notification \(HTTP 405\)/);
+    assert.match(data.error, /system_status \(HTTP 405\)/);
     assert.doesNotMatch(JSON.stringify(data), /private upstream body|test-mcp-client-token/);
   } finally { restore(); }
 });
@@ -381,9 +351,9 @@ test("MCP bridge identifies a missing MCP route separately from authentication f
     assert.equal(response.status, 502);
     const data = await response.json();
     assert.equal(data.code, "MCP_ENDPOINT_MISMATCH");
-    assert.equal(data.stage, "initialize");
+    assert.equal(data.stage, "system_status");
     assert.equal(data.upstreamStatus, 404);
-    assert.match(data.error, /during initialize \(HTTP 404\)/);
+    assert.match(data.error, /during system_status \(HTTP 404\)/);
   } finally { restore(); }
 });
 
