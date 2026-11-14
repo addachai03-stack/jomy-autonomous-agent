@@ -19,11 +19,10 @@ test("rejects malformed and oversized planner output", () => {
   assert.throws(() => parseTaskPlan(JSON.stringify({summary:"Plan",steps:[],actionType:"none"}), "Task"), /1–8/);
 });
 
-test("Telegram preparation requires explicit Telegram send intent", () => {
-  const raw = JSON.stringify({summary:"Prepare message",steps:["Review text"],actionType:"telegram.prepare"});
-  assert.equal(parseTaskPlan(raw, "Telegram par bhejo: Namaste").actionType, "telegram.prepare");
+test("all external integrations are blocked", () => {
+  const raw = JSON.stringify({summary:"External messaging unavailable",steps:["Use the supported app manually"],actionType:"telegram.prepare"});
+  assert.equal(parseTaskPlan(raw, "Telegram par bhejo: Namaste").actionType, "unsupported");
   assert.equal(parseTaskPlan(raw, "Write a message").actionType, "unsupported");
-  assert.equal(parseTaskPlan(raw, "Telegram status check").actionType, "unsupported");
 });
 
 test("unknown action types are blocked, never promoted to executable actions", () => {
@@ -36,8 +35,3 @@ test("unknown action types are blocked, never promoted to executable actions", (
   assert.equal(plan.requiresApproval, true);
 });
 
-test("Telegram intent must use a supported explicit send command", () => {
-  const raw = JSON.stringify({summary:"Prepare message",steps:["Review exact message"],actionType:"telegram.prepare"});
-  assert.equal(parseTaskPlan(raw, "Telegram par bhejo: Hello").actionType, "telegram.prepare");
-  assert.equal(parseTaskPlan(raw, "Telegram message send this").actionType, "unsupported");
-});
