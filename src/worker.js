@@ -119,7 +119,7 @@ function classifyMcpFailure(error) {
   if (http) {
     const status = Number(http[1]);
     if (status === 401 || status === 403) {
-      return { code: "MCP_AUTH_REJECTED", stage, httpStatus: status, message: "MCP rejected the dedicated Client token during " + stage + " (HTTP " + status + "). Verify that it is active and client-scoped." };
+      return { code: "MCP_AUTH_REJECTED", stage, httpStatus: status, message: "MCP REST adapter rejected the dedicated Client token during " + stage + " (HTTP " + status + "). Verify that it is active and client-scoped." };
     }
     if (status === 404 || status === 405) {
       return { code: "MCP_ENDPOINT_MISMATCH", stage, httpStatus: status, message: "MCP REST adapter route or HTTP method was rejected during " + stage + " (HTTP " + status + "). Check the MCP Worker /agent/v1 route." };
