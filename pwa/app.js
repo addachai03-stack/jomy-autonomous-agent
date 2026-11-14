@@ -596,7 +596,10 @@ import { parseTaskPlan } from "./task-planner.js";
     endpointInput.value = endpoint;
     agentTokenInput.value = ownerToken;
     $("settingsNote").textContent = "";
-    settingsDialog.showModal();
+    if (!settingsDialog.open) {
+      if (typeof settingsDialog.showModal === "function") settingsDialog.showModal();
+      else settingsDialog.setAttribute("open", "");
+    }
   });
   $("saveEndpoint").addEventListener("click", () => {
     const value = endpointInput.value.trim();
