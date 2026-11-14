@@ -113,7 +113,7 @@ function classifyMcpFailure(error) {
   const stageMatch = message.match(/during (initialized notification|initialize|tools\/call [A-Za-z0-9_.-]+)/i);
   const stage = stageMatch ? stageMatch[1] : "upstream request";
   if (name === "AbortError" || name === "TimeoutError") {
-    return { code: "MCP_TIMEOUT", stage, message: "MCP server timed out during " + stage + ". Check MCP Worker availability." };
+    return { code: "MCP_TIMEOUT", stage, message: "MCP REST adapter timed out during " + stage + ". Check MCP Worker availability." };
   }
   const http = message.match(/HTTP (\d{3})/i);
   if (http) {
@@ -122,17 +122,17 @@ function classifyMcpFailure(error) {
       return { code: "MCP_AUTH_REJECTED", stage, httpStatus: status, message: "MCP rejected the dedicated Client token during " + stage + " (HTTP " + status + "). Verify that it is active and client-scoped." };
     }
     if (status === 404 || status === 405) {
-      return { code: "MCP_ENDPOINT_MISMATCH", stage, httpStatus: status, message: "MCP route or HTTP method was rejected during " + stage + " (HTTP " + status + "). Check the MCP Worker /mcp Streamable HTTP route." };
+      return { code: "MCP_ENDPOINT_MISMATCH", stage, httpStatus: status, message: "MCP REST adapter route or HTTP method was rejected during " + stage + " (HTTP " + status + "). Check the MCP Worker /agent/v1 route." };
     }
-    return { code: "MCP_HTTP_ERROR", stage, httpStatus: status, message: "MCP returned HTTP " + status + " during " + stage + "." };
+    return { code: "MCP_HTTP_ERROR", stage, httpStatus: status, message: "MCP REST adapter returned HTTP " + status + " during " + stage + "." };
   }
   if (/invalid response|unreadable event stream|initialization was not confirmed|protocol/i.test(message)) {
-    return { code: "MCP_PROTOCOL_ERROR", stage, message: "MCP protocol handshake or response was invalid during " + stage + "." };
+    return { code: "MCP_PROTOCOL_ERROR", stage, message: "MCP REST adapter response was invalid during " + stage + "." };
   }
   if (name === "TypeError") {
-    return { code: "MCP_NETWORK_ERROR", stage, message: "Agent Worker could not reach the MCP server during " + stage + "." };
+    return { code: "MCP_NETWORK_ERROR", stage, message: "Agent Worker could not reach the MCP REST adapter during " + stage + "." };
   }
-  return { code: "MCP_UPSTREAM_ERROR", stage, message: "MCP request failed during " + stage + ". Check MCP Worker logs for the matching request." };
+  return { code: "MCP_UPSTREAM_ERROR", stage, message: "MCP REST request failed during " + stage + ". Check MCP Worker logs for the matching request." };
 }
 
 export default {
