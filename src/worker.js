@@ -110,27 +110,29 @@ function extractAiReply(result) {
 function classifyMcpFailure(error) {
   const name = error && typeof error.name === "string" ? error.name : "";
   const message = error && typeof error.message === "string" ? error.message : "";
+  const stageMatch = message.match(/during (initialize|initialized notification|tools\\/call [A-Za-z0-9_.-]+)/i);
+  const stage = stageMatch ? stageMatch[1] : "upstream request";
   if (name === "AbortError" || name === "TimeoutError") {
-    return { code: "MCP_TIMEOUT", message: "MCP server timed out. Check that the MCP Worker is responding." };
+    return { code: "MCP_TIMEOUT", stage, message: "MCP server timed out during " + stage + ". Check MCP Worker availability." };
   }
-  const http = message.match(/HTTP (\d{3})/i);
+  const http = message.match(/HTTP (\\d{3})/i);
   if (http) {
     const status = Number(http[1]);
     if (status === 401 || status === 403) {
-      return { code: "MCP_AUTH_REJECTED", message: "MCP rejected the Client token or its permissions. Verify that it is an active dedicated Client token." };
+      return { code: "MCP_AUTH_REJECTED", stage, httpStatus: status, message: "MCP rejected the dedicated Client token during " + stage + " (HTTP " + status + "). Verify that it is active and client-scoped." };
     }
     if (status === 404 || status === 405) {
-      return { code: "MCP_ENDPOINT_MISMATCH", message: "MCP endpoint or HTTP method was not accepted. Check the MCP service route." };
+      return { code: "MCP_ENDPOINT_MISMATCH", stage, httpStatus: status, message: "MCP route or HTTP method was rejected during " + stage + " (HTTP " + status + "). Check the MCP Worker /mcp Streamable HTTP route." };
     }
-    return { code: "MCP_HTTP_ERROR", message: "MCP server returned HTTP " + status + "." };
+    return { code: "MCP_HTTP_ERROR", stage, httpStatus: status, message: "MCP returned HTTP " + status + " during " + stage + "." };
   }
   if (/invalid response|unreadable event stream|initialization was not confirmed|protocol/i.test(message)) {
-    return { code: "MCP_PROTOCOL_ERROR", message: "MCP server responded, but its protocol handshake or response was invalid." };
+    return { code: "MCP_PROTOCOL_ERROR", stage, message: "MCP protocol handshake or response was invalid during " + stage + "." };
   }
   if (name === "TypeError") {
-    return { code: "MCP_NETWORK_ERROR", message: "Agent Worker could not reach the MCP server. Check MCP Worker availability and network access." };
+    return { code: "MCP_NETWORK_ERROR", stage, message: "Agent Worker could not reach the MCP server during " + stage + "." };
   }
-  return { code: "MCP_UPSTREAM_ERROR", message: "MCP request failed during initialization or tool execution. Check MCP Worker logs for the matching request." };
+  return { code: "MCP_UPSTREAM_ERROR", stage, message: "MCP request failed during " + stage + ". Check MCP Worker logs for the matching request." };
 }
 
 export default {
@@ -249,11 +251,15 @@ export default {
         // Log only a fixed diagnostic code and error class; never log request bodies or credentials.
         console.warn("JOMY_MCP_BRIDGE_FAILURE", {
           code: diagnostic.code,
+          stage: diagnostic.stage,
+          upstreamStatus: diagnostic.httpStatus || null,
           errorName: error && typeof error.name === "string" ? error.name : "Error"
         });
         return json({
           error: diagnostic.message + " No message was sent.",
-          code: diagnostic.code
+          code: diagnostic.code,
+          stage: diagnostic.stage,
+          upstreamStatus: diagnostic.httpStatus || null
         }, 502, corsOrigin);
       }
     }
