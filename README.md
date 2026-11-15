@@ -8,6 +8,7 @@ JOMY is a private, iPhone-first Hindi/Hinglish AI chat and task-planning PWA wit
 - Tap-to-speak where the browser supports Web Speech Recognition; iPhone keyboard dictation is the fallback.
 - Optional hands-free wake phrase mode. It is opt-in, requires the page to stay open, and depends on browser speech-recognition support.
 - Local task queue (up to 30 items), task planning, retry and status display. Task records are stored on this device.
+- Personal memory (up to 15 short facts) stored only in this browser on this device. Facts are sent as limited chat context; users can add/remove facts. Explicit “Mera naam … hai” and “Yaad rakho …” statements are captured locally. Credential-like facts such as passwords, OTPs, tokens, card security codes and Aadhaar/PAN numbers are rejected.
 - Installable PWA shell with cached static assets.
 
 ## API
@@ -29,6 +30,7 @@ Tasks can be added from the task panel or by sending `Task: …` in chat. JOMY g
 - No MCP bridge or Telegram integration is exposed by this Agent.
 - No email, Calendar, WhatsApp, phone-control, financial actions, purchases, publishing, deletion, or arbitrary external execution.
 - The separate JOMY Personal MCP service is independent and is not modified by this repository.
+- Personal memory is local browser storage, not encrypted cloud sync or a server-side account profile. Clearing browser site data removes it. Do not store passwords, OTPs, tokens, financial credentials or sensitive identifiers.
 - No secrets, database records, or external account credentials belong in the repository.
 - Production Worker and Pages deployments require separate explicit approval.
 

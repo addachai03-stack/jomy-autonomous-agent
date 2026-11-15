@@ -1,4 +1,5 @@
 import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } from "./voice-utils.js";
+import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
 import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan } from "./task-planner.js";
 
@@ -22,8 +23,17 @@ import { parseTaskPlan } from "./task-planner.js";
   const taskForm = $("taskForm");
   const taskInput = $("taskInput");
   const taskList = $("taskList");
+  const memoryForm = $("memoryForm");
+  const memoryInput = $("memoryInput");
+  const memoryList = $("memoryList");
   const taskCount = $("taskCount");
   const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1";
+  const MEMORY_KEY = "jomy_agent_personal_memory_v1";
+  let personalMemories = [];
+  try {
+    const savedMemories = JSON.parse(localStorage.getItem(MEMORY_KEY) || "[]");
+    if (Array.isArray(savedMemories)) personalMemories = savedMemories.filter(item => item && typeof item.id === "string" && typeof item.fact === "string").slice(-15);
+  } catch (_) {}
   let taskQueue = [];
   try {
     const savedTasks = JSON.parse(localStorage.getItem(TASK_QUEUE_KEY) || "[]");
@@ -95,6 +105,47 @@ import { parseTaskPlan } from "./task-planner.js";
   function saveConversationHistory() {
     conversationHistory = conversationHistory.slice(-10);
     try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(conversationHistory)); } catch (_) {}
+  }
+
+  function saveMemories() {
+    personalMemories = personalMemories.slice(-15);
+    try { localStorage.setItem(MEMORY_KEY, JSON.stringify(personalMemories)); } catch (_) {}
+  }
+  function renderMemories() {
+    memoryList.replaceChildren();
+    if (!personalMemories.length) {
+      const empty = document.createElement("p");
+      empty.className = "memory-empty";
+      empty.textContent = "Abhi koi personal fact save nahi hai. Naam ya pasand yahan add kar sakte ho.";
+      memoryList.append(empty);
+      return;
+    }
+    for (const item of personalMemories) {
+      const row = document.createElement("div");
+      row.className = "memory-item";
+      const fact = document.createElement("span");
+      fact.textContent = item.fact;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "memory-remove";
+      remove.textContent = "×";
+      remove.setAttribute("aria-label", "Delete saved memory");
+      remove.addEventListener("click", () => {
+        personalMemories = removeMemory(personalMemories, item.id);
+        saveMemories();
+        renderMemories();
+      });
+      row.append(fact, remove);
+      memoryList.append(row);
+    }
+  }
+  function rememberFact(fact) {
+    const next = addMemory(personalMemories, fact);
+    if (next.length === personalMemories.length && next.every((item, index) => item.id === personalMemories[index]?.id)) return false;
+    personalMemories = next;
+    saveMemories();
+    renderMemories();
+    return true;
   }
 
   function setState(state, label, detail) {
@@ -476,6 +527,8 @@ import { parseTaskPlan } from "./task-planner.js";
   async function sendMessage(rawText) {
     const text = rawText.trim();
     if (!text || busy) return;
+    const detectedMemory = extractMemoryFromMessage(text);
+    if (detectedMemory) rememberFact(detectedMemory);
     addMessage("user", text);
     messageInput.value = "";
     messageInput.style.height = "auto";
@@ -505,10 +558,20 @@ import { parseTaskPlan } from "./task-planner.js";
     $("sendButton").disabled = true;
     setState("thinking", "THINKING", "Working on your request…");
     try {
+      const memoryContext = formatMemoryContext(personalMemories);
+      const requestHistory = [
+        ...(memoryContext ? [{ role: "assistant", content: memoryContext }] : []),
+        ...conversationHistory.slice(0, -1).slice(-9)
+      ];
+      while (requestHistory.length > 10 || requestHistory.reduce((total, item) => total + item.content.length, 0) > 8500) {
+        const firstChatIndex = memoryContext ? 1 : 0;
+        if (requestHistory.length <= firstChatIndex) break;
+        requestHistory.splice(firstChatIndex, 1);
+      }
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(ownerToken ? { "Authorization": "Bearer " + ownerToken } : {}) },
-        body: JSON.stringify({ message: text, history: conversationHistory.slice(0, -1).slice(-10), sessionId, locale: "hi-IN", client: "jomy-autonomous-agent" })
+        body: JSON.stringify({ message: text, history: requestHistory, sessionId, locale: "hi-IN", client: "jomy-autonomous-agent" })
       });
       if (!response.ok) {
         let detail = "Agent endpoint returned HTTP " + response.status;
@@ -592,6 +655,19 @@ import { parseTaskPlan } from "./task-planner.js";
       window.speechSynthesis.cancel();
       speakingReply = false;
       if (handsFree) startRecognition();
+    }
+  });
+  renderMemories();
+  memoryForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const fact = memoryInput.value.trim();
+    if (!fact) return;
+    if (rememberFact(fact)) {
+      memoryInput.value = "";
+    } else {
+      memoryInput.setCustomValidity("This fact is already saved or contains sensitive information.");
+      memoryInput.reportValidity();
+      memoryInput.setCustomValidity("");
     }
   });
   taskForm.addEventListener("submit", (event) => {
