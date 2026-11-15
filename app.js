@@ -73,7 +73,10 @@
     utterance.lang = "hi-IN";
     utterance.rate = 1;
     utterance.onstart = () => setState("speaking", "SPEAKING", "JOMY is replying.");
-    utterance.onend = () => setState("idle", "READY", "Your command center. Speak or type to begin.");
+    utterance.onend = () => {
+      setState("idle", "READY", "Your command center. Speak or type to begin.");
+      scheduleHandsFreeStart();
+    };
     window.speechSynthesis.speak(utterance);
   }
   function isSpeaking() {
@@ -122,10 +125,10 @@
     });
   }
   function handleHandsFreeResult(text) {
-    const wakePattern = /(?:hey|hello|ok|okay)?\\s*(?:jomy|jomi|जॉमी|जोमी)(?:\\s*सुनो)?/i;
+    const wakePattern = /(?:hey|hello|ok|okay|हे)?\s*(?:jomy|jomi|जॉमी|जोमी)(?:\s*सुनो)?/i;
     const match = text.match(wakePattern);
     if (match) {
-      const command = text.slice(match.index + match[0].length).replace(/^[\\s,،.!?]+/, "").trim();
+      const command = text.slice(match.index + match[0].length).replace(/^[\s,،.!?]+/, "").trim();
       if (command) {
         wakeArmed = false;
         submitRecognizedCommand(command);
