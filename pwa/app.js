@@ -1,4 +1,4 @@
-import { parseWakeCommand } from "./voice-utils.js";
+import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } from "./voice-utils.js";
 import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan } from "./task-planner.js";
 
@@ -61,6 +61,13 @@ import { parseTaskPlan } from "./task-planner.js";
   const DEFAULT_ENDPOINT = "https://jomy-autonomous-agent-api.addachai03.workers.dev/api/agent/chat";
   const storedEndpoint = localStorage.getItem(STORAGE_ENDPOINT);
   let endpoint = storedEndpoint === null ? DEFAULT_ENDPOINT : storedEndpoint;
+  if (endpoint) {
+    try {
+      const normalizedEndpoint = normalizeAgentEndpoint(endpoint);
+      if (normalizedEndpoint !== endpoint) localStorage.setItem(STORAGE_ENDPOINT, normalizedEndpoint);
+      endpoint = normalizedEndpoint;
+    } catch (_) {}
+  }
   let ownerToken = sessionStorage.getItem(STORAGE_TOKEN) || "";
   sessionStorage.removeItem("jomy_mcp_client_token_v1");
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
@@ -75,6 +82,7 @@ import { parseTaskPlan } from "./task-planner.js";
   let voiceSubmissionPending = false;
   let voiceFinalTranscript = "";
   let voiceSendTimer = null;
+  let discardVoiceResults = false;
   let count = 0;
   let sessionId = sessionStorage.getItem("jomy_agent_session") || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
   sessionStorage.setItem("jomy_agent_session", sessionId);
@@ -152,7 +160,12 @@ import { parseTaskPlan } from "./task-planner.js";
         body: JSON.stringify({ message: plannerPrompt, history: [], locale: "hi-IN", client: "jomy-task-planner" })
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || typeof data.reply !== "string") throw new Error(data.error || "Task planning failed.");
+      if (!response.ok || typeof data.reply !== "string") {
+        const detail = response.status === 404
+          ? "Agent API route not found. Settings mein poora URL /api/agent/chat par end hona chahiye."
+          : data.error || "Task planning failed.";
+        throw new Error(detail);
+      }
       const plan = parseTaskPlan(data.reply, task.title);
       const nextStatus = plan.actionType === "unsupported"
         ? TASK_STATES.BLOCKED
@@ -315,6 +328,12 @@ import { parseTaskPlan } from "./task-planner.js";
     handsFree = false;
     localStorage.setItem(STORAGE_HANDSFREE, "false");
     waitingForCommand = false;
+    const pendingTranscript = voiceFinalTranscript;
+    const discardedCapture = discardPendingVoiceCapture({ transcript: voiceFinalTranscript, timer: voiceSendTimer });
+    voiceFinalTranscript = discardedCapture.transcript;
+    voiceSendTimer = discardedCapture.timer;
+    discardVoiceResults = Boolean(recognition && listening);
+    if (pendingTranscript && messageInput.value === pendingTranscript) messageInput.value = "";
     if (recognition && listening) {
       try { recognition.stop(); } catch (_) {}
     }
@@ -368,6 +387,7 @@ import { parseTaskPlan } from "./task-planner.js";
       setState("listening", handsFree ? "HANDS-FREE" : "LISTENING", handsFree ? "Say JOMY to wake me, then speak your command." : "I'm listening. Say your command.");
     };
     recognition.onresult = (event) => {
+      if (discardVoiceResults) return;
       let finalText = "";
       let interimText = "";
       const finalCandidates = [];
@@ -439,7 +459,9 @@ import { parseTaskPlan } from "./task-planner.js";
     recognition.onend = () => {
       recognitionStarting = false;
       listening = false;
-      if (!handsFree && voiceFinalTranscript && !voiceSubmissionPending) {
+      if (discardVoiceResults) {
+        discardVoiceResults = false;
+      } else if (!handsFree && voiceFinalTranscript && !voiceSubmissionPending) {
         clearTimeout(voiceSendTimer);
         voiceSendTimer = setTimeout(() => submitVoiceTranscript(), 250);
       }
@@ -494,6 +516,7 @@ import { parseTaskPlan } from "./task-planner.js";
           const errorData = await response.json();
           if (typeof errorData.error === "string") detail = errorData.error;
         } catch (_) {}
+        if (response.status === 404) detail = "Agent API route not found. Settings mein poora URL /api/agent/chat par end hona chahiye.";
         throw new Error(detail);
       }
       const data = await response.json();
@@ -571,6 +594,23 @@ import { parseTaskPlan } from "./task-planner.js";
       if (handsFree) startRecognition();
     }
   });
+  taskForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const title = taskInput.value.trim();
+    if (!title) return;
+    try {
+      const task = createTask(title);
+      taskQueue = addTask(taskQueue, task);
+      saveTaskQueue();
+      renderTaskQueue();
+      taskInput.value = "";
+      wakeActivityBoard();
+      planTask(task.id);
+    } catch (error) {
+      addMessage("agent", "Task add nahi hua: " + error.message);
+      wakeActivityBoard();
+    }
+  });
   chatForm.addEventListener("submit", (event) => {
     event.preventDefault();
     sendMessage(messageInput.value);
@@ -604,9 +644,7 @@ import { parseTaskPlan } from "./task-planner.js";
   $("saveEndpoint").addEventListener("click", () => {
     const value = endpointInput.value.trim();
     try {
-      const url = new URL(value);
-      if (url.protocol !== "https:" && url.hostname !== "localhost") throw new Error("Use HTTPS for the agent endpoint.");
-      endpoint = url.toString();
+      endpoint = normalizeAgentEndpoint(value);
       ownerToken = agentTokenInput.value.trim();
       localStorage.setItem(STORAGE_ENDPOINT, endpoint);
       if (ownerToken) sessionStorage.setItem(STORAGE_TOKEN, ownerToken);
@@ -624,7 +662,6 @@ import { parseTaskPlan } from "./task-planner.js";
     ownerToken = "";
     agentTokenInput.value = "";
     sessionStorage.removeItem(STORAGE_TOKEN);
-    sessionStorage.removeItem(STORAGE_MCP_TOKEN);
     setConnection(false, "Not connected");
     $("settingsNote").textContent = "Disconnected on this device.";
   });
