@@ -355,18 +355,23 @@ import { parseTaskPlan } from "./task-planner.js";
     speakingReply = true;
     const utterance = new SpeechSynthesisUtterance(speechText);
     utterance.lang = "hi-IN";
-    utterance.rate = 0.92;
     utterance.rate = 0.82;
     utterance.pitch = 1;
     utterance.volume = 1;
+    // Prefer a high-quality Indian Hindi voice when iOS exposes one.
+    // Fall back to the best available Hindi voice without changing the reply text.
     const voices = synth.getVoices()
       .filter((voice) => /^hi([-_]|$)/i.test(voice.lang))
       .sort((a, b) => {
         const aExact = /^hi[-_]in$/i.test(a.lang) ? 1 : 0;
         const bExact = /^hi[-_]in$/i.test(b.lang) ? 1 : 0;
-        return bExact - aExact || Number(b.localService) - Number(a.localService);
+        const quality = (voice) => /premium|enhanced|natural/i.test(voice.name) ? 1 : 0;
+        return bExact - aExact || quality(b) - quality(a) || Number(b.localService) - Number(a.localService);
       });
-    if (voices[0]) utterance.voice = voices[0];
+    if (voices[0]) {
+      utterance.voice = voices[0];
+      utterance.lang = voices[0].lang;
+    }
     utterance.onstart = () => setState("speaking", "SPEAKING", "JOMY is replying.");
     utterance.onend = () => {
       speakingReply = false;
