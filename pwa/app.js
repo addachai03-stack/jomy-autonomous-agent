@@ -1,5 +1,6 @@
 import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } from "./voice-utils.js";
 import { prepareSpeechText } from "./speech-text.js";
+import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
 import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan } from "./task-planner.js";
@@ -355,22 +356,15 @@ import { parseTaskPlan } from "./task-planner.js";
     speakingReply = true;
     const utterance = new SpeechSynthesisUtterance(speechText);
     utterance.lang = "hi-IN";
-    utterance.rate = 0.82;
-    utterance.pitch = 1;
+    utterance.rate = 0.9;
+    utterance.pitch = 1.04;
     utterance.volume = 1;
-    // Prefer a high-quality Indian Hindi voice when iOS exposes one.
-    // Fall back to the best available Hindi voice without changing the reply text.
-    const voices = synth.getVoices()
-      .filter((voice) => /^hi([-_]|$)/i.test(voice.lang))
-      .sort((a, b) => {
-        const aExact = /^hi[-_]in$/i.test(a.lang) ? 1 : 0;
-        const bExact = /^hi[-_]in$/i.test(b.lang) ? 1 : 0;
-        const quality = (voice) => /premium|enhanced|natural/i.test(voice.name) ? 1 : 0;
-        return bExact - aExact || quality(b) - quality(a) || Number(b.localService) - Number(a.localService);
-      });
-    if (voices[0]) {
-      utterance.voice = voices[0];
-      utterance.lang = voices[0].lang;
+    // Prefer a warm-sounding Indian Hindi female voice when the device exposes one.
+    // iOS does not expose a reliable voice-gender property, so name hints are best-effort.
+    const selectedVoice = selectHindiFemaleVoice(synth.getVoices());
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      utterance.lang = selectedVoice.lang;
     }
     utterance.onstart = () => setState("speaking", "SPEAKING", "JOMY is replying.");
     utterance.onend = () => {
