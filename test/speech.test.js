@@ -14,7 +14,7 @@ test("speech output reads Hindi naturally and strips decorative emoji", () => {
 });
 
 test("Roman Hindi Aap is converted to Devanagari instead of being spelled as letters", () => {
-  assert.equal(prepareSpeechText('Aap ko kya chahiye?'), "आप ko kya chahiye?");
+  assert.equal(prepareSpeechText('Aap ko kya chahiye?'), "आप को क्या chahiye?");
   assert.equal(prepareSpeechText('aap mere dost ho'), "आप मेरे दोस्त हो");
 });
 
@@ -50,10 +50,10 @@ test("production PWA routes every spoken reply through the sanitizer", () => {
   assert.match(source, /import \{ prepareSpeechText \} from "\.\/speech-text\.js";/);
   assert.match(source, /const speechText = prepareSpeechText\(text\);/);
   assert.match(source, /new SpeechSynthesisUtterance\(speechText\)/);
-  assert.match(source, /utterance\.rate = 0\.82;/);
-  assert.match(source, /premium\|enhanced\|natural/i);
+  assert.match(source, /utterance\.rate = 0\.9;/);
+  assert.match(source, /selectHindiFemaleVoice\(synth\.getVoices\(\)\)/);
   assert.doesNotMatch(source, /utterance\.rate = 0\.92;/);
-  assert.match(source, /utterance\.pitch = 1;/);
+  assert.match(source, /utterance\.pitch = 1\.04;/);
   assert.match(source, /utterance\.volume = 1;/);
   assert.doesNotMatch(source, /new SpeechSynthesisUtterance\(text\)/);
 });
@@ -61,7 +61,7 @@ test("production PWA routes every spoken reply through the sanitizer", () => {
 test("production service worker precaches the speech sanitizer with a new cache version", () => {
   const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
   assert.match(source, /jomy-agent-shell-v26/);
-  assert.match(source, /"\/speech-text\.js"/);
+  assert.match(source, /"\/speech-text\.js"/);\n  assert.match(source, /"\/speech-voice\.js"/);
 });
 
 test("Hindi female voice selector prefers known Indian female voice names", () => {
