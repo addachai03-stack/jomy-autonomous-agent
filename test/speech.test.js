@@ -21,6 +21,10 @@ test("emoji sequences including flags, skin tones and keycaps are fully removed"
   assert.equal(prepareSpeechText('Hello 👨🏽‍💻 🇮🇳 1️⃣ 👍🏽 there'), "Hello there");
 });
 
+test("all Unicode emoji property characters are removed while ordinary numbers remain", () => {
+  assert.equal(prepareSpeechText('Hi 🙂 🫠 ❤️ ™️ ©️ 🏳️‍🌈 2026 and ₹500'), "Hi 2026 and 500");
+});
+
 test("speech output handles markdown and links without reading formatting", () => {
   const spoken = prepareSpeechText('**JOMY** ने [यहाँ](https://example.com) बताया।');
   assert.equal(spoken, "जोमी ने यहाँ बताया");
