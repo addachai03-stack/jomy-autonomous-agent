@@ -12,6 +12,15 @@ test("speech output reads Hindi naturally and strips decorative emoji", () => {
   assert.equal(spoken, "नमस्ते जोमी आपका काम हो गया");
 });
 
+test("Roman Hindi Aap is converted to Devanagari instead of being spelled as letters", () => {
+  assert.equal(prepareSpeechText('Aap ko kya chahiye?'), "आप ko kya chahiye");
+  assert.equal(prepareSpeechText('aap mere dost ho'), "आप mere dost ho");
+});
+
+test("emoji sequences including flags, skin tones and keycaps are fully removed", () => {
+  assert.equal(prepareSpeechText('Hello 👨🏽‍💻 🇮🇳 1️⃣ 👍🏽 there'), "Hello there");
+});
+
 test("speech output handles markdown and links without reading formatting", () => {
   const spoken = prepareSpeechText('**JOMY** ने [यहाँ](https://example.com) बताया।');
   assert.equal(spoken, "जोमी ने यहाँ बताया");
