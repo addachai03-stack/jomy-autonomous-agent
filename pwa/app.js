@@ -1,4 +1,5 @@
 import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } from "./voice-utils.js";
+import { prepareSpeechText } from "./speech-text.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
 import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan } from "./task-planner.js";
@@ -339,6 +340,12 @@ import { parseTaskPlan } from "./task-planner.js";
       if (handsFree) startRecognition();
       return;
     }
+    const speechText = prepareSpeechText(text);
+    if (!speechText) {
+      speakingReply = false;
+      if (handsFree) startRecognition();
+      return;
+    }
     if (recognition && listening) {
       try { recognition.stop(); } catch (_) {}
       listening = false;
@@ -346,7 +353,7 @@ import { parseTaskPlan } from "./task-planner.js";
     const synth = window.speechSynthesis;
     synth.cancel();
     speakingReply = true;
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(speechText);
     utterance.lang = "hi-IN";
     utterance.rate = 0.92;
     const voices = synth.getVoices();

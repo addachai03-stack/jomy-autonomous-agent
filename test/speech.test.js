@@ -41,3 +41,19 @@ test("speech output handles markdown and links without reading formatting", () =
 test("empty symbol-only replies do not create spoken noise", () => {
   assert.equal(prepareSpeechText('!?— 😀 # @'), "");
 });
+
+import { readFileSync } from "node:fs";
+
+test("production PWA routes every spoken reply through the sanitizer", () => {
+  const source = readFileSync(new URL("../pwa/app.js", import.meta.url), "utf8");
+  assert.match(source, /import \{ prepareSpeechText \} from "\.\/speech-text\.js";/);
+  assert.match(source, /const speechText = prepareSpeechText\(text\);/);
+  assert.match(source, /new SpeechSynthesisUtterance\(speechText\)/);
+  assert.doesNotMatch(source, /new SpeechSynthesisUtterance\(text\)/);
+});
+
+test("production service worker precaches the speech sanitizer with a new cache version", () => {
+  const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
+  assert.match(source, /jomy-agent-shell-v23/);
+  assert.match(source, /"\/speech-text\.js"/);
+});
