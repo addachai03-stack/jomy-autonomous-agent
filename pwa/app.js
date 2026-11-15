@@ -527,6 +527,8 @@ import { parseTaskPlan } from "./task-planner.js";
   async function sendMessage(rawText) {
     const text = rawText.trim();
     if (!text || busy) return;
+    const detectedMemory = extractMemoryFromMessage(text);
+    if (detectedMemory) rememberFact(detectedMemory);
     addMessage("user", text);
     messageInput.value = "";
     messageInput.style.height = "auto";
