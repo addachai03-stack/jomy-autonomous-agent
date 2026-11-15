@@ -731,8 +731,7 @@ import { parseTaskPlan } from "./task-planner.js";
       localStorage.setItem(STORAGE_ENDPOINT, endpoint);
       if (ownerToken) localStorage.setItem(STORAGE_TOKEN, ownerToken);
       else localStorage.removeItem(STORAGE_TOKEN);
-      localStorage.removeItem(STORAGE_TOKEN);
-    sessionStorage.removeItem(STORAGE_TOKEN);
+      sessionStorage.removeItem(STORAGE_TOKEN);
       setConnection(false, "Endpoint saved · not tested");
       $("settingsNote").textContent = "Saved on this device. Send a message to test the connection.";
     } catch (error) {
@@ -745,6 +744,7 @@ import { parseTaskPlan } from "./task-planner.js";
     endpointInput.value = "";
     ownerToken = "";
     agentTokenInput.value = "";
+    localStorage.removeItem(STORAGE_TOKEN);
     sessionStorage.removeItem(STORAGE_TOKEN);
     setConnection(false, "Not connected");
     $("settingsNote").textContent = "Disconnected on this device.";
