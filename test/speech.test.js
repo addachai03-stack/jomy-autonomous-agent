@@ -61,7 +61,8 @@ test("production PWA routes every spoken reply through the sanitizer", () => {
 test("production service worker precaches the speech sanitizer with a new cache version", () => {
   const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
   assert.match(source, /jomy-agent-shell-v26/);
-  assert.match(source, /"\/speech-text\.js"/);\n  assert.match(source, /"\/speech-voice\.js"/);
+  assert.match(source, /"\/speech-text\.js"/);
+  assert.match(source, /"\/speech-voice\.js"/);
 });
 
 test("Hindi female voice selector prefers known Indian female voice names", () => {
