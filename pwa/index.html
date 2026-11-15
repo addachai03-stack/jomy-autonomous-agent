@@ -51,6 +51,16 @@
         <form class="task-form" id="taskForm"><label class="sr-only" for="taskInput">Add a task</label><input id="taskInput" maxlength="4000" placeholder="Add a task for JOMY to organize…" autocomplete="off"><button type="submit">ADD</button></form>
         <div id="taskList" class="task-list" aria-live="polite"></div>
         <p class="task-note">Saved on this iPhone only. Say “Task: …” to JOMY or add one here. Planning never executes external actions.</p>
+        <section class="memory-panel" aria-label="Personal memory">
+          <div class="task-heading"><span>PERSONAL MEMORY</span><span>DEVICE ONLY · 15 MAX</span></div>
+          <form id="memoryForm" class="memory-form">
+            <label class="sr-only" for="memoryInput">Save a personal fact</label>
+            <input id="memoryInput" maxlength="180" placeholder="E.g. Mera naam Rahul hai…" autocomplete="off">
+            <button type="submit">SAVE</button>
+          </form>
+          <div id="memoryList" class="memory-list" aria-live="polite"></div>
+          <p class="memory-note">JOMY ko sirf yahan saved facts chat context mein milenge. Data isi iPhone ke browser mein rahega; passwords, OTP ya tokens save mat karein. Aap kabhi bhi delete kar sakte hain.</p>
+        </section>
       </div>
     </section>
     <footer class="footer"><span>JOMY AUTONOMOUS AGENT</span><span>OWNER CONTROL · SAFE BY DEFAULT</span></footer>
