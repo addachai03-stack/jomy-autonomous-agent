@@ -177,6 +177,7 @@
       busy = false;
       $("sendButton").disabled = false;
       if (orbStage.dataset.state === "thinking") setState("idle", "READY", "Your command center. Speak or type to begin.");
+      scheduleHandsFreeStart();
     }
   }
 
