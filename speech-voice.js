@@ -1,4 +1,4 @@
-const FEMALE_NAME_HINTS = /\\b(lekha|aditi|raveena|heera|priya|neerja|sangeeta|kavya|female)\\b/i;
+const FEMALE_NAME_HINTS = /\b(lekha|aditi|raveena|heera|priya|neerja|sangeeta|kavya|female)\b/i;
 const QUALITY_HINTS = /premium|enhanced|natural|compact|siri/i;
 
 export function selectHindiFemaleVoice(voices = []) {
