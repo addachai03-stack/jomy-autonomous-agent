@@ -14,7 +14,7 @@ test("speech output reads Hindi naturally and strips decorative emoji", () => {
 });
 
 test("Roman Hindi Aap is converted to Devanagari instead of being spelled as letters", () => {
-  assert.equal(prepareSpeechText('Aap ko kya chahiye?'), "आप को क्या chahiye?");
+  assert.equal(prepareSpeechText('Aap ko kya chahiye?'), "आप को क्या चाहिए?");
   assert.equal(prepareSpeechText('aap mere dost ho'), "आप मेरे दोस्त हो");
 });
 
