@@ -624,7 +624,7 @@ import { parseTaskPlan } from "./task-planner.js";
 
   renderTaskQueue();
   setupRecognition();
-  setConnection(false, endpoint ? "Endpoint ready · not tested" : "Not connected");
+  setConnection(false, endpoint ? (ownerToken ? "Endpoint ready · not tested" : "Owner token needed · this browser") : "Not connected");
   handsFreeButton.textContent = handsFree ? "Hands-free: On" : "Hands-free: Off";
   handsFreeButton.setAttribute("aria-pressed", String(handsFree));
   if (handsFree) {
@@ -731,7 +731,7 @@ import { parseTaskPlan } from "./task-planner.js";
   $("settingsButton").addEventListener("click", () => {
     endpointInput.value = endpoint;
     agentTokenInput.value = ownerToken;
-    $("settingsNote").textContent = "";
+    $("settingsNote").textContent = ownerToken ? "" : "This browser has no saved Owner token. Production and Preview use separate storage. Enter your existing token here; never share it in chat.";
     if (!settingsDialog.open) {
       if (typeof settingsDialog.showModal === "function") settingsDialog.showModal();
       else settingsDialog.setAttribute("open", "");
