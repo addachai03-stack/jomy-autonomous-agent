@@ -78,7 +78,13 @@ import { parseTaskPlan } from "./task-planner.js";
       endpoint = normalizedEndpoint;
     } catch (_) {}
   }
-  let ownerToken = sessionStorage.getItem(STORAGE_TOKEN) || "";
+  // Persist the owner token across browser restarts on this device.
+  // Migrate any token saved by older builds from sessionStorage.
+  let ownerToken = localStorage.getItem(STORAGE_TOKEN) || sessionStorage.getItem(STORAGE_TOKEN) || "";
+  if (ownerToken) {
+    try { localStorage.setItem(STORAGE_TOKEN, ownerToken); } catch (_) {}
+  }
+  sessionStorage.removeItem(STORAGE_TOKEN);
   sessionStorage.removeItem("jomy_mcp_client_token_v1");
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
   let recognition = null;
@@ -723,8 +729,9 @@ import { parseTaskPlan } from "./task-planner.js";
       endpoint = normalizeAgentEndpoint(value);
       ownerToken = agentTokenInput.value.trim();
       localStorage.setItem(STORAGE_ENDPOINT, endpoint);
-      if (ownerToken) sessionStorage.setItem(STORAGE_TOKEN, ownerToken);
-      else sessionStorage.removeItem(STORAGE_TOKEN);
+      if (ownerToken) localStorage.setItem(STORAGE_TOKEN, ownerToken);
+      else localStorage.removeItem(STORAGE_TOKEN);
+      sessionStorage.removeItem(STORAGE_TOKEN);
       setConnection(false, "Endpoint saved · not tested");
       $("settingsNote").textContent = "Saved on this device. Send a message to test the connection.";
     } catch (error) {
@@ -737,6 +744,7 @@ import { parseTaskPlan } from "./task-planner.js";
     endpointInput.value = "";
     ownerToken = "";
     agentTokenInput.value = "";
+    localStorage.removeItem(STORAGE_TOKEN);
     sessionStorage.removeItem(STORAGE_TOKEN);
     setConnection(false, "Not connected");
     $("settingsNote").textContent = "Disconnected on this device.";
