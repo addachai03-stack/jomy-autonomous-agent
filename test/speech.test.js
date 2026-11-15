@@ -4,16 +4,16 @@ import { prepareSpeechText } from "../speech-text.js";
 
 test("speech output removes punctuation, symbols and emoji but keeps useful words and numbers", () => {
   const spoken = prepareSpeechText('Hello!? — JOMY :) 😀 #529300282611, balance ₹500.');
-  assert.equal(spoken, "Hello जोमी 529300282611 balance 500");
+  assert.equal(spoken, "Hello! जोमी 529300282611 balance 500.");
 });
 
 test("speech output reads Hindi naturally and strips decorative emoji", () => {
   const spoken = prepareSpeechText('नमस्ते JOMY!!! 😊 आपका काम हो गया।');
-  assert.equal(spoken, "नमस्ते जोमी आपका काम हो गया");
+  assert.equal(spoken, "नमस्ते जोमी आपका काम हो गया।");
 });
 
 test("Roman Hindi Aap is converted to Devanagari instead of being spelled as letters", () => {
-  assert.equal(prepareSpeechText('Aap ko kya chahiye?'), "आप ko kya chahiye");
+  assert.equal(prepareSpeechText('Aap ko kya chahiye?'), "आप ko kya chahiye?");
   assert.equal(prepareSpeechText('aap mere dost ho'), "आप mere dost ho");
 });
 
@@ -26,7 +26,7 @@ test("speech allowlist strips emoji and symbols while preserving words and numbe
 });
 
 test("the reported emoji cluster stays visible in chat but is absent from speech text", () => {
-  assert.equal(prepareSpeechText('Namaste JOMY 😊🔥❤️, mujhe batao aaj tum kaise ho?'), "Namaste जोमी mujhe batao aaj tum kaise ho");
+  assert.equal(prepareSpeechText('Namaste JOMY 😊🔥❤️, mujhe batao aaj tum kaise ho?'), "Namaste जोमी mujhe batao aaj tum kaise ho?");
 });
 
 test("speech allowlist preserves Hindi combining marks, other scripts and digits", () => {
@@ -35,7 +35,7 @@ test("speech allowlist preserves Hindi combining marks, other scripts and digits
 
 test("speech output handles markdown and links without reading formatting", () => {
   const spoken = prepareSpeechText('**JOMY** ने [यहाँ](https://example.com) बताया।');
-  assert.equal(spoken, "जोमी ने यहाँ बताया");
+  assert.equal(spoken, "जोमी ने यहाँ बताया।");
 });
 
 test("empty symbol-only replies do not create spoken noise", () => {
@@ -54,6 +54,6 @@ test("production PWA routes every spoken reply through the sanitizer", () => {
 
 test("production service worker precaches the speech sanitizer with a new cache version", () => {
   const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(source, /jomy-agent-shell-v23/);
+  assert.match(source, /jomy-agent-shell-v24/);
   assert.match(source, /"\/speech-text\.js"/);
 });
