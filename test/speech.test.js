@@ -2,14 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { prepareSpeechText } from "../speech-text.js";
 
-test("speech output removes punctuation, symbols and emoji but keeps useful words and numbers", () => {
+test("speech output keeps natural pause punctuation and removes symbols and emoji", () => {
   const spoken = prepareSpeechText('Hello!? — JOMY :) 😀 #529300282611, balance ₹500.');
-  assert.equal(spoken, "Hello! जोमी 529300282611 balance 500.");
+  assert.equal(spoken, "Hello! जोमी 529300282611, balance 500.");
 });
 
 test("speech output reads Hindi naturally and strips decorative emoji", () => {
   const spoken = prepareSpeechText('नमस्ते JOMY!!! 😊 आपका काम हो गया।');
-  assert.equal(spoken, "नमस्ते जोमी आपका काम हो गया।");
+  assert.equal(spoken, "नमस्ते जोमी! आपका काम हो गया।");
 });
 
 test("Roman Hindi Aap is converted to Devanagari instead of being spelled as letters", () => {
@@ -26,7 +26,7 @@ test("speech allowlist strips emoji and symbols while preserving words and numbe
 });
 
 test("the reported emoji cluster stays visible in chat but is absent from speech text", () => {
-  assert.equal(prepareSpeechText('Namaste JOMY 😊🔥❤️, mujhe batao aaj tum kaise ho?'), "Namaste जोमी mujhe batao aaj tum kaise ho?");
+  assert.equal(prepareSpeechText('Namaste JOMY 😊🔥❤️, mujhe batao aaj tum kaise ho?'), "Namaste जोमी, mujhe batao aaj tum kaise ho?");
 });
 
 test("speech allowlist preserves Hindi combining marks, other scripts and digits", () => {
