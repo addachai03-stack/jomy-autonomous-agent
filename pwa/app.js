@@ -737,31 +737,15 @@ import { parseTaskPlan } from "./task-planner.js";
       else settingsDialog.setAttribute("open", "");
     }
   });
-  $("saveEndpoint").addEventListener("click", () => {
-    const value = endpointInput.value.trim();
-    try {
-      endpoint = normalizeAgentEndpoint(value);
-      ownerToken = agentTokenInput.value.trim();
-      localStorage.setItem(STORAGE_ENDPOINT, endpoint);
-      if (ownerToken) localStorage.setItem(STORAGE_TOKEN, ownerToken);
-      else localStorage.removeItem(STORAGE_TOKEN);
-      sessionStorage.removeItem(STORAGE_TOKEN);
-      setConnection(false, "Endpoint saved · not tested");
-      $("settingsNote").textContent = "Saved on this device. Send a message to test the connection.";
-    } catch (error) {
-      $("settingsNote").textContent = error.message || "Enter a valid HTTPS URL.";
-    }
+  window.addEventListener("jomy:endpoint-saved", () => {
+    endpoint = localStorage.getItem(STORAGE_ENDPOINT) || "";
+    ownerToken = localStorage.getItem(STORAGE_TOKEN) || "";
+    setConnection(false, endpoint ? (ownerToken ? "Endpoint saved · not tested" : "Owner token needed · this browser") : "Not connected");
   });
-  $("clearEndpoint").addEventListener("click", () => {
+  window.addEventListener("jomy:endpoint-disconnected", () => {
     endpoint = "";
-    localStorage.setItem(STORAGE_ENDPOINT, "");
-    endpointInput.value = "";
     ownerToken = "";
-    agentTokenInput.value = "";
-    localStorage.removeItem(STORAGE_TOKEN);
-    sessionStorage.removeItem(STORAGE_TOKEN);
     setConnection(false, "Not connected");
-    $("settingsNote").textContent = "Disconnected on this device.";
   });
 
   // iOS Safari may suspend recognition when this PWA is backgrounded.
