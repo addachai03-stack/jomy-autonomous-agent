@@ -74,6 +74,13 @@ test("Hindi female voice selector prefers known Indian female voice names", () =
   assert.equal(selectHindiFemaleVoice(voices).name, "Lekha");
 });
 
+test("PWA explains that Preview needs its own locally saved owner token", () => {
+  const source = readFileSync(new URL("../pwa/app.js", import.meta.url), "utf8");
+  assert.match(source, /Owner token needed · this browser/);
+  assert.match(source, /Production and Preview use separate storage/);
+  assert.match(source, /never share it in chat/);
+});
+
 test("Hindi voice selector falls back to an available Hindi voice", () => {
   const voices = [{ name: "Hindi Voice", lang: "hi-IN", localService: true }];
   assert.equal(selectHindiFemaleVoice(voices).name, "Hindi Voice");
