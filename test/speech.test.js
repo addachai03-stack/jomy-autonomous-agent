@@ -21,8 +21,16 @@ test("emoji sequences including flags, skin tones and keycaps are fully removed"
   assert.equal(prepareSpeechText('Hello 👨🏽‍💻 🇮🇳 1️⃣ 👍🏽 there'), "Hello there");
 });
 
-test("all Unicode emoji property characters are removed while ordinary numbers remain", () => {
-  assert.equal(prepareSpeechText('Hi 🙂 🫠 ❤️ ™️ ©️ 🏳️‍🌈 2026 and ₹500'), "Hi 2026 and 500");
+test("speech allowlist strips emoji and symbols while preserving words and numbers", () => {
+  assert.equal(prepareSpeechText('Hi 🙂 🫠 🫨 🫩 🪾 🫆 ❤️ ™️ ©️ 🏳️‍🌈 2026 and ₹500'), "Hi 2026 and 500");
+});
+
+test("the reported emoji cluster stays visible in chat but is absent from speech text", () => {
+  assert.equal(prepareSpeechText('Namaste JOMY 😊🔥❤️, mujhe batao aaj tum kaise ho?'), "Namaste जोमी mujhe batao aaj tum kaise ho");
+});
+
+test("speech allowlist preserves Hindi combining marks, other scripts and digits", () => {
+  assert.equal(prepareSpeechText('नमस्ते दुनिया १२३ العربية שלום 2026'), "नमस्ते दुनिया १२३ العربية שלום 2026");
 });
 
 test("speech output handles markdown and links without reading formatting", () => {
