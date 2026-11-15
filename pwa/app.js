@@ -61,6 +61,13 @@ import { parseTaskPlan } from "./task-planner.js";
   const DEFAULT_ENDPOINT = "https://jomy-autonomous-agent-api.addachai03.workers.dev/api/agent/chat";
   const storedEndpoint = localStorage.getItem(STORAGE_ENDPOINT);
   let endpoint = storedEndpoint === null ? DEFAULT_ENDPOINT : storedEndpoint;
+  if (endpoint) {
+    try {
+      const normalizedEndpoint = normalizeAgentEndpoint(endpoint);
+      if (normalizedEndpoint !== endpoint) localStorage.setItem(STORAGE_ENDPOINT, normalizedEndpoint);
+      endpoint = normalizedEndpoint;
+    } catch (_) {}
+  }
   let ownerToken = sessionStorage.getItem(STORAGE_TOKEN) || "";
   sessionStorage.removeItem("jomy_mcp_client_token_v1");
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
@@ -153,7 +160,12 @@ import { parseTaskPlan } from "./task-planner.js";
         body: JSON.stringify({ message: plannerPrompt, history: [], locale: "hi-IN", client: "jomy-task-planner" })
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || typeof data.reply !== "string") throw new Error(data.error || "Task planning failed.");
+      if (!response.ok || typeof data.reply !== "string") {
+        const detail = response.status === 404
+          ? "Agent API route not found. Settings mein poora URL /api/agent/chat par end hona chahiye."
+          : data.error || "Task planning failed.";
+        throw new Error(detail);
+      }
       const plan = parseTaskPlan(data.reply, task.title);
       const nextStatus = plan.actionType === "unsupported"
         ? TASK_STATES.BLOCKED
