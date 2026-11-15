@@ -34,9 +34,9 @@
       </div>
       <div class="voice-controls">
         <button class="mic-button" id="micButton" aria-label="Start voice input"><span class="mic-icon">⌁</span><span id="micLabel">Tap to speak</span></button>
-        <button class="sound-button" id="soundButton" aria-pressed="true" aria-label="Toggle spoken replies">◖))</button>
+        <button class="handsfree-button" id="handsFreeButton" type="button" aria-pressed="false">Hands-free OFF</button><button class="sound-button" id="soundButton" aria-pressed="true" aria-label="Toggle spoken replies">◖))</button>
       </div>
-      <p class="voice-hint" id="voiceHint">Voice input availability depends on your browser. iPhone keyboard dictation is a fallback.</p>
+      <p class="voice-hint" id="voiceHint">Turn on Hands-free and say “Hey JOMY”. Microphone permission and browser support are required; background listening is not guaranteed.</p>
     </section>
     <section class="composer" aria-label="Message the agent">
       <form id="chatForm"><label class="sr-only" for="messageInput">Your command</label><textarea id="messageInput" rows="1" maxlength="4000" placeholder="Tell JOMY what you need…" enterkeyhint="send"></textarea><button class="send-button" id="sendButton" type="submit" aria-label="Send message">↑</button></form>
@@ -53,9 +53,8 @@
     <div class="dialog-body">
       <label for="endpointInput">Secure API URL</label><input id="endpointInput" type="url" placeholder="https://your-agent.example.com/api/agent/chat" autocomplete="url">
       <label for="agentTokenInput" style="display:block;margin-top:14px">Owner access token</label><input id="agentTokenInput" type="password" placeholder="Private Agent API token" autocomplete="off" autocapitalize="none" spellcheck="false">
-      <label for="mcpTokenInput" style="display:block;margin-top:14px">Optional MCP Client token (not needed for chat)</label><input id="mcpTokenInput" type="password" placeholder="Dedicated MCP Client token · session only" autocomplete="off" autocapitalize="none" spellcheck="false">
-      <p>Use an HTTPS Agent API endpoint. The URL is saved in this browser. The Owner token stays only in this browser session. MCP is optional and is not required for normal AI chat; leave its Client token blank unless you intentionally enable an MCP integration later.</p>
-      <div class="dialog-actions"><button class="quiet-button" id="clearEndpoint" type="button">Disconnect</button><button class="quiet-button" id="testMcpConnection" type="button">Test MCP connection</button><button class="primary-button" id="saveEndpoint" type="button">Save endpoint</button></div>
+      <p>Use an HTTPS Agent API endpoint. The URL is saved in this browser. The Owner token stays only in this browser session. This connection is for JOMY chat only.</p>
+      <div class="dialog-actions"><button class="quiet-button" id="clearEndpoint" type="button">Disconnect</button><button class="primary-button" id="saveEndpoint" type="button">Save endpoint</button></div>
       <p class="settings-note" id="settingsNote" role="status" aria-live="polite"></p>
     </div>
   </dialog>
