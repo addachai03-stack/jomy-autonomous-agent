@@ -287,3 +287,36 @@ test("task planner rejects malformed model output without performing actions", a
   assert.equal(data.code, "TASK_PLAN_FAILED");
   assert.match(data.error, /No action was performed/);
 });
+
+
+test("chat uses a focused Hindi/Hinglish assistant prompt and forwards validated history in order", async () => {
+  let captured;
+  const response = await worker.fetch(makeRequest("/api/agent/chat", {
+    headers: { Authorization: "Bearer " + OWNER_TOKEN },
+    body: JSON.stringify({
+      message: "Ab agla step kya hai?",
+      history: [
+        { role: "user", content: "Mujhe app banana hai." },
+        { role: "assistant", content: "Pehle requirements clear karte hain." }
+      ]
+    })
+  }), makeEnv({
+    AI: {
+      async run(model, input) {
+        captured = input;
+        return { response: "Pehle text chat test karte hain." };
+      }
+    }
+  }));
+  assert.equal(response.status, 200);
+  assert.equal(captured.messages[0].role, "system");
+  assert.match(captured.messages[0].content, /natural Hinglish/);
+  assert.match(captured.messages[0].content, /Never invent remembered facts/);
+  assert.deepEqual(captured.messages.slice(1).map(item => [item.role, item.content]), [
+    ["user", "Mujhe app banana hai."],
+    ["assistant", "Pehle requirements clear karte hain."],
+    ["user", "Ab agla step kya hai?"]
+  ]);
+  assert.equal(captured.max_tokens, 450);
+  assert.equal(captured.temperature, 0.25);
+});
