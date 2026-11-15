@@ -37,7 +37,7 @@ export function normalizeAgentEndpoint(value) {
   if (url.username || url.password || url.search || url.hash) {
     throw new Error("Agent URL mein username, password, query ya fragment nahi hona chahiye.");
   }
-  const path = url.pathname.replace(/\\/+$/, "");
+  const path = url.pathname.replace(/\/+$/, "");
   if (!path || path === "/" || path === "/api/agent") {
     url.pathname = "/api/agent/chat";
   } else if (path === "/api/agent/chat") {
