@@ -368,7 +368,7 @@ import { parseTaskPlan } from "./task-planner.js";
     synth.speak(utterance);
   }
   function startRecognition() {
-    if (!recognition || !handsFree || busy || listening || recognitionStarting || recognitionBlocked || speakingReply) return;
+    if (!recognition || !handsFree || document.hidden || busy || listening || recognitionStarting || recognitionBlocked || speakingReply) return;
     try {
       recognitionStarting = true;
       recognition.start();
@@ -522,7 +522,7 @@ import { parseTaskPlan } from "./task-planner.js";
         clearTimeout(voiceSendTimer);
         voiceSendTimer = setTimeout(() => submitVoiceTranscript(), 250);
       }
-      if (handsFree && !recognitionBlocked && !busy && !speakingReply && !(window.speechSynthesis && window.speechSynthesis.speaking)) {
+      if (handsFree && !document.hidden && !recognitionBlocked && !busy && !speakingReply && !(window.speechSynthesis && window.speechSynthesis.speaking)) {
         startRecognition();
       } else if (!handsFree && !busy && !voiceFinalTranscript && orbStage.dataset.state === "listening") {
         micLabel.textContent = "Tap to speak";
@@ -748,6 +748,26 @@ import { parseTaskPlan } from "./task-planner.js";
     sessionStorage.removeItem(STORAGE_TOKEN);
     setConnection(false, "Not connected");
     $("settingsNote").textContent = "Disconnected on this device.";
+  });
+
+  // iOS Safari may suspend recognition when this PWA is backgrounded.
+  // Stop cleanly while hidden and resume only after the page is visible again.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      if (recognition && listening) {
+        try { recognition.stop(); } catch (_) {}
+      }
+      listening = false;
+      recognitionStarting = false;
+      if (handsFree) {
+        voiceHint.textContent = "Safari ne listening pause ki hai. JOMY ko foreground mein lao; mic permission active ho to listening resume hogi.";
+        setState("idle", "VOICE PAUSED", "JOMY ko foreground mein rakho for hands-free voice.");
+      }
+      return;
+    }
+    if (handsFree && !busy && !speakingReply && !recognitionBlocked) {
+      startRecognition();
+    }
   });
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
