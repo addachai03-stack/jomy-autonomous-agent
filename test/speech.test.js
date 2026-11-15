@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { prepareSpeechText } from "../speech-text.js";
+import { selectHindiFemaleVoice } from "../speech-voice.js";
 
 test("speech output keeps natural pause punctuation and removes symbols and emoji", () => {
   const spoken = prepareSpeechText('Hello!? — JOMY :) 😀 #529300282611, balance ₹500.');
@@ -14,7 +15,7 @@ test("speech output reads Hindi naturally and strips decorative emoji", () => {
 
 test("Roman Hindi Aap is converted to Devanagari instead of being spelled as letters", () => {
   assert.equal(prepareSpeechText('Aap ko kya chahiye?'), "आप ko kya chahiye?");
-  assert.equal(prepareSpeechText('aap mere dost ho'), "आप mere dost ho");
+  assert.equal(prepareSpeechText('aap mere dost ho'), "आप मेरे दोस्त हो");
 });
 
 test("emoji sequences including flags, skin tones and keycaps are fully removed", () => {
@@ -26,7 +27,7 @@ test("speech allowlist strips emoji and symbols while preserving words and numbe
 });
 
 test("the reported emoji cluster stays visible in chat but is absent from speech text", () => {
-  assert.equal(prepareSpeechText('Namaste JOMY 😊🔥❤️, mujhe batao aaj tum kaise ho?'), "Namaste जोमी, mujhe batao aaj tum kaise ho?");
+  assert.equal(prepareSpeechText('Namaste JOMY 😊🔥❤️, mujhe batao aaj tum kaise ho?'), "नमस्ते जोमी, मुझे बताओ आज तुम कैसे हो?");
 });
 
 test("speech allowlist preserves Hindi combining marks, other scripts and digits", () => {
@@ -59,6 +60,20 @@ test("production PWA routes every spoken reply through the sanitizer", () => {
 
 test("production service worker precaches the speech sanitizer with a new cache version", () => {
   const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(source, /jomy-agent-shell-v25/);
+  assert.match(source, /jomy-agent-shell-v26/);
   assert.match(source, /"\/speech-text\.js"/);
+});
+
+test("Hindi female voice selector prefers known Indian female voice names", () => {
+  const voices = [
+    { name: "Google Hindi", lang: "hi-IN", localService: true },
+    { name: "Lekha", lang: "hi-IN", localService: true },
+    { name: "Ava", lang: "en-US", localService: true }
+  ];
+  assert.equal(selectHindiFemaleVoice(voices).name, "Lekha");
+});
+
+test("Hindi voice selector falls back to an available Hindi voice", () => {
+  const voices = [{ name: "Hindi Voice", lang: "hi-IN", localService: true }];
+  assert.equal(selectHindiFemaleVoice(voices).name, "Hindi Voice");
 });
