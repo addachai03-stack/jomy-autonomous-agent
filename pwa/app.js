@@ -558,10 +558,20 @@ import { parseTaskPlan } from "./task-planner.js";
     $("sendButton").disabled = true;
     setState("thinking", "THINKING", "Working on your request…");
     try {
+      const memoryContext = formatMemoryContext(personalMemories);
+      const requestHistory = [
+        ...(memoryContext ? [{ role: "assistant", content: memoryContext }] : []),
+        ...conversationHistory.slice(0, -1).slice(-9)
+      ];
+      while (requestHistory.length > 10 || requestHistory.reduce((total, item) => total + item.content.length, 0) > 8500) {
+        const firstChatIndex = memoryContext ? 1 : 0;
+        if (requestHistory.length <= firstChatIndex) break;
+        requestHistory.splice(firstChatIndex, 1);
+      }
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(ownerToken ? { "Authorization": "Bearer " + ownerToken } : {}) },
-        body: JSON.stringify({ message: text, history: [...(formatMemoryContext(personalMemories) ? [{ role: "assistant", content: formatMemoryContext(personalMemories) }] : []), ...conversationHistory.slice(0, -1).slice(formatMemoryContext(personalMemories) ? -9 : -10)], sessionId, locale: "hi-IN", client: "jomy-autonomous-agent" })
+        body: JSON.stringify({ message: text, history: requestHistory, sessionId, locale: "hi-IN", client: "jomy-autonomous-agent" })
       });
       if (!response.ok) {
         let detail = "Agent endpoint returned HTTP " + response.status;
