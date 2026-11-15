@@ -47,4 +47,4 @@ npm run dev:api
 Configure the Workers AI binding, `AGENT_OWNER_TOKEN`, and `ALLOWED_ORIGIN` locally before testing the Worker. Never commit secret values.
 
 ## Voice limitations
-Voice recognition is browser-dependent. Hands-free begins only after a user tap and microphone permission. Some iPhone Safari versions do not expose the Web Speech Recognition API; use the iOS keyboard microphone in the message field if voice recognition is unavailable. iOS may suspend microphone listening in the background or while the screen is locked, so always-on background wake-word listening is not guaranteed.
+Voice recognition is browser-dependent. Hands-free begins only after a user tap and microphone permission. Some iPhone Safari versions do not expose the Web Speech Recognition API; use the iOS keyboard microphone in the message field if voice recognition is unavailable. When the PWA is backgrounded, JOMY pauses recognition and attempts to resume after the page returns to the foreground. iOS may suspend microphone access or speech recognition while backgrounded or locked, so always-on background wake-word listening is not guaranteed.
