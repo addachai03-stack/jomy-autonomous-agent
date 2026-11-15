@@ -1,35 +1,48 @@
 # JOMY Autonomous Agent
 
-Standalone, compact, iPhone-first voice interface with a humanoid-inspired animated orb. This repository is separate from `JOMY-ORCHESTRA`.
+JOMY is a private, iPhone-first Hindi/Hinglish AI chat and task-planning PWA with a humanoid-inspired animated orb and optional voice input.
 
-## UI
-- Black-and-gold compact mobile UI and animated ready/listening/thinking/speaking orb states.
-- Browser speech recognition where available; iPhone keyboard dictation fallback.
-- Optional hands-free wake-word mode (off by default), tested Hindi/Hinglish wake-word parsing, auto-send after wake + command, and spoken replies that resume listening when supported.
-- Collapsible conversation, session-only Agent owner token and dedicated JOMY MCP Client token fields.
-- Installable PWA shell and offline caching for static assets.
+## Current capabilities
+- Black-and-gold mobile interface with ready, listening, thinking and speaking states.
+- Text chat through the separately deployed Cloudflare Worker API.
+- Tap-to-speak where the browser supports Web Speech Recognition; iPhone keyboard dictation is the fallback.
+- Optional hands-free wake phrase mode. It is opt-in, requires the page to stay open, and depends on browser speech-recognition support.
+- Local task queue (up to 30 items), task planning, retry and status display. Task records are stored on this device.
+- Installable PWA shell with cached static assets.
 
-## Backend API (source only; not deployed)
-A standalone Cloudflare Worker API source copy lives in `src/worker.js`; the existing API Worker is managed and deployed separately. It provides owner bearer-token authentication, Cloudflare Workers AI chat, and a server-side bridge to the existing JOMY Personal MCP endpoint. The bridge supports read-only system/Telegram status and preparing a Telegram message for owner approval. It never approves or executes the send. The MCP Client token is sent only to the authenticated Worker over HTTPS and is not persisted by the Worker.
+## API
+The PWA default endpoint is:
 
-### Required Worker configuration
-1. Enable the Workers AI binding in Cloudflare.
-2. Set the Worker secret `AGENT_OWNER_TOKEN`. It must be a new, unique random secret (at least 32 characters). On iPhone, generate it with a trusted password manager's random-password generator and save it privately. Never paste the secret into GitHub, chat, or the app's public source.
-3. Set `ALLOWED_ORIGIN` to the exact HTTPS origin hosting this standalone UI.
-4. Deploy only after separate explicit deployment approval.
+`https://jomy-autonomous-agent-api.addachai03.workers.dev/api/agent/chat`
 
-The model source is `@cf/openai/gpt-oss-20b` through Workers AI. Keep this source aligned with the separately managed Worker deployment. Confirm account availability and free daily allowance in Cloudflare first; usage beyond any free allowance may be billable.
+The standalone Worker source is `src/worker.js`. It exposes:
+- `GET /health` — configuration readiness status.
+- `POST /api/agent/chat` — authenticated chat.
+- `POST /api/agent/plan` — authenticated task-plan generation.
 
-## Local API development
-Requires Node.js/npm and Wrangler. Run `npm install`, configure the local secret and AI binding, then `npm run dev:api`. Health endpoint: `/health`; chat endpoint: `POST /api/agent/chat`.
+The browser sends JSON over HTTPS and the owner bearer token in the Authorization header. The token is held in session storage on this device; it must never be committed to source or shared in chat. The Worker uses the Workers AI binding and an `AGENT_OWNER_TOKEN` secret. `ALLOWED_ORIGIN` must match the production PWA origin.
 
-The browser sends `Authorization: Bearer <agent owner token>` plus JSON `{ "message": "...", "sessionId": "...", "locale": "hi-IN", "client": "jomy-autonomous-agent" }`. The Worker returns `{ "reply": "...", "status": "ready" }`. For MCP requests, the browser sends the dedicated MCP Client token in the body to the authenticated Agent Worker; the Worker proxies it to the fixed existing MCP endpoint. Supported routes are status and Telegram prepare-only. A clear command such as `Telegram par bhejo: ...` creates a five-minute pending approval; it does not send a message. The owner must approve it in the separate JOMY MCP Admin PWA.
+## Task queue behavior
+Tasks can be added from the task panel or by sending `Task: …` in chat. JOMY generates a plan; it does not execute external actions. Plans that require messaging, financial actions, purchases, publishing, deletion, or account changes are marked unsupported/blocked. No task is reported completed without trusted confirmation.
 
-## Safety and scope
-- Backend is source-only until deployed and configured.
-- MCP integration is limited to status and Telegram message preparation pending owner approval. No automatic Telegram sends, email, Calendar, WhatsApp, phone-control, financial actions, or arbitrary task execution.
-- No task is reported completed without trusted confirmation.
-- Credentials remain in server-side secret storage; owner API token is entered locally on the user's device.
-- No dashboard files, databases, or production services are changed by this repository work.
+## Safety boundaries
+- No MCP bridge or Telegram integration is exposed by this Agent.
+- No email, Calendar, WhatsApp, phone-control, financial actions, purchases, publishing, deletion, or arbitrary external execution.
+- The separate JOMY Personal MCP service is independent and is not modified by this repository.
+- No secrets, database records, or external account credentials belong in the repository.
+- Production Worker and Pages deployments require separate explicit approval.
 
-Voice recognition is browser-dependent. Enable Hands-free with a user tap; if Safari pauses microphone startup, tap the Hands-free button again to retry. Some iPhone Safari versions do not expose the Web Speech Recognition API; use iOS keyboard dictation in the message field in that case. iOS may suspend listening in the background or while the screen is locked, so always-on background wake-word listening is not guaranteed.
+## Local development and checks
+Requires Node.js/npm and Wrangler:
+
+```sh
+npm install
+npm test
+npm run check:api
+npm run dev:api
+```
+
+Configure the Workers AI binding, `AGENT_OWNER_TOKEN`, and `ALLOWED_ORIGIN` locally before testing the Worker. Never commit secret values.
+
+## Voice limitations
+Voice recognition is browser-dependent. Hands-free begins only after a user tap and microphone permission. Some iPhone Safari versions do not expose the Web Speech Recognition API; use the iOS keyboard microphone in the message field if voice recognition is unavailable. iOS may suspend microphone listening in the background or while the screen is locked, so always-on background wake-word listening is not guaranteed.
