@@ -28,7 +28,7 @@ test("deduplicates and caps memory at fifteen facts", () => {
 
 test("removes a fact and formats local context", () => {
   const list = addMemory([], "User's name is Rahul", 1);
-  assert.equal(removeMemory(list, "1").length, 0);
+  assert.equal(removeMemory(list, list[0].id).length, 0);
   assert.match(formatMemoryContext(list), /Rahul/);
   assert.equal(formatMemoryContext([]), "");
 });
