@@ -1,4 +1,4 @@
-const emojiCodePoint = /[\\p{Emoji}\\p{Extended_Pictographic}\\p{Regional_Indicator}\\p{Emoji_Modifier}]/u;
+const emojiCodePoint = /[\p{Emoji}\p{Extended_Pictographic}\p{Regional_Indicator}\p{Emoji_Modifier}]/u;
 
 function removeEmojiCharacters(value) {
   return Array.from(value, (character) => {
@@ -24,17 +24,17 @@ function removeEmojiCharacters(value) {
 export function prepareSpeechText(input) {
   let text = String(input ?? "");
   text = text
-    .replace(/\x60\x60\x60[\\s\\S]*?\x60\x60\x60/g, " ")
+    .replace(/\x60{3}[\s\S]*?\x60{3}/g, " ")
     .replace(/\x60([^\x60]+)\x60/g, "$1")
-    .replace(/\\[([^\\]]+)\\]\\((?:https?:\\/\\/)?[^)]+\\)/g, "$1")
-    .replace(/https?:\\/\\/\\S+/gi, " link ")
-    .replace(/\\bAap\\b/gi, "आप")
-    .replace(/\\bJOMY\\b/gi, "जोमी");
+    .replace(/\[([^\]]+)\]\((?:https?:\/\/)?[^)]+\)/g, "$1")
+    .replace(/https?:\/\/\S+/gi, " link ")
+    .replace(/\bAap\b/gi, "आप")
+    .replace(/\bJOMY\b/gi, "जोमी");
   text = removeEmojiCharacters(text);
   text = text
-    .replace(/[\\uFE0E\\uFE0F\\u200D\\u20E3\\p{Cf}]/gu, " ")
-    .replace(/[\\p{P}\\p{S}]/gu, " ")
-    .replace(/\\s+/g, " ")
+    .replace(/[\uFE0E\uFE0F\u200D\u20E3\p{Cf}]/gu, " ")
+    .replace(/[\p{P}\p{S}]/gu, " ")
+    .replace(/\s+/g, " ")
     .trim();
   return text;
 }
