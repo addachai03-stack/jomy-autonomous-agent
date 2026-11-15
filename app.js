@@ -1,3 +1,5 @@
+import { prepareSpeechText } from "./speech-text.js";
+
 (() => {
   const $ = (id) => document.getElementById(id);
   const orbStage = $("orbStage");
@@ -84,7 +86,9 @@
   function speak(text) {
     if (!soundOn || !("speechSynthesis" in window)) { scheduleHandsFreeStart(); return; }
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text); utterance.lang = "hi-IN"; utterance.rate = 1;
+    const speechText = prepareSpeechText(text);
+    if (!speechText) { scheduleHandsFreeStart(); return; }
+    const utterance = new SpeechSynthesisUtterance(speechText); utterance.lang = "hi-IN"; utterance.rate = 1;
     utterance.onstart = () => { stopRecognition(); setState("speaking", "SPEAKING", "JOMY is replying."); };
     utterance.onend = () => { setState("idle", "READY", "Say Hey JOMY when hands-free is on."); scheduleHandsFreeStart(); };
     window.speechSynthesis.speak(utterance);
