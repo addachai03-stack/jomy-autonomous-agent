@@ -21,3 +21,29 @@ export function extractTelegramMessage(text) {
   }
   return null;
 }
+
+
+export function discardPendingVoiceCapture(state, clearTimer = clearTimeout) {
+  const timer = state && state.timer !== undefined ? state.timer : null;
+  if (timer !== null) clearTimer(timer);
+  return { ...state, transcript: "", timer: null, discardResults: true };
+}
+
+export function normalizeAgentEndpoint(value) {
+  const url = new URL(String(value || "").trim());
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && url.hostname === "localhost")) {
+    throw new Error("Use HTTPS for the Agent endpoint.");
+  }
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("Agent URL mein username, password, query ya fragment nahi hona chahiye.");
+  }
+  const path = url.pathname.replace(/\\/+$/, "");
+  if (!path || path === "/" || path === "/api/agent") {
+    url.pathname = "/api/agent/chat";
+  } else if (path === "/api/agent/chat") {
+    url.pathname = path;
+  } else {
+    throw new Error("Use the Agent chat URL ending in /api/agent/chat.");
+  }
+  return url.toString();
+}
