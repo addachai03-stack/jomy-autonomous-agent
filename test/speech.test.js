@@ -50,6 +50,8 @@ test("production PWA routes every spoken reply through the sanitizer", () => {
   assert.match(source, /const speechText = prepareSpeechText\(text\);/);
   assert.match(source, /new SpeechSynthesisUtterance\(speechText\)/);
   assert.match(source, /utterance\.rate = 0\.82;/);
+  assert.match(source, /premium\|enhanced\|natural/i);
+  assert.doesNotMatch(source, /utterance\.rate = 0\.92;/);
   assert.match(source, /utterance\.pitch = 1;/);
   assert.match(source, /utterance\.volume = 1;/);
   assert.doesNotMatch(source, /new SpeechSynthesisUtterance\(text\)/);
