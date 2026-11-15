@@ -4,7 +4,7 @@ export function prepareSpeechText(input) {
     .replace(/\x60{3}[\s\S]*?\x60{3}/g, " ")
     .replace(/\x60([^\x60]+)\x60/g, "$1")
     .replace(/\[([^\]]+)\]\((?:https?:\/\/)?[^)]+\)/g, "$1")
-    .replace(/https?:\/\/\S+/gi, " link ")
+    .replace(/https?:\/\/\S+/gi, " ")
     .replace(/\bAap\b/gi, "आप")
     .replace(/\bJOMY\b/gi, "जोमी");
 
@@ -13,11 +13,17 @@ export function prepareSpeechText(input) {
     .replace(/[#*0-9]\uFE0F?\u20E3/gu, " ")
     .replace(/[\uFE0E\uFE0F\u200D\u20E3]/gu, " ");
 
-  // Retain letters (including Indic scripts), numbers, combining marks and
-  // whitespace only. Emoji, symbols, punctuation and invisible format
-  // characters never reach the device's speech engine.
-  return text
-    .replace(/[^\p{L}\p{N}\p{M}\s]/gu, " ")
-    .replace(/\s+/g, " ")
+  // Keep only spoken words, numbers and natural pause punctuation.
+  // URLs, code, emoji and decorative symbols are not spoken.
+  const cleaned = text
+    .replace(/[^\p{L}\p{N}\p{M}\s,.;?!।]/gu, " ")
+    .replace(/[!?]{2,}/gu, "!")
+    .replace(/\.{2,}/gu, ".")
+    .replace(/[,;]{2,}/gu, ",")
+    .replace(/\s+([,.;?!।])/gu, "$1")
+    .replace(/([,;?!।])(?=\S)/gu, "$1 ")
+    .replace(/\s+/gu, " ")
     .trim();
+
+  return /[\p{L}\p{N}]/u.test(cleaned) ? cleaned : "";
 }
