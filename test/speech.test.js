@@ -46,19 +46,19 @@ import { readFileSync } from "node:fs";
 
 test("production PWA routes every spoken reply through the sanitizer", () => {
   const source = readFileSync(new URL("../pwa/app.js", import.meta.url), "utf8");
-  assert.match(source, /import \{ prepareSpeechText \} from "\.\/speech-text\.js";/);
-  assert.match(source, /const speechText = prepareSpeechText\(text\);/);
-  assert.match(source, /new SpeechSynthesisUtterance\(speechText\)/);
-  assert.match(source, /utterance\.rate = 0\.82;/);
-  assert.match(source, /premium\|enhanced\|natural/i);
-  assert.doesNotMatch(source, /utterance\.rate = 0\.92;/);
-  assert.match(source, /utterance\.pitch = 1;/);
-  assert.match(source, /utterance\.volume = 1;/);
-  assert.doesNotMatch(source, /new SpeechSynthesisUtterance\(text\)/);
+  assert.match(source, /import \\{ prepareSpeechText \\} from "\\.\\/speech-text\\.js";/);
+  assert.match(source, /const speechText = prepareSpeechText\\(text\\);/);
+  assert.match(source, /new SpeechSynthesisUtterance\\(speechText\\)/);
+  assert.match(source, /utterance\\.rate = 0\\.82;/);
+  assert.match(source, /premium\\|enhanced\\|natural/i);
+  assert.doesNotMatch(source, /utterance\\.rate = 0\\.92;/);
+  assert.match(source, /utterance\\.pitch = 1;/);
+  assert.match(source, /utterance\\.volume = 1;/);
+  assert.doesNotMatch(source, /new SpeechSynthesisUtterance\\(text\\)/);
 });
 
 test("production service worker precaches the speech sanitizer with a new cache version", () => {
   const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(source, /jomy-agent-shell-v24/);
-  assert.match(source, /"\/speech-text\.js"/);
+  assert.match(source, /jomy-agent-shell-v25/);
+  assert.match(source, /"\\/speech-text\\.js"/);
 });
