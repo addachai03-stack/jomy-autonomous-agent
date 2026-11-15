@@ -8,9 +8,14 @@ export function prepareSpeechText(input) {
     .replace(/\bAap\b/gi, "आप")
     .replace(/\bJOMY\b/gi, "जोमी");
 
-  // Speech is an allowlist: retain letters (including Indic scripts), numbers,
-  // combining marks and whitespace only. Emoji, symbols, punctuation and
-  // invisible format characters never reach the device's speech engine.
+  // Remove emoji presentation/keycap joiners before applying the speech allowlist.
+  text = text
+    .replace(/[#*0-9]\uFE0F?\u20E3/gu, " ")
+    .replace(/[\uFE0E\uFE0F\u200D\u20E3]/gu, " ");
+
+  // Retain letters (including Indic scripts), numbers, combining marks and
+  // whitespace only. Emoji, symbols, punctuation and invisible format
+  // characters never reach the device's speech engine.
   return text
     .replace(/[^\p{L}\p{N}\p{M}\s]/gu, " ")
     .replace(/\s+/g, " ")
