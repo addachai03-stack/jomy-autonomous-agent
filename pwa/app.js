@@ -757,7 +757,6 @@ import { parseTaskPlan } from "./task-planner.js";
       if (recognition && listening) {
         try { recognition.stop(); } catch (_) {}
       }
-      listening = false;
       recognitionStarting = false;
       if (handsFree) {
         voiceHint.textContent = "Safari ne listening pause ki hai. JOMY ko foreground mein lao; mic permission active ho to listening resume hogi.";
