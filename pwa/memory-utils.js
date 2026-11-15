@@ -14,7 +14,7 @@ export function addMemory(memories, value, now = Date.now()) {
   if (!fact) return Array.isArray(memories) ? memories.slice(-MAX_MEMORIES) : [];
   const current = Array.isArray(memories) ? memories : [];
   if (current.some(item => typeof item?.fact === "string" && item.fact.toLocaleLowerCase() === fact.toLocaleLowerCase())) return current.slice(-MAX_MEMORIES);
-  return [...current, { id: String(now), fact, createdAt: now }].slice(-MAX_MEMORIES);
+  return [...current, { id: String(now) + "-" + current.length, fact, createdAt: now }].slice(-MAX_MEMORIES);
 }
 
 export function removeMemory(memories, id) {
