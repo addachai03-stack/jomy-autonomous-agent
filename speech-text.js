@@ -1,6 +1,8 @@
 const emojiCodePoint = /[\p{Emoji}\p{Extended_Pictographic}\p{Regional_Indicator}\p{Emoji_Modifier}]/u;
 
 function removeEmojiCharacters(value) {
+  // Remove complete keycap sequences before preserving ordinary ASCII digits.
+  value = value.replace(/[#*0-9]\uFE0F?\u20E3/gu, " ");
   return Array.from(value, (character) => {
     const codePoint = character.codePointAt(0);
     // ASCII digits and keycap bases are ordinary spoken numbers here.
