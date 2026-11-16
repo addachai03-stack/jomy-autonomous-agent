@@ -1,1 +1,1 @@
-export { parseTaskPlan } from "../pwa/task-planner.js";
+export { parseTaskPlan, needsSpecificTasks, buildGroundedTaskRequest } from "../pwa/task-planner.js";

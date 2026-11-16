@@ -122,3 +122,19 @@ test("PWA only shows task errors for unresolved states", () => {
   const appSource = readFileSync(new URL("../pwa/app.js", import.meta.url), "utf8");
   assert.match(appSource, /task\.lastError && \[TASK_STATES\.FAILED, TASK_STATES\.RETRY_WAIT, TASK_STATES\.BLOCKED\]\.includes\(task\.status\)/);
 });
+
+test("unspecified personal plan waits for real task details without an AI failure", () => {
+  const base = createTask("Kal ke 3 important kaam ka plan banao", 0);
+  const waiting = transitionTask(base, TASK_STATES.NEEDS_DETAILS, {}, 100);
+  assert.equal(waiting.status, "needs_details");
+  assert.equal(waiting.attempts, 0);
+  assert.equal(waiting.lastError, null);
+  const withDetails = transitionTask({
+    ...waiting,
+    userTaskDetails: "1. Review JOMY\n2. Test APPLIQ"
+  }, TASK_STATES.QUEUED, {}, 200);
+  assert.match(withDetails.userTaskDetails, /Review JOMY/);
+  assert.equal(withDetails.status, TASK_STATES.QUEUED);
+  assert.equal(withDetails.attempts, 0);
+  assert.equal(transitionTask(withDetails, TASK_STATES.PLANNING).status, TASK_STATES.PLANNING);
+});
