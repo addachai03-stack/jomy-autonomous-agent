@@ -798,4 +798,6 @@ import { parseTaskPlan } from "./task-planner.js";
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
   }
+  // Only advertise readiness after all main form handlers are attached.
+  window.__jomyAppReady = true;
 })();
