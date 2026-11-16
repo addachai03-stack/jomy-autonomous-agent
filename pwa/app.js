@@ -289,7 +289,9 @@ import { parseTaskPlan } from "./task-planner.js";
         note.textContent = "Needs an integration that is not connected. Nothing was executed.";
         details.append(note);
       }
-      if (task.lastError) {
+      // An older build may have stored a failure message on a task now READY.
+      // Only show errors for task states that actually represent a problem.
+      if (task.lastError && [TASK_STATES.FAILED, TASK_STATES.RETRY_WAIT, TASK_STATES.BLOCKED].includes(task.status)) {
         const error = document.createElement("small");
         error.className = "task-error";
         error.textContent = task.lastError;

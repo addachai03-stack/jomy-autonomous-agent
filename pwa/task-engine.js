@@ -58,6 +58,11 @@ export function transitionTask(task, nextState, details = {}, now = Date.now()) 
     throw new Error("Invalid task transition: " + task.status + " → " + nextState);
   }
   const updated = { ...task, status: nextState, updatedAt: timestamp(now) };
+  // A previous failed attempt is no longer an active error once the task
+  // has been retried, planned successfully, or confirmed as succeeded.
+  if ([TASK_STATES.QUEUED, TASK_STATES.READY, TASK_STATES.SUCCEEDED].includes(nextState)) {
+    updated.lastError = null;
+  }
   if (nextState === TASK_STATES.RUNNING) updated.attempts = task.attempts + 1;
   if (details.steps !== undefined) {
     if (!Array.isArray(details.steps) || details.steps.length > 12 ||

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
   actionPolicy, createActionProposal
@@ -94,4 +95,30 @@ test("startup recovery marks interrupted planning, running and retry-wait tasks 
 
 test("startup recovery safely handles a non-array queue", () => {
   assert.deepEqual(recoverInterruptedTasks(null), []);
+});
+
+test("retry clears previous failure after planning succeeds", () => {
+  let task = createTask("Plan tomorrow's work", 0);
+  task = transitionTask(task, TASK_STATES.PLANNING, {}, 100);
+  task = transitionTask(task, TASK_STATES.FAILED, { error: "AI provider returned invalid plan." }, 200);
+  assert.match(task.lastError, /invalid plan/);
+  task = retryTask(task, 300);
+  assert.equal(task.status, TASK_STATES.QUEUED);
+  assert.equal(task.lastError, null);
+  task = transitionTask(task, TASK_STATES.PLANNING, {}, 400);
+  task = transitionTask(task, TASK_STATES.READY, { steps: ["Review priorities"] }, 500);
+  assert.equal(task.lastError, null);
+  assert.equal(task.steps[0], "Review priorities");
+});
+
+test("successful planning clears legacy saved lastError from older builds", () => {
+  const task = { ...createTask("Legacy error", 0), status: TASK_STATES.PLANNING, lastError: "Previous failed request." };
+  const ready = transitionTask(task, TASK_STATES.READY, { steps: ["Create checklist"] }, 100);
+  assert.equal(ready.status, TASK_STATES.READY);
+  assert.equal(ready.lastError, null);
+});
+
+test("PWA only shows task errors for unresolved states", () => {
+  const appSource = readFileSync(new URL("../pwa/app.js", import.meta.url), "utf8");
+  assert.match(appSource, /task\.lastError && \[TASK_STATES\.FAILED, TASK_STATES\.RETRY_WAIT, TASK_STATES\.BLOCKED\]\.includes\(task\.status\)/);
 });
