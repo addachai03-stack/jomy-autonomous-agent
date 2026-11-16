@@ -1,6 +1,7 @@
 export const TASK_STATES = Object.freeze({
   QUEUED: "queued",
   PLANNING: "planning",
+  NEEDS_DETAILS: "needs_details",
   AWAITING_APPROVAL: "awaiting_approval",
   READY: "ready",
   RUNNING: "running",
@@ -11,8 +12,9 @@ export const TASK_STATES = Object.freeze({
 });
 
 const TRANSITIONS = Object.freeze({
-  queued: ["planning", "blocked"],
+  queued: ["planning", "needs_details", "blocked"],
   planning: ["awaiting_approval", "ready", "blocked", "failed"],
+  needs_details: ["queued", "blocked"],
   awaiting_approval: ["ready", "blocked"],
   ready: ["running", "blocked"],
   running: ["succeeded", "retry_wait", "failed", "awaiting_approval", "blocked"],
@@ -60,7 +62,7 @@ export function transitionTask(task, nextState, details = {}, now = Date.now()) 
   const updated = { ...task, status: nextState, updatedAt: timestamp(now) };
   // A previous failed attempt is no longer an active error once the task
   // has been retried, planned successfully, or confirmed as succeeded.
-  if ([TASK_STATES.QUEUED, TASK_STATES.READY, TASK_STATES.SUCCEEDED].includes(nextState)) {
+  if ([TASK_STATES.QUEUED, TASK_STATES.NEEDS_DETAILS, TASK_STATES.READY, TASK_STATES.SUCCEEDED].includes(nextState)) {
     updated.lastError = null;
   }
   if (nextState === TASK_STATES.RUNNING) updated.attempts = task.attempts + 1;
