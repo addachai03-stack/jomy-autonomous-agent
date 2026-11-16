@@ -85,3 +85,21 @@ test("Hindi voice selector falls back to an available Hindi voice", () => {
   const voices = [{ name: "Hindi Voice", lang: "hi-IN", localService: true }];
   assert.equal(selectHindiFemaleVoice(voices).name, "Hindi Voice");
 });
+
+
+test("endpoint settings save and disconnect handlers are bound directly in the main app module", () => {
+  const source = readFileSync(new URL("../pwa/app.js", import.meta.url), "utf8");
+  assert.match(source, /saveEndpointButton\.addEventListener\("click"/);
+  assert.match(source, /normalizeAgentEndpoint\(endpointInput\.value\)/);
+  assert.match(source, /localStorage\.setItem\(STORAGE_ENDPOINT, normalized\)/);
+  assert.match(source, /clearEndpointButton\.addEventListener\("click"/);
+  assert.match(source, /Preview aur Production ki storage alag hai/);
+  const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
+  assert.doesNotMatch(html, /endpoint-settings\.js/);
+});
+
+test("service worker cache is bumped after consolidating endpoint settings", () => {
+  const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
+  assert.match(source, /jomy-agent-shell-v28/);
+  assert.doesNotMatch(source, /endpoint-settings\.js/);
+});
