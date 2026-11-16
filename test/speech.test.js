@@ -60,7 +60,7 @@ test("production PWA routes every spoken reply through the sanitizer", () => {
 
 test("production service worker precaches the speech sanitizer with a new cache version", () => {
   const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(source, /jomy-agent-shell-v27/);
+  assert.match(source, /jomy-agent-shell-v28/);
   assert.match(source, /"\/speech-text\.js"/);
   assert.match(source, /"\/speech-voice\.js"/);
 });
@@ -77,7 +77,7 @@ test("Hindi female voice selector prefers known Indian female voice names", () =
 test("PWA explains that Preview needs its own locally saved owner token", () => {
   const source = readFileSync(new URL("../pwa/app.js", import.meta.url), "utf8");
   assert.match(source, /Owner token needed · this browser/);
-  assert.match(source, /Production and Preview use separate storage/);
+  assert.match(source, /Preview aur Production ki storage alag hai/);
   assert.match(source, /never share it in chat/);
 });
 
