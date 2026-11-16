@@ -728,24 +728,53 @@ import { parseTaskPlan } from "./task-planner.js";
     taskPanel.hidden = !open;
     $("activityChevron").textContent = open ? "−" : "＋";
   });
+  const settingsNote = $("settingsNote");
+  const saveEndpointButton = $("saveEndpoint");
+  const clearEndpointButton = $("clearEndpoint");
   $("settingsButton").addEventListener("click", () => {
-    endpointInput.value = endpoint;
+    endpointInput.value = endpoint || DEFAULT_ENDPOINT;
     agentTokenInput.value = ownerToken;
-    $("settingsNote").textContent = ownerToken ? "" : "This browser has no saved Owner token. Production and Preview use separate storage. Enter your existing token here; never share it in chat.";
+    settingsNote.textContent = ownerToken ? "" : "Preview aur Production ki storage alag hai. Apna existing Owner token yahin enter karo; chat mein share mat karo.";
     if (!settingsDialog.open) {
       if (typeof settingsDialog.showModal === "function") settingsDialog.showModal();
       else settingsDialog.setAttribute("open", "");
     }
   });
-  window.addEventListener("jomy:endpoint-saved", () => {
-    endpoint = localStorage.getItem(STORAGE_ENDPOINT) || "";
-    ownerToken = localStorage.getItem(STORAGE_TOKEN) || "";
-    setConnection(false, endpoint ? (ownerToken ? "Endpoint saved · not tested" : "Owner token needed · this browser") : "Not connected");
+  saveEndpointButton.addEventListener("click", () => {
+    try {
+      const normalized = normalizeAgentEndpoint(endpointInput.value);
+      const enteredToken = agentTokenInput.value.trim();
+      // Keep an already-saved token when the password field is left blank.
+      localStorage.setItem(STORAGE_ENDPOINT, normalized);
+      if (enteredToken) localStorage.setItem(STORAGE_TOKEN, enteredToken);
+      endpoint = normalized;
+      ownerToken = enteredToken || localStorage.getItem(STORAGE_TOKEN) || "";
+      sessionStorage.removeItem(STORAGE_TOKEN);
+      settingsNote.textContent = "Saved on this iPhone. Endpoint abhi test nahi hua; chat mein ek message bhej kar check karo.";
+      saveEndpointButton.textContent = "Saved ✓";
+      setConnection(false, endpoint ? (ownerToken ? "Endpoint saved · not tested" : "Owner token needed · this browser") : "Not connected");
+    } catch (error) {
+      settingsNote.textContent = error?.message || "Endpoint save nahi hua. Valid HTTPS URL enter karo.";
+      saveEndpointButton.textContent = "Save endpoint";
+    }
   });
-  window.addEventListener("jomy:endpoint-disconnected", () => {
-    endpoint = "";
-    ownerToken = "";
-    setConnection(false, "Not connected");
+  endpointInput.addEventListener("input", () => { saveEndpointButton.textContent = "Save endpoint"; });
+  agentTokenInput.addEventListener("input", () => { saveEndpointButton.textContent = "Save endpoint"; });
+  clearEndpointButton.addEventListener("click", () => {
+    try {
+      localStorage.removeItem(STORAGE_ENDPOINT);
+      localStorage.removeItem(STORAGE_TOKEN);
+      sessionStorage.removeItem(STORAGE_TOKEN);
+      endpoint = "";
+      ownerToken = "";
+      endpointInput.value = "";
+      agentTokenInput.value = "";
+      settingsNote.textContent = "Disconnected on this iPhone.";
+      saveEndpointButton.textContent = "Save endpoint";
+      setConnection(false, "Not connected");
+    } catch (error) {
+      settingsNote.textContent = "Browser storage access nahi ho paaya. Safari settings check karo.";
+    }
   });
 
   // iOS Safari may suspend recognition when this PWA is backgrounded.
