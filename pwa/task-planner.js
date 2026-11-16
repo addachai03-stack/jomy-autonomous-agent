@@ -52,3 +52,40 @@ export function needsTaskDetails(raw) {
   if (words.some(word => !genericWords.has(word) && !/^\d+$/.test(word))) return false;
   return /\b(?:plan|planning|schedule|routine|day|week|aaj|kal|today|tomorrow|kaam|tasks?|work|priorities|todo)\b|(?:आज|कल|काम|कार्य|योजना|प्लान|बनाओ|बताओ)/i.test(text);
 }
+
+
+/**
+ * Deterministic, offline-safe outline used only after the authenticated AI
+ * planning route reports a malformed/unusable plan (TASK_PLAN_FAILED).
+ * Reuses user-provided task labels verbatim: never adds meetings, people,
+ * times or deadlines, and never performs an external action.
+ */
+export function createLocalTaskOutline(raw) {
+  if (needsTaskDetails(raw)) throw new TypeError("Enter real task details before planning.");
+  const text = raw.trim().slice(0, 4000);
+  const numbers = text.match(/(?:^|\s)\d{1,2}[.)]\s+/g) || [];
+  let parts;
+  if (numbers.length > 1) {
+    parts = text.split(/(?:^|\s)\d{1,2}[.)]\s+/);
+  } else if (text.includes("\n")) {
+    parts = text.split(/\n+/);
+  } else if (text.includes(";")) {
+    parts = text.split(";");
+  } else {
+    parts = [text];
+  }
+  const items = parts
+    .map(value => value.replace(/^\s*(?:[-•*]|\d{1,2}[.)])\s*/, "").trim())
+    .filter(Boolean);
+  if (!items.length) throw new TypeError("No actual tasks supplied.");
+  const steps = items.slice(0, 8).map(value => value.slice(0, 240));
+  return {
+    summary: items.length > 8
+      ? "Local checklist from the first 8 tasks you provided. AI planning unavailable."
+      : "Local checklist from the " + items.length + " task" + (items.length === 1 ? "" : "s") + " you provided. AI planning unavailable.",
+    steps,
+    actionType: "none",
+    requiresApproval: false,
+    source: "local"
+  };
+}
