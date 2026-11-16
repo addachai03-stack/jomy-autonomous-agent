@@ -3,7 +3,7 @@ import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
 import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, TASK_STATES } from "./task-engine.js";
-import { parseTaskPlan, needsTaskDetails } from "./task-planner.js";
+import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -226,6 +226,17 @@ import { parseTaskPlan, needsTaskDetails } from "./task-planner.js";
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
+        // The authenticated route sometimes returns malformed model output.
+        // If that *specific* failure occurs, retain the supplied task names
+        // in a clearly labelled local checklist instead of inventing tasks.
+        // Auth, rate-limit, permission, and billing failures are NOT masked.
+        if (response.status === 502 && data.code === "TASK_PLAN_FAILED") {
+          const localPlan = createLocalTaskOutline(planningText);
+          const locallyPlanned = transitionTask(task, TASK_STATES.READY, { steps: localPlan.steps });
+          locallyPlanned.plan = localPlan;
+          updateTask(taskId, () => locallyPlanned);
+          return;
+        }
         const detail = response.status === 404
           ? "Task Plan API route not found. No action was performed."
           : data.error || "Task planning failed. No action was performed.";
@@ -331,7 +342,9 @@ import { parseTaskPlan, needsTaskDetails } from "./task-planner.js";
       }
       if (task.status === TASK_STATES.READY) {
         const note = document.createElement("small");
-        note.textContent = "Plan ready · No external action has been executed.";
+        note.textContent = task.plan?.source === "local"
+          ? "Basic local checklist · AI planning unavailable · No external action has been executed."
+          : "Plan ready · No external action has been executed.";
         details.append(note);
       }
       if (task.status === TASK_STATES.BLOCKED) {
