@@ -75,6 +75,44 @@
       <p class="settings-note" id="settingsNote" role="status"></p>
     </div>
   </dialog>
+  <script>
+    // Save Endpoint fallback: still works if the app module fails before binding its click handler.
+    (() => {
+      const button = document.getElementById("saveEndpoint");
+      const note = document.getElementById("settingsNote");
+      if (!button || !note) return;
+      button.addEventListener("click", () => {
+        const previousNote = note.textContent;
+        window.setTimeout(() => {
+          // The app module already handled the click if it changed either field.
+          if (button.textContent !== "Save endpoint" || note.textContent !== previousNote) return;
+          try {
+            const url = new URL(document.getElementById("endpointInput").value.trim());
+            if (url.protocol !== "https:" && !(url.protocol === "http:" && url.hostname === "localhost")) {
+              throw new Error("Use HTTPS for the Agent endpoint.");
+            }
+            if (url.username || url.password || url.search || url.hash) {
+              throw new Error("Agent URL mein username, password, query ya fragment nahi hona chahiye.");
+            }
+            const path = url.pathname.replace(/\\/+$/, "");
+            if (!path || path === "/" || path === "/api/agent") url.pathname = "/api/agent/chat";
+            else if (path !== "/api/agent/chat") throw new Error("Use the Agent chat URL ending in /api/agent/chat.");
+            const endpoint = url.toString();
+            const tokenInput = document.getElementById("agentTokenInput");
+            localStorage.setItem("jomy_agent_endpoint_v1", endpoint);
+            if (tokenInput.value.trim()) localStorage.setItem("jomy_agent_owner_token_v1", tokenInput.value.trim());
+            sessionStorage.removeItem("jomy_agent_owner_token_v1");
+            note.textContent = "Endpoint saved on this iPhone. Page reload karo, phir chat test karo.";
+            button.textContent = "Saved ✓";
+            const connection = document.getElementById("connection");
+            if (connection) connection.querySelector("span").textContent = "Endpoint saved · reload to apply";
+          } catch (error) {
+            note.textContent = error && error.message ? error.message : "Endpoint save nahi hua. Valid HTTPS URL enter karo.";
+          }
+        }, 0);
+      });
+    })();
+  </script>
   <script type="module" src="/app.js"></script>
 </body>
 </html>
