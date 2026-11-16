@@ -36,7 +36,7 @@ export function needsTaskDetails(raw) {
   if (/[,;:\n]/.test(text) && text.split(/[,;:\n]/).slice(1).some(part => part.trim())) return false;
   if (/(?:^|\s)\d{1,2}[.)]\s+/.test(text)) return false;
   const genericWords = new Set([
-    "aaj", "kal", "today", "tomorrow", "tomorrows", "today's", "tomorrow's",
+    "aaj", "kal", "today", "tomorrow", "tomorrows", "todays", "today's", "tomorrow's",
     "my", "me", "mujhe", "mere", "mera", "meri", "hamare", "hamara", "hamari",
     "ke", "ka", "ki", "ko", "mein", "se", "liye", "kar", "karo", "do", "please",
     "3", "three", "teen", "top", "important", "key", "main", "zaroori", "jaruri", "kuch",
@@ -48,7 +48,7 @@ export function needsTaskDetails(raw) {
     "तीन", "महत्वपूर्ण", "जरूरी", "ज़रूरी", "काम", "कार्य", "दिन", "योजना",
     "प्लान", "बनाओ", "बताओ", "सूची", "दो"
   ]);
-  const words = text.toLocaleLowerCase().replace(/[’']/g, "").match(/[\p{L}\p{N}]+/gu) || [];
+  const words = text.toLocaleLowerCase().replace(/[’']/g, "").match(/[\p{L}\p{M}\p{N}]+/gu) || [];
   if (words.some(word => !genericWords.has(word) && !/^\d+$/.test(word))) return false;
   return /\b(?:plan|planning|schedule|routine|day|week|aaj|kal|today|tomorrow|kaam|tasks?|work|priorities|todo)\b|(?:आज|कल|काम|कार्य|योजना|प्लान|बनाओ|बताओ)/i.test(text);
 }
