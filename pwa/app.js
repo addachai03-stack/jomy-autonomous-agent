@@ -3,7 +3,7 @@ import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
 import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, TASK_STATES } from "./task-engine.js";
-import { parseTaskPlan } from "./task-planner.js";
+import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -39,7 +39,7 @@ import { parseTaskPlan } from "./task-planner.js";
   let taskQueue = [];
   try {
     const savedTasks = JSON.parse(localStorage.getItem(TASK_QUEUE_KEY) || "[]");
-    if (Array.isArray(savedTasks)) taskQueue = savedTasks.filter(task => task && typeof task.id === "string" && typeof task.title === "string" && ["queued", "planning", "awaiting_approval", "ready", "running", "retry_wait", "succeeded", "failed", "blocked"].includes(task.status)).slice(-30);
+    if (Array.isArray(savedTasks)) taskQueue = savedTasks.filter(task => task && typeof task.id === "string" && typeof task.title === "string" && ["queued", "needs_details", "planning", "awaiting_approval", "ready", "running", "retry_wait", "succeeded", "failed", "blocked"].includes(task.status)).slice(-30);
   } catch (_) {}
   taskQueue = recoverInterruptedTasks(taskQueue).map(task => {
     if (task.plan && ["mcp.status", "telegram.prepare"].includes(task.plan.actionType)) {
@@ -205,6 +205,13 @@ import { parseTaskPlan } from "./task-planner.js";
     try {
       if (task.status === TASK_STATES.FAILED) task = retryTask(task);
       if (task.status !== TASK_STATES.QUEUED) return;
+      // A general request without named work must not turn into invented meetings.
+      const planningText = typeof task.details === "string" && task.details.trim() ? task.details.trim() : task.title;
+      if (needsTaskDetails(planningText)) {
+        task = transitionTask(task, TASK_STATES.NEEDS_DETAILS);
+        updateTask(taskId, () => task);
+        return;
+      }
       task = transitionTask(task, TASK_STATES.PLANNING);
       updateTask(taskId, () => task);
       if (!endpoint || !ownerToken) throw new Error("Settings mein Agent API URL aur Owner token save karo.");
@@ -215,10 +222,21 @@ import { parseTaskPlan } from "./task-planner.js";
       const response = await fetch(planEndpoint.toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ownerToken },
-        body: JSON.stringify({ task: task.title })
+        body: JSON.stringify({ task: planningText })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
+        // The authenticated route sometimes returns malformed model output.
+        // If that *specific* failure occurs, retain the supplied task names
+        // in a clearly labelled local checklist instead of inventing tasks.
+        // Auth, rate-limit, permission, and billing failures are NOT masked.
+        if (response.status === 502 && data.code === "TASK_PLAN_FAILED") {
+          const localPlan = createLocalTaskOutline(planningText);
+          const locallyPlanned = transitionTask(task, TASK_STATES.READY, { steps: localPlan.steps });
+          locallyPlanned.plan = localPlan;
+          updateTask(taskId, () => locallyPlanned);
+          return;
+        }
         const detail = response.status === 404
           ? "Task Plan API route not found. No action was performed."
           : data.error || "Task planning failed. No action was performed.";
@@ -228,7 +246,7 @@ import { parseTaskPlan } from "./task-planner.js";
         throw new Error("Task Plan API did not return a valid plan. No action was performed.");
       }
       // Keep client-side plan validation even if the API claims success.
-      const plan = parseTaskPlan(JSON.stringify(data.plan), task.title);
+      const plan = parseTaskPlan(JSON.stringify(data.plan), planningText);
       const nextStatus = plan.actionType === "unsupported"
         ? TASK_STATES.BLOCKED
         : plan.requiresApproval ? TASK_STATES.AWAITING_APPROVAL : TASK_STATES.READY;
@@ -263,6 +281,49 @@ import { parseTaskPlan } from "./task-planner.js";
       const status = document.createElement("small");
       status.textContent = task.status.replaceAll("_", " ").toUpperCase() + " · " + new Date(task.updatedAt || task.createdAt).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" });
       details.append(title, status);
+      if (typeof task.details === "string" && task.details.trim()) {
+        const actualTasks = document.createElement("p");
+        actualTasks.className = "task-summary";
+        actualTasks.textContent = "Your real tasks: " + task.details.trim();
+        actualTasks.style.whiteSpace = "pre-line";
+        details.append(actualTasks);
+      }
+      if (task.status === TASK_STATES.NEEDS_DETAILS) {
+        const note = document.createElement("p");
+        note.className = "task-summary";
+        note.textContent = "Aapne kaunse asli kaam karne hain? JOMY aapki taraf se meeting ya project nahi banayega.";
+        const detailForm = document.createElement("form");
+        detailForm.className = "task-details-form";
+        const detailInput = document.createElement("textarea");
+        detailInput.setAttribute("aria-label", "List your actual tasks");
+        detailInput.placeholder = "1. Pehla asli kaam\n2. Dusra asli kaam\n3. Teesra asli kaam";
+        detailInput.maxLength = 4000;
+        detailInput.rows = 3;
+        detailInput.required = true;
+        const confirmButton = document.createElement("button");
+        confirmButton.type = "submit";
+        confirmButton.textContent = "SAVE & PLAN";
+        detailForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const actualText = detailInput.value.trim();
+          if (!actualText || needsTaskDetails(actualText)) {
+            detailInput.setCustomValidity("Apne asli kaam ke naam likho. Sirf '3 important kaam' kaafi nahi hai.");
+            detailInput.reportValidity();
+            detailInput.setCustomValidity("");
+            return;
+          }
+          updateTask(task.id, (current) => ({
+            ...transitionTask(current, TASK_STATES.QUEUED),
+            details: actualText,
+            plan: undefined,
+            steps: [],
+            lastError: null
+          }));
+          planTask(task.id);
+        });
+        detailForm.append(detailInput, confirmButton);
+        details.append(note, detailForm);
+      }
       if (task.plan?.summary) {
         const summary = document.createElement("p");
         summary.className = "task-summary";
@@ -281,7 +342,9 @@ import { parseTaskPlan } from "./task-planner.js";
       }
       if (task.status === TASK_STATES.READY) {
         const note = document.createElement("small");
-        note.textContent = "Plan ready · No external action has been executed.";
+        note.textContent = task.plan?.source === "local"
+          ? "Basic local checklist · AI planning unavailable · No external action has been executed."
+          : "Plan ready · No external action has been executed.";
         details.append(note);
       }
       if (task.status === TASK_STATES.BLOCKED) {
@@ -575,12 +638,24 @@ import { parseTaskPlan } from "./task-planner.js";
         saveTaskQueue();
         renderTaskQueue();
         wakeActivityBoard();
-        addMessage("agent", "Task queue mein add kar diya. Ab main safe plan banaunga; connected action approval ke bina execute nahi hoga.");
-        speak("Task add kar diya. Main iska plan bana raha hoon.");
+        if (needsTaskDetails(task.title)) {
+          addMessage("agent", "Task save ho gaya. RECENT ACTIVITY mein apne asli kaam ke naam likho, phir plan banega. Main tasks invent nahi karunga.");
+          speak("Task save ho gaya. Plan ke liye asli kaam bataiye.");
+        } else {
+          addMessage("agent", "Task queue mein add kar diya. Ab main safe plan banaunga; connected action approval ke bina execute nahi hoga.");
+          speak("Task add kar diya. Main iska plan bana raha hoon.");
+        }
         planTask(task.id);
       } catch (error) {
         addMessage("agent", "Task add nahi hua: " + error.message);
       }
+      return;
+    }
+    // Chat must also avoid inventing "three important tasks" when none were supplied.
+    if (needsTaskDetails(text)) {
+      const clarification = "Aapne abhi apne asli kaam nahi bataye. Kal ke jo kaam hain, unke naam 1, 2, 3 likho. Main bina bataye Project X ya meeting nahi banaunga.";
+      addMessage("agent", clarification);
+      speak(clarification);
       return;
     }
     if (!endpoint) {

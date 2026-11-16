@@ -1,5 +1,6 @@
 export const TASK_STATES = Object.freeze({
   QUEUED: "queued",
+  NEEDS_DETAILS: "needs_details",
   PLANNING: "planning",
   AWAITING_APPROVAL: "awaiting_approval",
   READY: "ready",
@@ -11,7 +12,8 @@ export const TASK_STATES = Object.freeze({
 });
 
 const TRANSITIONS = Object.freeze({
-  queued: ["planning", "blocked"],
+  queued: ["planning", "needs_details", "blocked"],
+  needs_details: ["queued"],
   planning: ["awaiting_approval", "ready", "blocked", "failed"],
   awaiting_approval: ["ready", "blocked"],
   ready: ["running", "blocked"],
