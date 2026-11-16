@@ -38,6 +38,7 @@
         <button class="sound-button" id="soundButton" aria-pressed="true" aria-label="Toggle spoken replies">◖))</button>
       </div>
       <p class="voice-hint" id="voiceHint">Tap Hands-free once to start. Say “JOMY” and then give your command. Keep this page open while using voice.</p>
+      <button class="voice-test-button" id="testVoiceButton" type="button">🔊 Test Hindi voice</button>
     </section>
     <section class="composer" aria-label="Message the agent">
       <form id="chatForm"><label class="sr-only" for="messageInput">Your command</label><textarea id="messageInput" rows="1" maxlength="4000" placeholder="Tell JOMY what you need…" enterkeyhint="send"></textarea><button class="send-button" id="sendButton" type="submit" aria-label="Send message">↑</button></form>
@@ -206,6 +207,35 @@
         } finally {
           sending = false;
           sendButton.disabled = false;
+        }
+      });
+    })();
+  </script>
+  <script>
+    // Independent iPhone audio check; works even if the main app module fails.
+    (() => {
+      const button = document.getElementById("testVoiceButton");
+      const hint = document.getElementById("voiceHint");
+      button.addEventListener("click", () => {
+        if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
+          hint.textContent = "This browser does not support spoken replies. iPhone Safari mein kholo.";
+          return;
+        }
+        try {
+          const synth = window.speechSynthesis;
+          synth.cancel();
+          const utterance = new SpeechSynthesisUtterance("नमस्ते। मैं जोमी हूँ। आपकी मदद के लिए यहाँ हूँ।");
+          utterance.lang = "hi-IN";
+          utterance.rate = 0.9;
+          utterance.pitch = 1.04;
+          utterance.onstart = () => { hint.textContent = "Hindi voice test playing… iPhone ka media volume check karo."; };
+          utterance.onend = () => { hint.textContent = "Voice test complete. JOMY reply ko bhi awaaz mein sunne ke liye Sound on rakho."; };
+          utterance.onerror = (event) => { hint.textContent = "Voice playback failed (" + (event.error || "unknown") + "). iPhone volume aur voice settings check karo."; };
+          synth.speak(utterance);
+          synth.resume();
+          hint.textContent = "Trying Hindi voice… iPhone ka media volume check karo.";
+        } catch (error) {
+          hint.textContent = "Voice playback unavailable: " + (error?.message || "unknown error");
         }
       });
     })();
