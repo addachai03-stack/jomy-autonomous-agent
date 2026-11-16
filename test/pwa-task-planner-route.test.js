@@ -42,3 +42,11 @@ test("ordinary chat asks for task details rather than calling AI with vague plan
   assert.match(app, /addMessage\("agent", clarification\)/);
   assert.match(app, /speak\(clarification\)/);
 });
+
+test("specific AI planning failures can use local checklist without masking authorization", () => {
+  assert.match(planner, /response\.status === 502 && data\.code === "TASK_PLAN_FAILED"/);
+  assert.match(planner, /createLocalTaskOutline\(planningText\)/);
+  assert.match(planner, /transitionTask\(task, TASK_STATES\.READY, \{ steps: localPlan\.steps \}\)/);
+  assert.match(app, /task\.plan\?\.source === "local"/);
+  assert.match(app, /AI planning unavailable/);
+});
