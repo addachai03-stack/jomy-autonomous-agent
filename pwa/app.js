@@ -723,6 +723,8 @@ import { parseTaskPlan } from "./task-planner.js";
   });
   chatForm.addEventListener("submit", (event) => {
     event.preventDefault();
+    // iOS Safari needs speech to be primed directly by a user gesture.
+    unlockSpeech();
     sendMessage(messageInput.value);
   });
   messageInput.addEventListener("input", () => {
