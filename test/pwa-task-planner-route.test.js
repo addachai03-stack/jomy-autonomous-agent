@@ -35,3 +35,10 @@ test("vague tasks request actual user details before calling the AI", () => {
   assert.match(app, /"needs_details", "planning"/);
   assert.match(app, /confirmButton\.textContent = "SAVE & PLAN"/);
 });
+
+test("ordinary chat asks for task details rather than calling AI with vague plans", () => {
+  assert.match(app, /if \(needsTaskDetails\(text\)\) \{/);
+  assert.match(app, /const clarification = "Aapne abhi apne asli kaam nahi bataye/);
+  assert.match(app, /addMessage\("agent", clarification\)/);
+  assert.match(app, /speak\(clarification\)/);
+});
