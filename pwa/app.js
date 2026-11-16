@@ -102,8 +102,12 @@ import { parseTaskPlan } from "./task-planner.js";
   let voiceSendTimer = null;
   let discardVoiceResults = false;
   let count = 0;
-  let sessionId = sessionStorage.getItem("jomy_agent_session") || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
-  sessionStorage.setItem("jomy_agent_session", sessionId);
+  let sessionId = "";
+  try { sessionId = sessionStorage.getItem("jomy_agent_session") || ""; } catch (_) {}
+  if (!sessionId) {
+    sessionId = window.crypto?.randomUUID?.() || String(Date.now());
+    try { sessionStorage.setItem("jomy_agent_session", sessionId); } catch (_) {}
+  }
   const HISTORY_KEY = "jomy_agent_history_v1";
   let conversationHistory = [];
   try {
@@ -444,7 +448,17 @@ import { parseTaskPlan } from "./task-planner.js";
       voiceHint.textContent = "This browser does not expose speech recognition. On iPhone, tap the keyboard microphone and dictate into the message box.";
       return;
     }
-    recognition = new SpeechRecognition();
+    try {
+      recognition = new SpeechRecognition();
+    } catch (_) {
+      // Some iOS web views expose SpeechRecognition but cannot construct it.
+      micButton.disabled = true;
+      handsFreeButton.disabled = true;
+      handsFreeButton.textContent = "Voice unavailable";
+      micLabel.textContent = "Use keyboard dictation";
+      voiceHint.textContent = "Voice recognition is unavailable here; text chat and keyboard dictation can still work.";
+      return;
+    }
     recognition.lang = "hi-IN";
     recognition.maxAlternatives = 3;
     recognition.interimResults = true;
