@@ -35,3 +35,37 @@ test("unknown action types are blocked, never promoted to executable actions", (
   assert.equal(plan.requiresApproval, true);
 });
 
+
+import { needsTaskDetails } from "../pwa/task-planner.js";
+
+test("generic requests require user-provided real tasks instead of invented jobs", () => {
+  for (const prompt of [
+    "Kal ke 3 important kaam ka plan banao",
+    "Mujhe kal ke 3 important kaam batao",
+    "Plan my day",
+    "Plan tomorrow's three important tasks",
+    "कल के 3 जरूरी काम का प्लान बनाओ",
+    "Kal ka plan banao:"
+  ]) {
+    assert.equal(needsTaskDetails(prompt), true, prompt);
+  }
+});
+
+test("specific tasks and user-provided lists can be planned", () => {
+  for (const prompt of [
+    "APPLIQ app release form test karo",
+    "Plan for JOMY iPhone voice playback improvement",
+    "Kal ke 3 important kaam: APPLIQ listing, JOMY test, backup",
+    "1. APPLIQ listing\n2. JOMY chat check\n3. Check app uploads",
+    "JOMY website logo update karo",
+    "Kal ke liye ghar ka budget tracker update karo"
+  ]) {
+    assert.equal(needsTaskDetails(prompt), false, prompt);
+  }
+});
+
+test("empty task details cannot enter AI planning", () => {
+  assert.equal(needsTaskDetails(""), true);
+  assert.equal(needsTaskDetails(null), true);
+  assert.equal(needsTaskDetails("3 important tasks"), true);
+});
