@@ -638,6 +638,13 @@ import { parseTaskPlan, needsTaskDetails } from "./task-planner.js";
       }
       return;
     }
+    // Chat must also avoid inventing "three important tasks" when none were supplied.
+    if (needsTaskDetails(text)) {
+      const clarification = "Aapne abhi apne asli kaam nahi bataye. Kal ke jo kaam hain, unke naam 1, 2, 3 likho. Main bina bataye Project X ya meeting nahi banaunga.";
+      addMessage("agent", clarification);
+      speak(clarification);
+      return;
+    }
     if (!endpoint) {
       const notice = "I received your message, but the standalone AI chat backend is not connected yet. Add your private HTTPS chat API in Settings to start chatting.";
       addMessage("agent", notice);
