@@ -1,5 +1,6 @@
 import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } from "./voice-utils.js";
 import { prepareSpeechText } from "./speech-text.js";
+import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
 import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan } from "./task-planner.js";
@@ -101,8 +102,12 @@ import { parseTaskPlan } from "./task-planner.js";
   let voiceSendTimer = null;
   let discardVoiceResults = false;
   let count = 0;
-  let sessionId = sessionStorage.getItem("jomy_agent_session") || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
-  sessionStorage.setItem("jomy_agent_session", sessionId);
+  let sessionId = "";
+  try { sessionId = sessionStorage.getItem("jomy_agent_session") || ""; } catch (_) {}
+  if (!sessionId) {
+    sessionId = window.crypto?.randomUUID?.() || String(Date.now());
+    try { sessionStorage.setItem("jomy_agent_session", sessionId); } catch (_) {}
+  }
   const HISTORY_KEY = "jomy_agent_history_v1";
   let conversationHistory = [];
   try {
@@ -355,22 +360,15 @@ import { parseTaskPlan } from "./task-planner.js";
     speakingReply = true;
     const utterance = new SpeechSynthesisUtterance(speechText);
     utterance.lang = "hi-IN";
-    utterance.rate = 0.82;
-    utterance.pitch = 1;
+    utterance.rate = 0.9;
+    utterance.pitch = 1.04;
     utterance.volume = 1;
-    // Prefer a high-quality Indian Hindi voice when iOS exposes one.
-    // Fall back to the best available Hindi voice without changing the reply text.
-    const voices = synth.getVoices()
-      .filter((voice) => /^hi([-_]|$)/i.test(voice.lang))
-      .sort((a, b) => {
-        const aExact = /^hi[-_]in$/i.test(a.lang) ? 1 : 0;
-        const bExact = /^hi[-_]in$/i.test(b.lang) ? 1 : 0;
-        const quality = (voice) => /premium|enhanced|natural/i.test(voice.name) ? 1 : 0;
-        return bExact - aExact || quality(b) - quality(a) || Number(b.localService) - Number(a.localService);
-      });
-    if (voices[0]) {
-      utterance.voice = voices[0];
-      utterance.lang = voices[0].lang;
+    // Prefer a warm-sounding Indian Hindi female voice when the device exposes one.
+    // iOS does not expose a reliable voice-gender property, so name hints are best-effort.
+    const selectedVoice = selectHindiFemaleVoice(synth.getVoices());
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      utterance.lang = selectedVoice.lang;
     }
     utterance.onstart = () => setState("speaking", "SPEAKING", "JOMY is replying.");
     utterance.onend = () => {
@@ -450,7 +448,17 @@ import { parseTaskPlan } from "./task-planner.js";
       voiceHint.textContent = "This browser does not expose speech recognition. On iPhone, tap the keyboard microphone and dictate into the message box.";
       return;
     }
-    recognition = new SpeechRecognition();
+    try {
+      recognition = new SpeechRecognition();
+    } catch (_) {
+      // Some iOS web views expose SpeechRecognition but cannot construct it.
+      micButton.disabled = true;
+      handsFreeButton.disabled = true;
+      handsFreeButton.textContent = "Voice unavailable";
+      micLabel.textContent = "Use keyboard dictation";
+      voiceHint.textContent = "Voice recognition is unavailable here; text chat and keyboard dictation can still work.";
+      return;
+    }
     recognition.lang = "hi-IN";
     recognition.maxAlternatives = 3;
     recognition.interimResults = true;
@@ -630,7 +638,7 @@ import { parseTaskPlan } from "./task-planner.js";
 
   renderTaskQueue();
   setupRecognition();
-  setConnection(false, endpoint ? "Endpoint ready · not tested" : "Not connected");
+  setConnection(false, endpoint ? (ownerToken ? "Endpoint ready · not tested" : "Owner token needed · this browser") : "Not connected");
   handsFreeButton.textContent = handsFree ? "Hands-free: On" : "Hands-free: Off";
   handsFreeButton.setAttribute("aria-pressed", String(handsFree));
   if (handsFree) {
@@ -715,6 +723,8 @@ import { parseTaskPlan } from "./task-planner.js";
   });
   chatForm.addEventListener("submit", (event) => {
     event.preventDefault();
+    // iOS Safari needs speech to be primed directly by a user gesture.
+    unlockSpeech();
     sendMessage(messageInput.value);
   });
   messageInput.addEventListener("input", () => {
@@ -734,40 +744,53 @@ import { parseTaskPlan } from "./task-planner.js";
     taskPanel.hidden = !open;
     $("activityChevron").textContent = open ? "−" : "＋";
   });
+  const settingsNote = $("settingsNote");
+  const saveEndpointButton = $("saveEndpoint");
+  const clearEndpointButton = $("clearEndpoint");
   $("settingsButton").addEventListener("click", () => {
-    endpointInput.value = endpoint;
+    endpointInput.value = endpoint || DEFAULT_ENDPOINT;
     agentTokenInput.value = ownerToken;
-    $("settingsNote").textContent = "";
+    settingsNote.textContent = ownerToken ? "" : "Preview aur Production ki storage alag hai. Apna existing Owner token yahin enter karo; chat mein share mat karo.";
     if (!settingsDialog.open) {
       if (typeof settingsDialog.showModal === "function") settingsDialog.showModal();
       else settingsDialog.setAttribute("open", "");
     }
   });
-  $("saveEndpoint").addEventListener("click", () => {
-    const value = endpointInput.value.trim();
+  saveEndpointButton.addEventListener("click", () => {
     try {
-      endpoint = normalizeAgentEndpoint(value);
-      ownerToken = agentTokenInput.value.trim();
-      localStorage.setItem(STORAGE_ENDPOINT, endpoint);
-      if (ownerToken) localStorage.setItem(STORAGE_TOKEN, ownerToken);
-      else localStorage.removeItem(STORAGE_TOKEN);
+      const normalized = normalizeAgentEndpoint(endpointInput.value);
+      const enteredToken = agentTokenInput.value.trim();
+      // Keep an already-saved token when the password field is left blank.
+      localStorage.setItem(STORAGE_ENDPOINT, normalized);
+      if (enteredToken) localStorage.setItem(STORAGE_TOKEN, enteredToken);
+      endpoint = normalized;
+      ownerToken = enteredToken || localStorage.getItem(STORAGE_TOKEN) || "";
       sessionStorage.removeItem(STORAGE_TOKEN);
-      setConnection(false, "Endpoint saved · not tested");
-      $("settingsNote").textContent = "Saved on this device. Send a message to test the connection.";
+      settingsNote.textContent = "Saved on this iPhone. Endpoint abhi test nahi hua; chat mein ek message bhej kar check karo.";
+      saveEndpointButton.textContent = "Saved ✓";
+      setConnection(false, endpoint ? (ownerToken ? "Endpoint saved · not tested" : "Owner token needed · this browser") : "Not connected");
     } catch (error) {
-      $("settingsNote").textContent = error.message || "Enter a valid HTTPS URL.";
+      settingsNote.textContent = error?.message || "Endpoint save nahi hua. Valid HTTPS URL enter karo.";
+      saveEndpointButton.textContent = "Save endpoint";
     }
   });
-  $("clearEndpoint").addEventListener("click", () => {
-    endpoint = "";
-    localStorage.setItem(STORAGE_ENDPOINT, "");
-    endpointInput.value = "";
-    ownerToken = "";
-    agentTokenInput.value = "";
-    localStorage.removeItem(STORAGE_TOKEN);
-    sessionStorage.removeItem(STORAGE_TOKEN);
-    setConnection(false, "Not connected");
-    $("settingsNote").textContent = "Disconnected on this device.";
+  endpointInput.addEventListener("input", () => { saveEndpointButton.textContent = "Save endpoint"; });
+  agentTokenInput.addEventListener("input", () => { saveEndpointButton.textContent = "Save endpoint"; });
+  clearEndpointButton.addEventListener("click", () => {
+    try {
+      localStorage.removeItem(STORAGE_ENDPOINT);
+      localStorage.removeItem(STORAGE_TOKEN);
+      sessionStorage.removeItem(STORAGE_TOKEN);
+      endpoint = "";
+      ownerToken = "";
+      endpointInput.value = "";
+      agentTokenInput.value = "";
+      settingsNote.textContent = "Disconnected on this iPhone.";
+      saveEndpointButton.textContent = "Save endpoint";
+      setConnection(false, "Not connected");
+    } catch (error) {
+      settingsNote.textContent = "Browser storage access nahi ho paaya. Safari settings check karo.";
+    }
   });
 
   // iOS Safari may suspend recognition when this PWA is backgrounded.
@@ -791,4 +814,6 @@ import { parseTaskPlan } from "./task-planner.js";
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
   }
+  // Only advertise readiness after all main form handlers are attached.
+  window.__jomyAppReady = true;
 })();

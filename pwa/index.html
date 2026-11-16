@@ -38,6 +38,7 @@
         <button class="sound-button" id="soundButton" aria-pressed="true" aria-label="Toggle spoken replies">◖))</button>
       </div>
       <p class="voice-hint" id="voiceHint">Tap Hands-free once to start. Say “JOMY” and then give your command. Keep this page open while using voice.</p>
+      <button class="voice-test-button" id="testVoiceButton" type="button">🔊 Test Hindi voice</button>
     </section>
     <section class="composer" aria-label="Message the agent">
       <form id="chatForm"><label class="sr-only" for="messageInput">Your command</label><textarea id="messageInput" rows="1" maxlength="4000" placeholder="Tell JOMY what you need…" enterkeyhint="send"></textarea><button class="send-button" id="sendButton" type="submit" aria-label="Send message">↑</button></form>
@@ -75,6 +76,170 @@
       <p class="settings-note" id="settingsNote" role="status"></p>
     </div>
   </dialog>
+  <script>
+    // Save Endpoint fallback: still works if the app module fails before binding its click handler.
+    (() => {
+      const button = document.getElementById("saveEndpoint");
+      const note = document.getElementById("settingsNote");
+      if (!button || !note) return;
+      button.addEventListener("click", () => {
+        const previousNote = note.textContent;
+        window.setTimeout(() => {
+          // The app module already handled the click if it changed either field.
+          if (button.textContent !== "Save endpoint" || note.textContent !== previousNote) return;
+          try {
+            const url = new URL(document.getElementById("endpointInput").value.trim());
+            if (url.protocol !== "https:" && !(url.protocol === "http:" && url.hostname === "localhost")) {
+              throw new Error("Use HTTPS for the Agent endpoint.");
+            }
+            if (url.username || url.password || url.search || url.hash) {
+              throw new Error("Agent URL mein username, password, query ya fragment nahi hona chahiye.");
+            }
+            const path = url.pathname.replace(/\/+$/, "");
+            if (!path || path === "/" || path === "/api/agent") url.pathname = "/api/agent/chat";
+            else if (path !== "/api/agent/chat") throw new Error("Use the Agent chat URL ending in /api/agent/chat.");
+            const endpoint = url.toString();
+            const tokenInput = document.getElementById("agentTokenInput");
+            localStorage.setItem("jomy_agent_endpoint_v1", endpoint);
+            if (tokenInput.value.trim()) localStorage.setItem("jomy_agent_owner_token_v1", tokenInput.value.trim());
+            sessionStorage.removeItem("jomy_agent_owner_token_v1");
+            note.textContent = "Endpoint saved on this iPhone. Page reload karo, phir chat test karo.";
+            button.textContent = "Saved ✓";
+            const connection = document.getElementById("connection");
+            if (connection) connection.querySelector("span").textContent = "Endpoint saved · reload to apply";
+          } catch (error) {
+            note.textContent = error && error.message ? error.message : "Endpoint save nahi hua. Valid HTTPS URL enter karo.";
+          }
+        }, 0);
+      });
+    })();
+  </script>
+  <script>
+    // Keep basic chat usable when the main module fails to initialize in a browser.
+    (() => {
+      const form = document.getElementById("chatForm");
+      const input = document.getElementById("messageInput");
+      const sendButton = document.getElementById("sendButton");
+      const settingsButton = document.getElementById("settingsButton");
+      const endpointInput = document.getElementById("endpointInput");
+      const tokenInput = document.getElementById("agentTokenInput");
+      const status = document.getElementById("statusText");
+      let sending = false;
+      const endpointKey = "jomy_agent_endpoint_v1";
+      const tokenKey = "jomy_agent_owner_token_v1";
+      const defaultEndpoint = "https://jomy-autonomous-agent-api.addachai03.workers.dev/api/agent/chat";
+
+      settingsButton.addEventListener("click", () => {
+        if (window.__jomyAppReady) return;
+        try {
+          const storedEndpoint = localStorage.getItem(endpointKey);
+          endpointInput.value = storedEndpoint === null ? defaultEndpoint : storedEndpoint;
+          tokenInput.value = localStorage.getItem(tokenKey) || sessionStorage.getItem(tokenKey) || "";
+        } catch (_) {
+          endpointInput.value = defaultEndpoint;
+          document.getElementById("settingsNote").textContent = "Safari storage unavailable. Private mode ya browser permissions check karo.";
+        }
+      });
+
+      function addFallbackMessage(role, value) {
+        const board = document.getElementById("messages");
+        const empty = document.getElementById("emptyState");
+        if (empty) empty.remove();
+        const node = document.createElement("article");
+        node.className = "message " + role;
+        const tag = document.createElement("small");
+        tag.textContent = role === "user" ? "YOU" : "JOMY";
+        const body = document.createElement("div");
+        body.textContent = String(value);
+        node.append(tag, body);
+        board.append(node);
+        board.hidden = false;
+        document.getElementById("taskPanel").hidden = false;
+        const toggle = document.getElementById("activityToggle");
+        toggle.setAttribute("aria-expanded", "true");
+        document.getElementById("activityChevron").textContent = "−";
+        const count = board.querySelectorAll("article.message").length;
+        document.getElementById("activityCount").textContent = count + (count === 1 ? " message" : " messages");
+        board.scrollTop = board.scrollHeight;
+      }
+
+      form.addEventListener("submit", async (event) => {
+        // If the main app initialized, let its existing submit handler work normally.
+        if (window.__jomyAppReady) return;
+        // Prevent the browser's default GET navigation, which looks like a page refresh.
+        event.preventDefault();
+        if (sending) return;
+        const message = input.value.trim();
+        if (!message) return;
+        let endpoint, token;
+        try {
+          const savedEndpoint = localStorage.getItem(endpointKey);
+          endpoint = savedEndpoint === null ? defaultEndpoint : savedEndpoint;
+          token = localStorage.getItem(tokenKey) || sessionStorage.getItem(tokenKey) || "";
+        } catch (_) {
+          addFallbackMessage("agent", "Safari storage unavailable. Private browsing ya storage permissions check karo.");
+          return;
+        }
+        if (!endpoint || !token) {
+          addFallbackMessage("agent", "Settings mein Agent API URL aur apna private Owner token save karo, phir Send dabao.");
+          return;
+        }
+        sending = true;
+        sendButton.disabled = true;
+        input.value = "";
+        addFallbackMessage("user", message);
+        status.textContent = "Basic chat mode · Connecting to JOMY API…";
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+            body: JSON.stringify({ message, history: [], sessionId: "browser-fallback-" + Date.now(), locale: "hi-IN", client: "jomy-browser-fallback" })
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "HTTP " + response.status);
+          const reply = typeof data.reply === "string" ? data.reply : typeof data.message === "string" ? data.message : "";
+          if (!reply) throw new Error("API returned no reply.");
+          addFallbackMessage("agent", reply);
+          status.textContent = "JOMY chat connected · Basic browser mode";
+        } catch (error) {
+          addFallbackMessage("agent", "Connection problem: " + (error?.message || "Unknown error") + ". Nothing was executed.");
+          status.textContent = "Connection issue · Check Settings and API";
+        } finally {
+          sending = false;
+          sendButton.disabled = false;
+        }
+      });
+    })();
+  </script>
+  <script>
+    // Independent iPhone audio check; works even if the main app module fails.
+    (() => {
+      const button = document.getElementById("testVoiceButton");
+      const hint = document.getElementById("voiceHint");
+      button.addEventListener("click", () => {
+        if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
+          hint.textContent = "This browser does not support spoken replies. iPhone Safari mein kholo.";
+          return;
+        }
+        try {
+          const synth = window.speechSynthesis;
+          synth.cancel();
+          const utterance = new SpeechSynthesisUtterance("नमस्ते। मैं जोमी हूँ। आपकी मदद के लिए यहाँ हूँ।");
+          utterance.lang = "hi-IN";
+          utterance.rate = 0.9;
+          utterance.pitch = 1.04;
+          utterance.onstart = () => { hint.textContent = "Hindi voice test playing… iPhone ka media volume check karo."; };
+          utterance.onend = () => { hint.textContent = "Voice test complete. JOMY reply ko bhi awaaz mein sunne ke liye Sound on rakho."; };
+          utterance.onerror = (event) => { hint.textContent = "Voice playback failed (" + (event.error || "unknown") + "). iPhone volume aur voice settings check karo."; };
+          synth.speak(utterance);
+          synth.resume();
+          hint.textContent = "Trying Hindi voice… iPhone ka media volume check karo.";
+        } catch (error) {
+          hint.textContent = "Voice playback unavailable: " + (error?.message || "unknown error");
+        }
+      });
+    })();
+  </script>
   <script type="module" src="/app.js"></script>
 </body>
 </html>
