@@ -1,4 +1,4 @@
-const CACHE = "jomy-agent-shell-v32";
+const CACHE = "jomy-agent-shell-v33";
 const ASSETS = ["/", "/index.html", "/styles.css", "/app.js", "/manifest.json", "/icon.svg", "/voice-utils.js", "/task-engine.js", "/task-planner.js", "/memory-utils.js", "/speech-text.js", "/speech-voice.js"];
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
