@@ -122,3 +122,15 @@ test("PWA only shows task errors for unresolved states", () => {
   const appSource = readFileSync(new URL("../pwa/app.js", import.meta.url), "utf8");
   assert.match(appSource, /task\.lastError && \[TASK_STATES\.FAILED, TASK_STATES\.RETRY_WAIT, TASK_STATES\.BLOCKED\]\.includes\(task\.status\)/);
 });
+
+test("underspecified task waits for details without trying to execute a plan", () => {
+  const original = createTask("Kal ke 3 important kaam ka plan banao", 0);
+  const waiting = transitionTask(original, TASK_STATES.NEEDS_DETAILS, {}, 1000);
+  assert.equal(waiting.status, "needs_details");
+  assert.equal(waiting.steps.length, 0);
+  assert.equal(waiting.attempts, 0);
+  const revised = transitionTask(waiting, TASK_STATES.QUEUED, {}, 2000);
+  const planning = transitionTask(revised, TASK_STATES.PLANNING, {}, 3000);
+  assert.equal(planning.status, "planning");
+  assert.equal(planning.title, original.title);
+});
