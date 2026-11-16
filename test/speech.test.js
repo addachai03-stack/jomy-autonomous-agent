@@ -78,7 +78,7 @@ test("PWA explains that Preview needs its own locally saved owner token", () => 
   const source = readFileSync(new URL("../pwa/app.js", import.meta.url), "utf8");
   assert.match(source, /Owner token needed · this browser/);
   assert.match(source, /Preview aur Production ki storage alag hai/);
-  assert.match(source, /never share it in chat/);
+  assert.match(source, /chat mein share mat karo/);
 });
 
 test("Hindi voice selector falls back to an available Hindi voice", () => {
