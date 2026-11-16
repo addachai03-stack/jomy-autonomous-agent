@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseTaskPlan } from "../src/task-planner.js";
+import { parseTaskPlan, needsSpecificTasks, buildGroundedTaskRequest } from "../src/task-planner.js";
 
 test("accepts a bounded plan with ordinary steps", () => {
   const plan = parseTaskPlan(JSON.stringify({
@@ -35,3 +35,38 @@ test("unknown action types are blocked, never promoted to executable actions", (
   assert.equal(plan.requiresApproval, true);
 });
 
+
+test("generic Hindi, Hinglish and English personal plans require real task details", () => {
+  for (const title of [
+    "Kal ke 3 important kaam ka plan banao",
+    "Aaj ka plan batao",
+    "Mujhe kal ke 3 important kaam batao",
+    "Plan my day",
+    "Plan my three important tasks for tomorrow",
+    "आज के 3 जरूरी काम का प्लान बनाओ",
+    "कल का प्लान बताओ"
+  ]) {
+    assert.equal(needsSpecificTasks(title), true, title);
+  }
+});
+
+test("specific tasks are not incorrectly treated as missing details", () => {
+  for (const title of [
+    "Review APPLIQ app listing",
+    "Create JOMY task report",
+    "Kal ke 3 important kaam ka plan banao: 1. JOMY QA; 2. APPLIQ listing",
+    "Plan my JOMY dashboard implementation",
+    "Kal 10am par JOMY check karna",
+    "Schedule my Project X stand-up at 9"
+  ]) {
+    assert.equal(needsSpecificTasks(title), false, title);
+  }
+});
+
+test("grounded planning request uses only user-provided task context", () => {
+  const prompt = buildGroundedTaskRequest("Kal ke 3 important kaam ka plan banao", "1. JOMY QA\n2. APPLIQ listing");
+  assert.match(prompt, /1\. JOMY QA\n2\. APPLIQ listing/);
+  assert.match(prompt, /Do not invent named projects, meetings, people/);
+  assert.doesNotMatch(prompt, /Project X/);
+  assert.throws(() => buildGroundedTaskRequest(""), /title is required/);
+});
