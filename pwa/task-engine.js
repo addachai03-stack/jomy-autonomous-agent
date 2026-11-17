@@ -4,6 +4,8 @@ export const TASK_STATES = Object.freeze({
   PLANNING: "planning",
   AWAITING_APPROVAL: "awaiting_approval",
   READY: "ready",
+  IN_PROGRESS: "in_progress",
+  DONE: "done",
   RUNNING: "running",
   RETRY_WAIT: "retry_wait",
   SUCCEEDED: "succeeded",
@@ -16,7 +18,9 @@ const TRANSITIONS = Object.freeze({
   needs_details: ["queued"],
   planning: ["awaiting_approval", "ready", "blocked", "failed"],
   awaiting_approval: ["ready", "blocked"],
-  ready: ["running", "blocked"],
+  ready: ["in_progress", "done", "running", "blocked"],
+  in_progress: ["ready", "done"],
+  done: ["ready"],
   running: ["succeeded", "retry_wait", "failed", "awaiting_approval", "blocked"],
   retry_wait: ["queued", "blocked"],
   succeeded: [],
@@ -62,10 +66,17 @@ export function transitionTask(task, nextState, details = {}, now = Date.now()) 
   const updated = { ...task, status: nextState, updatedAt: timestamp(now) };
   // A previous failed attempt is no longer an active error once the task
   // has been retried, planned successfully, or confirmed as succeeded.
-  if ([TASK_STATES.QUEUED, TASK_STATES.READY, TASK_STATES.SUCCEEDED].includes(nextState)) {
+  if ([TASK_STATES.QUEUED, TASK_STATES.READY, TASK_STATES.DONE, TASK_STATES.SUCCEEDED].includes(nextState)) {
     updated.lastError = null;
   }
   if (nextState === TASK_STATES.RUNNING) updated.attempts = task.attempts + 1;
+  // These user-marked states never launch or imply an external action.
+  if (nextState === TASK_STATES.IN_PROGRESS) updated.manualStartedAt = timestamp(now);
+  if (nextState === TASK_STATES.DONE) updated.manualCompletedAt = timestamp(now);
+  if (nextState === TASK_STATES.READY && [TASK_STATES.IN_PROGRESS, TASK_STATES.DONE].includes(task.status)) {
+    delete updated.manualStartedAt;
+    delete updated.manualCompletedAt;
+  }
   if (details.steps !== undefined) {
     if (!Array.isArray(details.steps) || details.steps.length > 12 ||
         details.steps.some(step => typeof step !== "string" || !step.trim() || step.length > 240)) {
