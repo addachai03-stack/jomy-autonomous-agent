@@ -89,7 +89,7 @@ test("memory saved facts stay independent of manual task state controls", () => 
 
 test("iPhone task cards leave full width for plan text and place controls below it", () => {
   const styles = readFileSync(new URL("../pwa/styles.css", import.meta.url), "utf8");
-  const mobile = styles.split("@media(max-width:640px){").at(-1);
+  const mobile = styles.split("@media(max-width:640px){").find(section => section.includes(".task-item{flex-direction:column;align-items:stretch")) || "";
   assert.ok(mobile, "Mobile task card override missing");
   assert.match(mobile, /\.task-item\{flex-direction:column;align-items:stretch/);
   assert.match(mobile, /\.task-item > \.task-details\{width:100%;min-width:0/);
