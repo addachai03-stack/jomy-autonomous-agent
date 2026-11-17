@@ -1,1 +1,1 @@
-export { TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, actionPolicy, createActionProposal } from "../pwa/task-engine.js";
+export { TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, actionPolicy, createActionProposal } from "../pwa/task-engine.js";
