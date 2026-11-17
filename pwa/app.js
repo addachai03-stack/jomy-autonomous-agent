@@ -137,22 +137,6 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       row.className = "memory-item";
       const fact = document.createElement("span");
       fact.textContent = item.fact;
-      if ([TASK_STATES.READY, TASK_STATES.IN_PROGRESS, TASK_STATES.DONE].includes(task.status)) {
-        const availableActions = task.status === TASK_STATES.READY
-          ? [["START", TASK_STATES.IN_PROGRESS], ["MARK DONE", TASK_STATES.DONE]]
-          : task.status === TASK_STATES.IN_PROGRESS
-            ? [["MARK DONE", TASK_STATES.DONE], ["PAUSE", TASK_STATES.READY]]
-            : [["REOPEN", TASK_STATES.READY]];
-        for (const [label, nextStatus] of availableActions) {
-          const actionButton = document.createElement("button");
-          actionButton.type = "button";
-          actionButton.className = "task-action";
-          actionButton.textContent = label;
-          actionButton.setAttribute("aria-label", label + ": " + task.title);
-          actionButton.addEventListener("click", () => setManualTaskProgress(task.id, nextStatus));
-          actions.append(actionButton);
-        }
-      }
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "memory-remove";
@@ -409,6 +393,22 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         planButton.textContent = task.status === TASK_STATES.FAILED ? "RETRY PLAN" : "PLAN";
         planButton.addEventListener("click", () => planTask(task.id));
         actions.append(planButton);
+      }
+      if ([TASK_STATES.READY, TASK_STATES.IN_PROGRESS, TASK_STATES.DONE].includes(task.status)) {
+        const availableActions = task.status === TASK_STATES.READY
+          ? [["START", TASK_STATES.IN_PROGRESS], ["MARK DONE", TASK_STATES.DONE]]
+          : task.status === TASK_STATES.IN_PROGRESS
+            ? [["MARK DONE", TASK_STATES.DONE], ["PAUSE", TASK_STATES.READY]]
+            : [["REOPEN", TASK_STATES.READY]];
+        for (const [label, nextStatus] of availableActions) {
+          const actionButton = document.createElement("button");
+          actionButton.type = "button";
+          actionButton.className = "task-action";
+          actionButton.textContent = label;
+          actionButton.setAttribute("aria-label", label + ": " + task.title);
+          actionButton.addEventListener("click", () => setManualTaskProgress(task.id, nextStatus));
+          actions.append(actionButton);
+        }
       }
       const remove = document.createElement("button");
       remove.type = "button";
