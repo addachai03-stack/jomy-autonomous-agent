@@ -39,7 +39,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   let taskQueue = [];
   try {
     const savedTasks = JSON.parse(localStorage.getItem(TASK_QUEUE_KEY) || "[]");
-    if (Array.isArray(savedTasks)) taskQueue = savedTasks.filter(task => task && typeof task.id === "string" && typeof task.title === "string" && ["queued", "needs_details", "planning", "awaiting_approval", "ready", "running", "retry_wait", "succeeded", "failed", "blocked"].includes(task.status)).slice(-30);
+    if (Array.isArray(savedTasks)) taskQueue = savedTasks.filter(task => task && typeof task.id === "string" && typeof task.title === "string" && ["queued", "needs_details", "planning", "awaiting_approval", "ready", "in_progress", "done", "running", "retry_wait", "succeeded", "failed", "blocked"].includes(task.status)).slice(-30);
   } catch (_) {}
   taskQueue = recoverInterruptedTasks(taskQueue).map(task => {
     if (task.plan && ["mcp.status", "telegram.prepare"].includes(task.plan.actionType)) {
@@ -137,6 +137,22 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       row.className = "memory-item";
       const fact = document.createElement("span");
       fact.textContent = item.fact;
+      if ([TASK_STATES.READY, TASK_STATES.IN_PROGRESS, TASK_STATES.DONE].includes(task.status)) {
+        const availableActions = task.status === TASK_STATES.READY
+          ? [["START", TASK_STATES.IN_PROGRESS], ["MARK DONE", TASK_STATES.DONE]]
+          : task.status === TASK_STATES.IN_PROGRESS
+            ? [["MARK DONE", TASK_STATES.DONE], ["PAUSE", TASK_STATES.READY]]
+            : [["REOPEN", TASK_STATES.READY]];
+        for (const [label, nextStatus] of availableActions) {
+          const actionButton = document.createElement("button");
+          actionButton.type = "button";
+          actionButton.className = "task-action";
+          actionButton.textContent = label;
+          actionButton.setAttribute("aria-label", label + ": " + task.title);
+          actionButton.addEventListener("click", () => setManualTaskProgress(task.id, nextStatus));
+          actions.append(actionButton);
+        }
+      }
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "memory-remove";
@@ -198,6 +214,17 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     taskQueue = taskQueue.map(task => task.id === taskId ? updater(task) : task);
     saveTaskQueue();
     renderTaskQueue();
+  }
+  // Only the owner changes these manual progress states; no API request is made.
+  function setManualTaskProgress(taskId, nextStatus) {
+    const current = taskQueue.find(task => task.id === taskId);
+    if (!current) return;
+    try {
+      updateTask(taskId, task => transitionTask(task, nextStatus));
+    } catch (error) {
+      // Keep the existing record untouched if the transition is no longer valid.
+      console.warn("JOMY_MANUAL_TASK_STATUS_REJECTED", error?.name || "Error");
+    }
   }
   async function planTask(taskId) {
     let task = taskQueue.find(item => item.id === taskId);
@@ -279,7 +306,10 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       const title = document.createElement("strong");
       title.textContent = task.title;
       const status = document.createElement("small");
-      status.textContent = task.status.replaceAll("_", " ").toUpperCase() + " · " + new Date(task.updatedAt || task.createdAt).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" });
+      const displayStatus = task.status === TASK_STATES.IN_PROGRESS ? "IN PROGRESS (MANUAL)"
+        : task.status === TASK_STATES.DONE ? "DONE (MANUAL)"
+        : task.status.replaceAll("_", " ").toUpperCase();
+      status.textContent = displayStatus + " · " + new Date(task.updatedAt || task.createdAt).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" });
       details.append(title, status);
       if (typeof task.details === "string" && task.details.trim()) {
         const actualTasks = document.createElement("p");
@@ -345,6 +375,16 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         note.textContent = task.plan?.source === "local"
           ? "Basic local checklist · AI planning unavailable · No external action has been executed."
           : "Plan ready · No external action has been executed.";
+        details.append(note);
+      }
+      if (task.status === TASK_STATES.IN_PROGRESS) {
+        const note = document.createElement("small");
+        note.textContent = "You marked this in progress · No work executed by JOMY.";
+        details.append(note);
+      }
+      if (task.status === TASK_STATES.DONE) {
+        const note = document.createElement("small");
+        note.textContent = "You marked this done · No external action was executed by JOMY.";
         details.append(note);
       }
       if (task.status === TASK_STATES.BLOCKED) {
