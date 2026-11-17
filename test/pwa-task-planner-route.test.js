@@ -50,3 +50,21 @@ test("specific AI planning failures can use local checklist without masking auth
   assert.match(app, /task\.plan\?\.source === "local"/);
   assert.match(app, /AI planning unavailable/);
 });
+
+
+test("manual task controls are wired to local transitions rather than API actions", () => {
+  assert.match(app, /function setManualTaskProgress\(taskId, nextStatus\)/);
+  assert.match(app, /updateTask\(taskId, task => transitionTask\(task, nextStatus\)\)/);
+  assert.match(app, /\["START", TASK_STATES\.IN_PROGRESS\]/);
+  assert.match(app, /\["MARK DONE", TASK_STATES\.DONE\]/);
+  assert.match(app, /\["PAUSE", TASK_STATES\.READY\]/);
+  assert.match(app, /\["REOPEN", TASK_STATES\.READY\]/);
+  assert.match(app, /setManualTaskProgress\(task\.id, nextStatus\)/);
+  assert.match(app, /"in_progress", "done", "running"/);
+});
+
+test("manual task completion is not represented as external execution", () => {
+  assert.match(app, /You marked this done · No external action was executed by JOMY\./);
+  assert.match(app, /IN PROGRESS \(MANUAL\)/);
+  assert.match(app, /DONE \(MANUAL\)/);
+});
