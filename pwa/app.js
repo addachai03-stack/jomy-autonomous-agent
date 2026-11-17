@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -210,6 +210,16 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       console.warn("JOMY_MANUAL_TASK_STATUS_REJECTED", error?.name || "Error");
     }
   }
+  // Checklist controls only change local task metadata. They never call the Worker.
+  function setManualStepProgress(taskId, stepIndex, checked) {
+    const task = taskQueue.find(item => item.id === taskId);
+    if (!task) return;
+    try {
+      updateTask(taskId, item => setChecklistStepChecked(item, stepIndex, checked));
+    } catch (error) {
+      console.warn("JOMY_CHECKLIST_UPDATE_REJECTED", error?.name || "Error");
+    }
+  }
   async function planTask(taskId) {
     let task = taskQueue.find(item => item.id === taskId);
     if (!task) return;
@@ -345,11 +355,38 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         details.append(summary);
       }
       if (Array.isArray(task.steps) && task.steps.length) {
+        const canCheck = [TASK_STATES.READY, TASK_STATES.IN_PROGRESS, TASK_STATES.DONE].includes(task.status);
+        const checklist = canCheck ? getChecklistProgress(task) : null;
+        if (canCheck) {
+          const progressText = document.createElement("small");
+          progressText.className = "task-progress-label";
+          progressText.textContent = "CHECKLIST · " + checklist.done + "/" + checklist.total + " steps checked (manual)";
+          const meter = document.createElement("progress");
+          meter.className = "task-progress-meter";
+          meter.max = checklist.total;
+          meter.value = checklist.done;
+          meter.setAttribute("aria-label", "Manually checked steps: " + checklist.done + " of " + checklist.total);
+          details.append(progressText, meter);
+        }
         const steps = document.createElement("ol");
-        steps.className = "task-steps";
-        for (const step of task.steps) {
+        steps.className = canCheck ? "task-steps task-checklist" : "task-steps";
+        for (const [index, step] of task.steps.entries()) {
           const line = document.createElement("li");
-          line.textContent = step;
+          if (canCheck) {
+            const row = document.createElement("label");
+            row.className = "task-check-row";
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.checked = checklist.indices.includes(index);
+            checkbox.setAttribute("aria-label", "Step " + (index + 1) + ": " + step);
+            checkbox.addEventListener("change", () => setManualStepProgress(task.id, index, checkbox.checked));
+            const labelText = document.createElement("span");
+            labelText.textContent = step;
+            row.append(checkbox, labelText);
+            line.append(row);
+          } else {
+            line.textContent = step;
+          }
           steps.append(line);
         }
         details.append(steps);

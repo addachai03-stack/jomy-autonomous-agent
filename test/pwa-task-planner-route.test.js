@@ -96,3 +96,28 @@ test("iPhone task cards leave full width for plan text and place controls below 
   assert.match(mobile, /\.task-actions\{width:100%;max-width:none;justify-content:flex-start/);
   assert.match(mobile, /\.task-remove\{margin-left:auto\}/);
 });
+
+
+test("manual checklist is rendered only in Task Queue cards, not Personal Memory", () => {
+  const memorySection = app.split("  function renderMemories() {")[1]?.split("  function rememberFact(")[0] || "";
+  const tasksSection = app.split("  function renderTaskQueue() {")[1]?.split("  function wakeActivityBoard() {")[0] || "";
+  assert.ok(memorySection.includes("memory-item"), "Memory renderer missing");
+  assert.ok(tasksSection.includes("task-item"), "Task renderer missing");
+  assert.doesNotMatch(memorySection, /setManualStepProgress|completedStepIndices|getChecklistProgress|task-check-row/);
+  assert.match(tasksSection, /getChecklistProgress\(task\)/);
+  assert.match(tasksSection, /checkbox\.type = "checkbox"/);
+  assert.match(tasksSection, /checkbox\.addEventListener\("change", \(\) => setManualStepProgress\(task\.id, index, checkbox\.checked\)\)/);
+  assert.match(tasksSection, /labelText\.textContent = step/);
+  assert.match(tasksSection, /"CHECKLIST · " \+ checklist\.done \+ "\/" \+ checklist\.total/);
+});
+
+test("checklist changes remain on device and do not make an API request", () => {
+  const handler = app.split("  function setManualStepProgress(taskId, stepIndex, checked) {")[1]?.split("  async function planTask(taskId) {")[0] || "";
+  assert.ok(handler, "Manual checklist handler missing");
+  assert.match(handler, /updateTask\(taskId, item => setChecklistStepChecked\(item, stepIndex, checked\)\)/);
+  assert.doesNotMatch(handler, /fetch\(|planTask\(|sendMessage\(/);
+  assert.match(app, /"in_progress", "done", "running"/);
+  const css = readFileSync(new URL("../pwa/styles.css", import.meta.url), "utf8");
+  assert.match(css, /\.task-check-row\{[^\n]+min-height:44px/);
+  assert.match(css, /\.task-progress-meter\{/);
+});
