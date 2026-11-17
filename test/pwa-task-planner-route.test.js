@@ -68,3 +68,21 @@ test("manual task completion is not represented as external execution", () => {
   assert.match(app, /IN PROGRESS \(MANUAL\)/);
   assert.match(app, /DONE \(MANUAL\)/);
 });
+
+test("progress actions render in task cards, NEVER in Personal Memory list", () => {
+  const memoryRenderer = app.split("  function renderMemories() {")[1]?.split("  function rememberFact(")[0] || "";
+  const taskRenderer = app.split("  function renderTaskQueue() {")[1]?.split("  function wakeActivityBoard() {")[0] || "";
+  assert.ok(memoryRenderer.includes("memory-item"), "Memory renderer block could not be located");
+  assert.ok(taskRenderer.includes("task-item"), "Task renderer block could not be located");
+  assert.doesNotMatch(memoryRenderer, /availableActions|setManualTaskProgress|task\.status|task\.title|actions\.append/);
+  assert.match(taskRenderer, /const availableActions = task\.status === TASK_STATES\.READY/);
+  assert.match(taskRenderer, /actionButton\.addEventListener\("click", \(\) => setManualTaskProgress\(task\.id, nextStatus\)\)/);
+  assert.match(taskRenderer, /item\.append\(details, actions\)/);
+});
+
+test("memory saved facts stay independent of manual task state controls", () => {
+  const memoryRenderer = app.split("  function renderMemories() {")[1]?.split("  function rememberFact(")[0] || "";
+  assert.match(memoryRenderer, /for \(const item of personalMemories\)/);
+  assert.match(memoryRenderer, /const remove = document\.createElement\("button"\)/);
+  assert.match(memoryRenderer, /personalMemories = removeMemory\(personalMemories, item\.id\)/);
+});
