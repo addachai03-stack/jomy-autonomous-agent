@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
-  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked
+  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory
 } from "../src/task-engine.js";
 
 test("creates bounded queued tasks", () => {
@@ -245,4 +245,45 @@ test("checklist rejects invalid indexes and unplanned or unsafe statuses", () =>
   assert.throws(() => setChecklistStepChecked(ready, 0.5, true), /Invalid checklist step/);
   assert.throws(() => setChecklistStepChecked(ready, 0, "true"), /Invalid checklist step/);
   assert.throws(() => setChecklistStepChecked({...ready,status:TASK_STATES.BLOCKED}, 0, true), /Only manually managed/);
+});
+
+
+test("task dashboard counts every saved lifecycle state exactly once", () => {
+  const tasks = [
+    TASK_STATES.QUEUED, TASK_STATES.NEEDS_DETAILS, TASK_STATES.PLANNING,
+    TASK_STATES.AWAITING_APPROVAL, TASK_STATES.READY, TASK_STATES.IN_PROGRESS,
+    TASK_STATES.DONE, TASK_STATES.RUNNING, TASK_STATES.RETRY_WAIT,
+    TASK_STATES.SUCCEEDED, TASK_STATES.FAILED, TASK_STATES.BLOCKED
+  ].map((status, index) => ({id: String(index), status, steps:["Example"]}));
+  const snapshot = JSON.stringify(tasks);
+  assert.deepEqual(summarizeTaskQueue(tasks), {all:12, pending:8, in_progress:2, done:2});
+  assert.equal(filterTaskQueue(tasks, "pending").length, 8);
+  assert.deepEqual(filterTaskQueue(tasks, "in_progress").map(x => x.status),
+    [TASK_STATES.IN_PROGRESS, TASK_STATES.RUNNING]);
+  assert.deepEqual(filterTaskQueue(tasks, "done").map(x => x.status),
+    [TASK_STATES.DONE, TASK_STATES.SUCCEEDED]);
+  assert.equal(filterTaskQueue(tasks, "all").length, 12);
+  assert.equal(JSON.stringify(tasks), snapshot, "dashboard helpers must never mutate tasks");
+  assert.equal(taskDashboardCategory(TASK_STATES.BLOCKED), "pending");
+  assert.equal(taskDashboardCategory(TASK_STATES.FAILED), "pending");
+});
+
+test("task dashboard handles empty, broken and unknown filter input safely", () => {
+  assert.deepEqual(summarizeTaskQueue([]), {all:0,pending:0,in_progress:0,done:0});
+  assert.deepEqual(summarizeTaskQueue(null), {all:0,pending:0,in_progress:0,done:0});
+  assert.deepEqual(filterTaskQueue(null, "done"), []);
+  assert.deepEqual(filterTaskQueue([{status:"ready"}, null, {}, {status:"done"}], "unknown"), [{status:"ready"}, {status:"done"}]);
+});
+
+test("dashboard filtering preserves checklist state across refreshes and manual transitions", () => {
+  const planning = transitionTask(createTask("iPhone review", 0), TASK_STATES.PLANNING);
+  const ready = transitionTask(planning, TASK_STATES.READY, {steps:["Check homepage", "Check task queue"]});
+  const ticked = setChecklistStepChecked(ready, 1, true, 200);
+  const started = transitionTask(ticked, TASK_STATES.IN_PROGRESS, {}, 300);
+  const persisted = recoverInterruptedTasks(JSON.parse(JSON.stringify([started])), 400);
+  assert.deepEqual(summarizeTaskQueue(persisted), {all:1,pending:0,in_progress:1,done:0});
+  assert.deepEqual(getChecklistProgress(filterTaskQueue(persisted,"in_progress")[0]), {done:1,total:2,indices:[1]});
+  const done = transitionTask(persisted[0], TASK_STATES.DONE, {}, 500);
+  assert.deepEqual(summarizeTaskQueue([done]), {all:1,pending:0,in_progress:0,done:1});
+  assert.deepEqual(getChecklistProgress(filterTaskQueue([done],"done")[0]), {done:1,total:2,indices:[1]});
 });
