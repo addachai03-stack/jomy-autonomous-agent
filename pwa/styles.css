@@ -35,3 +35,10 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-details-form textarea{display:block;box-sizing:border-box;width:100%;min-width:0;min-height:84px;resize:vertical;background:#0d1421;border:1px solid #d7b36a66;border-radius:10px;padding:10px 11px;color:#f4f0e7;font:inherit;font-size:12px;line-height:1.5;outline:none}
 .task-details-form textarea:focus{border-color:#e6c47d}
 .task-details-form button{justify-self:start;border:1px solid #d7b36a;border-radius:9px;padding:10px 15px;background:linear-gradient(145deg,#e5c47d,#ae7935);color:#17120a;font-size:10px;font-weight:900}
+
+
+/* Owner-only manual task progress; controls wrap cleanly on narrow iPhone screens. */
+.task-item{align-items:flex-start}
+.task-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;align-content:flex-start;flex:0 0 auto;max-width:48%;gap:6px}
+.task-action{min-height:32px;white-space:normal;text-align:center;line-height:1.25}
+@media(max-width:420px){.task-actions{max-width:44%}.task-action{font-size:9px;padding:7px 8px}}
