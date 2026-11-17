@@ -83,6 +83,8 @@ export function transitionTask(task, nextState, details = {}, now = Date.now()) 
       throw new TypeError("Task steps must be up to 12 short text items.");
     }
     updated.steps = details.steps.map(step => step.trim());
+    // A newly generated/replaced plan must not inherit checkmarks by index.
+    updated.completedStepIndices = [];
   }
   if (details.error !== undefined) {
     updated.lastError = typeof details.error === "string" ? details.error.slice(0, 300) : "Task failed.";
@@ -143,5 +145,41 @@ export function createActionProposal(actionType, payload = {}) {
     status: policy.approvalRequired ? "awaiting_owner_approval" : "proposed",
     policy,
     executed: false
+  };
+}
+
+
+/**
+ * Locally checked steps use their array positions so even duplicate step
+ * descriptions can be checked separately. Ignore malformed legacy entries.
+ */
+export function getChecklistProgress(task) {
+  const steps = Array.isArray(task?.steps) ? task.steps.slice(0, 12) : [];
+  const checked = Array.isArray(task?.completedStepIndices) ? task.completedStepIndices : [];
+  const indices = [...new Set(checked.filter(index =>
+    Number.isInteger(index) && index >= 0 && index < steps.length
+  ))].sort((a, b) => a - b);
+  return { done: indices.length, total: steps.length, indices };
+}
+
+/**
+ * Owner-driven checklist edit, not a task status transition or execution.
+ * Marking every step does NOT mark the entire task as DONE.
+ */
+export function setChecklistStepChecked(task, stepIndex, checked, now = Date.now()) {
+  if (!task || ![TASK_STATES.READY, TASK_STATES.IN_PROGRESS, TASK_STATES.DONE].includes(task.status)) {
+    throw new Error("Only manually managed planned tasks can change checklists.");
+  }
+  const { total, indices } = getChecklistProgress(task);
+  if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= total || typeof checked !== "boolean") {
+    throw new TypeError("Invalid checklist step or checked value.");
+  }
+  const next = new Set(indices);
+  if (checked) next.add(stepIndex);
+  else next.delete(stepIndex);
+  return {
+    ...task,
+    completedStepIndices: [...next].sort((a, b) => a - b),
+    updatedAt: timestamp(now)
   };
 }
