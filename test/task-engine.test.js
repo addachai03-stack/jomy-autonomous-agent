@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
-  actionPolicy, createActionProposal
+  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked
 } from "../src/task-engine.js";
 
 test("creates bounded queued tasks", () => {
@@ -185,4 +185,64 @@ test("manual progress is unavailable while planning, failed or blocked", () => {
   assert.throws(() => transitionTask(planning, TASK_STATES.IN_PROGRESS), /Invalid task transition/);
   const failed = transitionTask(planning, TASK_STATES.FAILED, {error:"Provider unavailable"});
   assert.throws(() => transitionTask(failed, TASK_STATES.DONE), /Invalid task transition/);
+});
+
+
+test("manual checklist keeps step identities by index and never completes the task automatically", () => {
+  const planning = transitionTask(createTask("Review JOMY features", 0), TASK_STATES.PLANNING, {}, 100);
+  const ready = transitionTask(planning, TASK_STATES.READY,
+    {steps:["Check memory", "Check voice", "Check memory"]}, 200);
+  assert.deepEqual(getChecklistProgress(ready), {done:0,total:3,indices:[]});
+  const first = setChecklistStepChecked(ready, 0, true, 300);
+  const second = setChecklistStepChecked(first, 2, true, 400);
+  const all = setChecklistStepChecked(second, 1, true, 500);
+  assert.deepEqual(getChecklistProgress(all), {done:3,total:3,indices:[0,1,2]});
+  assert.equal(all.status, TASK_STATES.READY);
+  assert.equal(all.attempts, 0);
+  assert.equal(all.updatedAt, new Date(500).toISOString());
+  assert.equal(all.steps[0], all.steps[2]);
+  const reopened = setChecklistStepChecked(all, 0, false, 600);
+  assert.deepEqual(getChecklistProgress(reopened), {done:2,total:3,indices:[1,2]});
+});
+
+test("checklist progress persists across browser storage serialization and status changes", () => {
+  const planning = transitionTask(createTask("APPLIQ checks", 0), TASK_STATES.PLANNING);
+  const ready = transitionTask(planning, TASK_STATES.READY, {steps:["Listings", "Upload"]});
+  const checked = setChecklistStepChecked(ready, 1, true, 300);
+  const started = transitionTask(checked, TASK_STATES.IN_PROGRESS, {}, 400);
+  const done = transitionTask(started, TASK_STATES.DONE, {}, 500);
+  const reloaded = recoverInterruptedTasks(JSON.parse(JSON.stringify([done])), 600)[0];
+  assert.equal(reloaded.status, TASK_STATES.DONE);
+  assert.deepEqual(getChecklistProgress(reloaded), {done:1,total:2,indices:[1]});
+  const reopened = transitionTask(reloaded, TASK_STATES.READY, {}, 700);
+  assert.deepEqual(getChecklistProgress(reopened), {done:1,total:2,indices:[1]});
+});
+
+test("existing saved READY tasks without checklist data start with zero checked steps", () => {
+  const legacy = { ...createTask("Old task", 0), status:TASK_STATES.READY, steps:["A", "B"] };
+  assert.deepEqual(getChecklistProgress(legacy), {done:0,total:2,indices:[]});
+  assert.deepEqual(getChecklistProgress({...legacy,completedStepIndices:[1,1,99,-2,"0",NaN,0]}),
+    {done:2,total:2,indices:[0,1]});
+});
+
+test("new plan steps clear outdated checkbox indexes instead of transferring checkmarks", () => {
+  let task = createTask("Two tasks", 0);
+  task = transitionTask(task, TASK_STATES.PLANNING);
+  task = transitionTask(task, TASK_STATES.READY, {steps:["One", "Two"]});
+  task = setChecklistStepChecked(task, 1, true);
+  // Regeneration passes details.steps through the normal engine path.
+  const replanned = transitionTask({...task,status:TASK_STATES.PLANNING}, TASK_STATES.READY, {steps:["Replacement"]});
+  assert.deepEqual(getChecklistProgress(replanned), {done:0,total:1,indices:[]});
+});
+
+test("checklist rejects invalid indexes and unplanned or unsafe statuses", () => {
+  const queued = createTask("Not planned", 0);
+  assert.throws(() => setChecklistStepChecked(queued, 0, true), /Only manually managed/);
+  const planning = transitionTask(queued, TASK_STATES.PLANNING);
+  const ready = transitionTask(planning, TASK_STATES.READY, {steps:["Safe"]});
+  assert.throws(() => setChecklistStepChecked(ready, 1, true), /Invalid checklist step/);
+  assert.throws(() => setChecklistStepChecked(ready, -1, true), /Invalid checklist step/);
+  assert.throws(() => setChecklistStepChecked(ready, 0.5, true), /Invalid checklist step/);
+  assert.throws(() => setChecklistStepChecked(ready, 0, "true"), /Invalid checklist step/);
+  assert.throws(() => setChecklistStepChecked({...ready,status:TASK_STATES.BLOCKED}, 0, true), /Only manually managed/);
 });
