@@ -50,3 +50,49 @@ test("specific AI planning failures can use local checklist without masking auth
   assert.match(app, /task\.plan\?\.source === "local"/);
   assert.match(app, /AI planning unavailable/);
 });
+
+
+test("manual task controls are wired to local transitions rather than API actions", () => {
+  assert.match(app, /function setManualTaskProgress\(taskId, nextStatus\)/);
+  assert.match(app, /updateTask\(taskId, task => transitionTask\(task, nextStatus\)\)/);
+  assert.match(app, /\["START", TASK_STATES\.IN_PROGRESS\]/);
+  assert.match(app, /\["MARK DONE", TASK_STATES\.DONE\]/);
+  assert.match(app, /\["PAUSE", TASK_STATES\.READY\]/);
+  assert.match(app, /\["REOPEN", TASK_STATES\.READY\]/);
+  assert.match(app, /setManualTaskProgress\(task\.id, nextStatus\)/);
+  assert.match(app, /"in_progress", "done", "running"/);
+});
+
+test("manual task completion is not represented as external execution", () => {
+  assert.match(app, /You marked this done · No external action was executed by JOMY\./);
+  assert.match(app, /IN PROGRESS \(MANUAL\)/);
+  assert.match(app, /DONE \(MANUAL\)/);
+});
+
+test("progress actions render in task cards, NEVER in Personal Memory list", () => {
+  const memoryRenderer = app.split("  function renderMemories() {")[1]?.split("  function rememberFact(")[0] || "";
+  const taskRenderer = app.split("  function renderTaskQueue() {")[1]?.split("  function wakeActivityBoard() {")[0] || "";
+  assert.ok(memoryRenderer.includes("memory-item"), "Memory renderer block could not be located");
+  assert.ok(taskRenderer.includes("task-item"), "Task renderer block could not be located");
+  assert.doesNotMatch(memoryRenderer, /availableActions|setManualTaskProgress|task\.status|task\.title|actions\.append/);
+  assert.match(taskRenderer, /const availableActions = task\.status === TASK_STATES\.READY/);
+  assert.match(taskRenderer, /actionButton\.addEventListener\("click", \(\) => setManualTaskProgress\(task\.id, nextStatus\)\)/);
+  assert.match(taskRenderer, /item\.append\(details, actions\)/);
+});
+
+test("memory saved facts stay independent of manual task state controls", () => {
+  const memoryRenderer = app.split("  function renderMemories() {")[1]?.split("  function rememberFact(")[0] || "";
+  assert.match(memoryRenderer, /for \(const item of personalMemories\)/);
+  assert.match(memoryRenderer, /const remove = document\.createElement\("button"\)/);
+  assert.match(memoryRenderer, /personalMemories = removeMemory\(personalMemories, item\.id\)/);
+});
+
+test("iPhone task cards leave full width for plan text and place controls below it", () => {
+  const styles = readFileSync(new URL("../pwa/styles.css", import.meta.url), "utf8");
+  const mobile = styles.split("@media(max-width:640px){").at(-1);
+  assert.ok(mobile, "Mobile task card override missing");
+  assert.match(mobile, /\.task-item\{flex-direction:column;align-items:stretch/);
+  assert.match(mobile, /\.task-item > \.task-details\{width:100%;min-width:0/);
+  assert.match(mobile, /\.task-actions\{width:100%;max-width:none;justify-content:flex-start/);
+  assert.match(mobile, /\.task-remove\{margin-left:auto\}/);
+});

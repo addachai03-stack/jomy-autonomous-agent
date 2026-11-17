@@ -134,3 +134,55 @@ test("underspecified task waits for details without trying to execute a plan", (
   assert.equal(planning.status, "planning");
   assert.equal(planning.title, original.title);
 });
+
+
+test("manual task progress: ready -> in_progress -> done -> reopened", () => {
+  const original = transitionTask(
+    createTask("APPLIQ test", 0), TASK_STATES.PLANNING, {}, 1000
+  );
+  const ready = transitionTask(original, TASK_STATES.READY, {steps:["Verify listing"]}, 2000);
+  const started = transitionTask(ready, TASK_STATES.IN_PROGRESS, {}, 3000);
+  assert.equal(started.status, "in_progress");
+  assert.equal(started.manualStartedAt, new Date(3000).toISOString());
+  assert.equal(started.attempts, 0);
+  assert.deepEqual(started.steps, ready.steps);
+  const finished = transitionTask(started, TASK_STATES.DONE, {}, 4000);
+  assert.equal(finished.status, "done");
+  assert.equal(finished.manualCompletedAt, new Date(4000).toISOString());
+  assert.equal(finished.attempts, 0);
+  const reopened = transitionTask(finished, TASK_STATES.READY, {}, 5000);
+  assert.equal(reopened.status, "ready");
+  assert.equal(reopened.manualCompletedAt, undefined);
+  assert.deepEqual(reopened.steps, ready.steps);
+});
+
+test("manual in_progress and done tasks survive app refresh", () => {
+  const planning = transitionTask(createTask("JOMY test", 0), TASK_STATES.PLANNING, {}, 1000);
+  const ready = transitionTask(planning, TASK_STATES.READY, {steps:["Check memory"]}, 2000);
+  const inProgress = transitionTask(ready, TASK_STATES.IN_PROGRESS, {}, 3000);
+  const done = transitionTask(ready, TASK_STATES.DONE, {}, 4000);
+  const loaded = recoverInterruptedTasks(JSON.parse(JSON.stringify([inProgress, done])), 5000);
+  assert.equal(loaded[0].status, TASK_STATES.IN_PROGRESS);
+  assert.equal(loaded[1].status, TASK_STATES.DONE);
+  assert.deepEqual(loaded[0].steps, ["Check memory"]);
+  assert.equal(loaded[1].manualCompletedAt, new Date(4000).toISOString());
+});
+
+test("pausing a manual task never modifies execution attempts", () => {
+  const ready = transitionTask(transitionTask(createTask("Review website", 0), TASK_STATES.PLANNING), TASK_STATES.READY);
+  const started = transitionTask(ready, TASK_STATES.IN_PROGRESS);
+  const paused = transitionTask(started, TASK_STATES.READY);
+  const done = transitionTask(paused, TASK_STATES.DONE);
+  assert.equal(paused.status, TASK_STATES.READY);
+  assert.equal(done.attempts, 0);
+  assert.equal(paused.manualStartedAt, undefined);
+});
+
+test("manual progress is unavailable while planning, failed or blocked", () => {
+  const queued = createTask("Not planned", 0);
+  assert.throws(() => transitionTask(queued, TASK_STATES.DONE), /Invalid task transition/);
+  const planning = transitionTask(queued, TASK_STATES.PLANNING);
+  assert.throws(() => transitionTask(planning, TASK_STATES.IN_PROGRESS), /Invalid task transition/);
+  const failed = transitionTask(planning, TASK_STATES.FAILED, {error:"Provider unavailable"});
+  assert.throws(() => transitionTask(failed, TASK_STATES.DONE), /Invalid task transition/);
+});
