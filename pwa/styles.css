@@ -62,3 +62,15 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-check-row input[type="checkbox"]:focus-visible{outline:2px solid #e8c788;outline-offset:3px}
 .task-check-row input[type="checkbox"]:checked + span{color:#9eacb8;text-decoration:line-through}
 @media(max-width:420px){.task-check-row{font-size:12px;padding:10px}}
+
+
+/* Task Dashboard 2.3: touch-friendly black/gold status cards with live filters. */
+.task-dashboard{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0 6px}
+.task-stat{appearance:none;-webkit-appearance:none;box-sizing:border-box;min-width:0;min-height:74px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:9px;border:1px solid #d7b36a35;border-radius:11px;padding:11px 10px;background:linear-gradient(145deg,#141b29,#0d121d);color:#f6eddc;text-align:left;cursor:pointer;transition:border-color .15s,background .15s}
+.task-stat-label{color:#b1a68e;font-size:9px;font-weight:800;letter-spacing:.09em;line-height:1.3}
+.task-stat-number{font-size:24px;font-weight:800;line-height:1;color:#dabe82;font-variant-numeric:tabular-nums}
+.task-stat[aria-pressed="true"]{border-color:#e8c788;background:linear-gradient(145deg,#292416,#14141a);box-shadow:inset 0 0 0 1px #e8c78830}
+.task-stat[aria-pressed="true"] .task-stat-label{color:#f3dbad}
+.task-stat:focus-visible{outline:2px solid #f1d397;outline-offset:3px}
+.task-dashboard-summary{color:#a5afc0;font-size:10px;line-height:1.5;margin:0 0 11px;min-height:15px}
+@media(max-width:640px){.task-dashboard{grid-template-columns:repeat(2,minmax(0,1fr))}.task-stat{min-height:80px;padding:12px}.task-stat-number{font-size:26px}}

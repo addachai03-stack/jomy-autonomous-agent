@@ -89,7 +89,7 @@ test("memory saved facts stay independent of manual task state controls", () => 
 
 test("iPhone task cards leave full width for plan text and place controls below it", () => {
   const styles = readFileSync(new URL("../pwa/styles.css", import.meta.url), "utf8");
-  const mobile = styles.split("@media(max-width:640px){").at(-1);
+  const mobile = styles.split("@media(max-width:640px){").find(section => section.includes(".task-item{flex-direction:column;align-items:stretch")) || "";
   assert.ok(mobile, "Mobile task card override missing");
   assert.match(mobile, /\.task-item\{flex-direction:column;align-items:stretch/);
   assert.match(mobile, /\.task-item > \.task-details\{width:100%;min-width:0/);
@@ -120,4 +120,44 @@ test("checklist changes remain on device and do not make an API request", () => 
   const css = readFileSync(new URL("../pwa/styles.css", import.meta.url), "utf8");
   assert.match(css, /\.task-check-row\{[^\n]+min-height:44px/);
   assert.match(css, /\.task-progress-meter\{/);
+});
+
+
+test("Task Dashboard status filter cards are real buttons inside Task Queue, never Memory", () => {
+  const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
+  const taskPanel = html.split('id="taskPanel"')[1]?.split('<section class="memory-panel"')[0] || "";
+  assert.match(taskPanel, /id="taskDashboard"/);
+  assert.match(taskPanel, /role="group" aria-label="Task dashboard status filters"/);
+  for (const name of ["all", "pending", "in_progress", "done"]) {
+    assert.match(taskPanel, new RegExp('type="button" class="task-stat" data-task-filter="' + name + '"'));
+  }
+  assert.match(taskPanel, /id="taskFilterSummary" aria-live="polite"/);
+  assert.ok(taskPanel.indexOf('id="taskDashboard"') < taskPanel.indexOf('id="taskForm"'));
+});
+
+test("Task Dashboard cards derive counts and filter the rendered task list locally", () => {
+  const renderDashboard = app.split("  function renderTaskDashboard() {")[1]?.split("  function renderTaskQueue() {")[0] || "";
+  const renderQueue = app.split("  function renderTaskQueue() {")[1]?.split("  function wakeActivityBoard() {")[0] || "";
+  assert.ok(renderDashboard && renderQueue, "Dashboard or task renderer missing");
+  assert.match(renderDashboard, /const counts = summarizeTaskQueue\(taskQueue\)/);
+  assert.match(renderDashboard, /filterTaskQueue\(taskQueue, activeTaskFilter\)/);
+  assert.match(renderDashboard, /button\.setAttribute\("aria-pressed", String\(activeTaskFilter === filter\)\)/);
+  assert.doesNotMatch(renderDashboard, /fetch\(|localStorage\.setItem/);
+  assert.match(renderQueue, /const visibleTasks = renderTaskDashboard\(\)/);
+  assert.match(renderQueue, /for \(const task of visibleTasks\)/);
+  assert.match(renderQueue, /No tasks match this filter/);
+  assert.match(app, /button\.addEventListener\("click", \(\) => \{\s+activeTaskFilter = button\.dataset\.taskFilter;\s+renderTaskQueue\(\)/);
+  assert.match(app, /activeTaskFilter = "all"; \/\/ Newly added task should always be visible/);
+});
+
+test("Task Dashboard does not alter Personal Memory or old Task Queue storage", () => {
+  const memory = app.split("  function renderMemories() {")[1]?.split("  function rememberFact(")[0] || "";
+  assert.ok(memory.includes("memory-item"), "Personal Memory renderer missing");
+  assert.doesNotMatch(memory, /renderTaskDashboard|activeTaskFilter|taskDashboardButtons/);
+  assert.match(app, /const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
+  assert.match(app, /const MEMORY_KEY = "jomy_agent_personal_memory_v1"/);
+  const css = readFileSync(new URL("../pwa/styles.css", import.meta.url), "utf8");
+  assert.match(css, /\.task-dashboard\{display:grid/);
+  assert.match(css, /\.task-stat\[aria-pressed="true"\]/);
+  assert.match(css, /@media\(max-width:640px\)\{\.task-dashboard\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
 });

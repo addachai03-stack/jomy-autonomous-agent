@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -29,6 +29,10 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const memoryInput = $("memoryInput");
   const memoryList = $("memoryList");
   const taskCount = $("taskCount");
+  const taskDashboard = $("taskDashboard");
+  const taskFilterSummary = $("taskFilterSummary");
+  const taskDashboardButtons = [...taskDashboard.querySelectorAll("[data-task-filter]")];
+  let activeTaskFilter = "all";
   const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1";
   const MEMORY_KEY = "jomy_agent_personal_memory_v1";
   let personalMemories = [];
@@ -282,17 +286,35 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       }
     }
   }
+  // Dashboard counts are derived from existing local tasks, never guessed or fetched.
+  function renderTaskDashboard() {
+    const counts = summarizeTaskQueue(taskQueue);
+    for (const button of taskDashboardButtons) {
+      const filter = button.dataset.taskFilter;
+      button.querySelector(".task-stat-number").textContent = String(counts[filter]);
+      button.setAttribute("aria-pressed", String(activeTaskFilter === filter));
+    }
+    const visibleTasks = filterTaskQueue(taskQueue, activeTaskFilter);
+    const names = { pending: "pending / needs attention", in_progress: "in progress", done: "done" };
+    taskFilterSummary.textContent = activeTaskFilter === "all"
+      ? "Showing all " + counts.all + " tasks · saved on this device."
+      : "Showing " + visibleTasks.length + " of " + counts.all + " " + names[activeTaskFilter] + " tasks · saved on this device.";
+    return visibleTasks;
+  }
   function renderTaskQueue() {
     taskCount.textContent = taskQueue.length + "/30";
+    const visibleTasks = renderTaskDashboard();
     taskList.replaceChildren();
-    if (!taskQueue.length) {
+    if (!visibleTasks.length) {
       const empty = document.createElement("p");
       empty.className = "task-empty";
-      empty.textContent = "No tasks yet. Add a task you want JOMY to organize.";
+      empty.textContent = taskQueue.length
+        ? "No tasks match this filter. Tap TOTAL to see all tasks."
+        : "No tasks yet. Add a task you want JOMY to organize.";
       taskList.append(empty);
       return;
     }
-    for (const task of taskQueue) {
+    for (const task of visibleTasks) {
       const item = document.createElement("article");
       item.className = "task-item";
       const details = document.createElement("div");
@@ -713,6 +735,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         const task = createTask(explicitTask[1].trim());
         taskQueue = addTask(taskQueue, task);
         saveTaskQueue();
+        activeTaskFilter = "all"; // Newly added task should always be visible.
         renderTaskQueue();
         wakeActivityBoard();
         if (needsTaskDetails(task.title)) {
@@ -789,6 +812,12 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     }
   }
 
+  for (const button of taskDashboardButtons) {
+    button.addEventListener("click", () => {
+      activeTaskFilter = button.dataset.taskFilter;
+      renderTaskQueue();
+    });
+  }
   renderTaskQueue();
   setupRecognition();
   setConnection(false, endpoint ? (ownerToken ? "Endpoint ready · not tested" : "Owner token needed · this browser") : "Not connected");
@@ -865,6 +894,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       const task = createTask(title);
       taskQueue = addTask(taskQueue, task);
       saveTaskQueue();
+      activeTaskFilter = "all"; // Newly added task should always be visible.
       renderTaskQueue();
       taskInput.value = "";
       wakeActivityBoard();

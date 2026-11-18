@@ -183,3 +183,34 @@ export function setChecklistStepChecked(task, stepIndex, checked, now = Date.now
     updatedAt: timestamp(now)
   };
 }
+
+
+/**
+ * Non-destructive dashboard grouping for existing on-device tasks.
+ * Pending means unresolved / needs attention: queued, planning, ready,
+ * awaiting details or approval, retries, failed and blocked.
+ * Legacy RUNNING/SUCCEEDED count as active/finished respectively.
+ */
+export function taskDashboardCategory(status) {
+  if (status === TASK_STATES.IN_PROGRESS || status === TASK_STATES.RUNNING) return "in_progress";
+  if (status === TASK_STATES.DONE || status === TASK_STATES.SUCCEEDED) return "done";
+  return "pending";
+}
+
+export function summarizeTaskQueue(queue) {
+  const counts = { all: 0, pending: 0, in_progress: 0, done: 0 };
+  if (!Array.isArray(queue)) return counts;
+  for (const task of queue) {
+    if (!task || typeof task.status !== "string") continue;
+    counts.all++;
+    counts[taskDashboardCategory(task.status)]++;
+  }
+  return counts;
+}
+
+export function filterTaskQueue(queue, filter = "all") {
+  if (!Array.isArray(queue)) return [];
+  const tasks = queue.filter(task => task && typeof task.status === "string");
+  if (!["pending", "in_progress", "done"].includes(filter)) return tasks;
+  return tasks.filter(task => taskDashboardCategory(task.status) === filter);
+}
