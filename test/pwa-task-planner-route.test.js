@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v43 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v44 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=43"/);
-  assert.match(html, /src="\/app\.js\?v=43"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v43"/);
-  assert.match(worker, /"\/styles\.css\?v=43"/);
-  assert.match(worker, /"\/app\.js\?v=43"/);
+  assert.match(html, /href="\/styles\.css\?v=44"/);
+  assert.match(html, /src="\/app\.js\?v=44"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v44"/);
+  assert.match(worker, /"\/styles\.css\?v=44"/);
+  assert.match(worker, /"\/app\.js\?v=44"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -249,4 +249,48 @@ test("Task 2.5 schedule controls are local-only and preserve existing queue keys
   assert.match(css, /\.task-schedule\{display:grid/);
   assert.ok(css.includes('min-height:44px'));
   assert.ok(css.includes('@media(max-width:420px){.task-schedule{grid-template-columns:minmax(0,1fr)'));
+});
+
+
+test("Task Queue 2.6 shows real Due Today / Overdue buttons and priority sorting", () => {
+  const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
+  const panel = html.split('id="taskPanel"')[1]?.split('<section class="memory-panel"')[0] || "";
+  assert.ok(panel.includes('id="taskDeadlineViews" role="group"'));
+  assert.ok(panel.includes('data-deadline-filter="all" aria-pressed="true"'));
+  assert.ok(panel.includes('data-deadline-filter="today" aria-pressed="false"'));
+  assert.ok(panel.includes('data-deadline-filter="overdue" aria-pressed="false"'));
+  assert.ok(panel.includes('<option value="priority">Priority first</option>'));
+  assert.ok(panel.indexOf('id="taskSearchInput"') < panel.indexOf('id="taskDeadlineViews"'));
+  assert.ok(panel.indexOf('id="taskDeadlineViews"') < panel.indexOf('id="taskList"'));
+});
+
+test("Task Queue 2.6 deadline filter runs alongside status, search and sort, not API", () => {
+  const dashboard = app.split("  function renderTaskDashboard() {")[1]?.split("  function renderTaskQueue() {")[0] || "";
+  const renderer = app.split("  function renderTaskQueue() {")[1]?.split("  function wakeActivityBoard() {")[0] || "";
+  assert.ok(dashboard && renderer);
+  assert.match(dashboard, /summarizeTaskDeadlines\(taskQueue, today\)/);
+  assert.match(dashboard, /filterTaskDeadlines\(/);
+  assert.match(dashboard, /filterTaskQueue\(taskQueue, activeTaskFilter\)/);
+  assert.match(dashboard, /searchAndSortTaskQueue\(visibleTasks, taskSearchInput\.value, taskSortSelect\.value\)/);
+  assert.match(dashboard, /button\.setAttribute\("aria-pressed", String\(activeDeadlineFilter === filter\)\)/);
+  assert.doesNotMatch(dashboard, /fetch\(|saveTaskQueue\(|localStorage\.setItem/);
+  assert.match(renderer, /taskDueState\(task, localCalendarDate\(\)\)/);
+  assert.match(renderer, /warning\.className = "task-due-alert is-" \+ dueState/);
+  assert.match(renderer, /No tasks due in this view/);
+  assert.match(app, /deadlineButtons\) \{\s+button\.addEventListener\("click", \(\) => \{\s+activeDeadlineFilter = button\.dataset\.deadlineFilter/);
+  assert.match(app, /document\.addEventListener\("visibilitychange"/);
+  assert.match(app, /activeDeadlineFilter = "all";/);
+  assert.ok(app.includes('const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"'));
+  assert.ok(app.includes('const MEMORY_KEY = "jomy_agent_personal_memory_v1"'));
+});
+
+test("Task Queue 2.6 deadline controls meet iPhone sizing and remain outside Personal Memory", () => {
+  const css = readFileSync(new URL("../pwa/styles.css", import.meta.url), "utf8");
+  assert.match(css, /\.task-deadline-views\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
+  assert.match(css, /\.task-deadline-filter\{[^\n]*min-height:44px/);
+  assert.match(css, /\.task-deadline-filter\[aria-pressed="true"\]/);
+  assert.match(css, /\.task-due-alert\.is-overdue\{/);
+  const memory = app.split("  function renderMemories() {")[1]?.split("  function rememberFact(")[0] || "";
+  assert.ok(memory.includes("memory-item"));
+  assert.doesNotMatch(memory, /deadlineButtons|activeDeadlineFilter|taskDueState/);
 });

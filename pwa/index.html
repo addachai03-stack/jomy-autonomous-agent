@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=43">
+  <link rel="stylesheet" href="/styles.css?v=44">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -64,7 +64,13 @@
           <select id="taskSortSelect" aria-label="Task order" aria-controls="taskList">
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
+            <option value="priority">Priority first</option>
           </select>
+        </div>
+        <div class="task-deadline-views" id="taskDeadlineViews" role="group" aria-label="Task due date views">
+          <button type="button" class="task-deadline-filter" data-deadline-filter="all" aria-pressed="true">ALL DATES</button>
+          <button type="button" class="task-deadline-filter" data-deadline-filter="today" aria-pressed="false">DUE TODAY <strong class="task-deadline-count">0</strong></button>
+          <button type="button" class="task-deadline-filter" data-deadline-filter="overdue" aria-pressed="false">OVERDUE <strong class="task-deadline-count">0</strong></button>
         </div>
         <div id="taskList" class="task-list" aria-live="polite"></div>
         <p class="task-note">Saved on this iPhone only. Say “Task: …” to JOMY or add one here. Planning never executes external actions.</p>
@@ -256,6 +262,6 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=43"></script>
+  <script type="module" src="/app.js?v=44"></script>
 </body>
 </html>

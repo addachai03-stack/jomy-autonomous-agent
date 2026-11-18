@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
-  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule
+  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines
 } from "../src/task-engine.js";
 
 test("creates bounded queued tasks", () => {
@@ -370,4 +370,73 @@ test("Task 2.5 rejects invalid priorities and impossible calendar dates", () => 
   assert.equal(setTaskSchedule(task, {dueDate:"2028-02-29"}).dueDate,"2028-02-29");
   assert.throws(() => setTaskSchedule(null,{priority:"high"}),/Invalid task schedule/);
   assert.throws(() => setTaskSchedule(task,null),/Invalid task schedule/);
+});
+
+
+test("Task Queue 2.6 deadline views are based on device-local calendar day", () => {
+  const today = localCalendarDate(new Date(2026, 10, 19, 0, 5));
+  assert.equal(today, "2026-11-19");
+  assert.equal(localCalendarDate(new Date(2026, 10, 18, 23, 55)), "2026-11-18");
+  assert.throws(() => localCalendarDate("bad-date"), /Invalid current date/);
+  const base = {id:"a",title:"Review",status:TASK_STATES.READY,priority:"high"};
+  assert.equal(taskDueState({...base,dueDate:"2026-11-18"},today), "overdue");
+  assert.equal(taskDueState({...base,dueDate:"2026-11-19"},today), "today");
+  assert.equal(taskDueState({...base,dueDate:"2026-11-20"},today), "upcoming");
+  assert.equal(taskDueState({...base,dueDate:""},today), "none");
+});
+
+test("Task Queue 2.6 excludes DONE and legacy SUCCEEDED from overdue/today totals", () => {
+  const today = "2026-11-19";
+  const entries = [
+    {id:"a",title:"Ready overdue",status:TASK_STATES.READY,dueDate:"2026-11-18"},
+    {id:"b",title:"Today",status:TASK_STATES.IN_PROGRESS,dueDate:"2026-11-19"},
+    {id:"c",title:"Tomorrow",status:TASK_STATES.READY,dueDate:"2026-11-20"},
+    {id:"d",title:"Done yesterday",status:TASK_STATES.DONE,dueDate:"2026-11-18"},
+    {id:"e",title:"Success today",status:TASK_STATES.SUCCEEDED,dueDate:"2026-11-19"},
+    {id:"f",title:"Blocked overdue",status:TASK_STATES.BLOCKED,dueDate:"2026-11-17"},
+    {id:"g",title:"No date",status:TASK_STATES.READY},
+    {id:"h",title:"Invalid legacy date",status:TASK_STATES.FAILED,dueDate:"2026-02-30"}
+  ];
+  const snapshot = JSON.stringify(entries);
+  assert.deepEqual(summarizeTaskDeadlines(entries,today),{today:1,overdue:2});
+  assert.deepEqual(filterTaskDeadlines(entries,"today",today).map(x=>x.id),["b"]);
+  assert.deepEqual(filterTaskDeadlines(entries,"overdue",today).map(x=>x.id),["a","f"]);
+  assert.deepEqual(filterTaskDeadlines(entries,"all",today).map(x=>x.id),entries.map(x=>x.id));
+  assert.equal(taskDueState(entries[3],today),"none");
+  assert.equal(taskDueState(entries[4],today),"none");
+  assert.deepEqual(summarizeTaskDeadlines(null,today),{today:0,overdue:0});
+  assert.deepEqual(filterTaskDeadlines(null,"today",today),[]);
+  assert.equal(JSON.stringify(entries),snapshot);
+});
+
+test("Task Queue 2.6 priority-first sorting is stable and leaves saved tasks intact", () => {
+  const tasks = [
+    {id:"unset",title:"Task unset",priority:"none",createdAt:"2026-11-19T08:00:00Z"},
+    {id:"highold",title:"Task high A",priority:"high",createdAt:"2026-11-17T08:00:00Z"},
+    {id:"low",title:"Task low",priority:"low",createdAt:"2026-11-19T08:00:00Z"},
+    {id:"medium",title:"Task medium",priority:"medium",createdAt:"2026-11-19T08:00:00Z"},
+    {id:"highnew",title:"Task high B",priority:"high",createdAt:"2026-11-19T08:00:00Z"},
+    {id:"legacy",title:"Task legacy",createdAt:"2026-11-18T08:00:00Z"}
+  ];
+  const original = JSON.stringify(tasks);
+  assert.deepEqual(searchAndSortTaskQueue(tasks,"Task","priority").map(t=>t.id),
+    ["highnew","highold","medium","low","unset","legacy"]);
+  assert.deepEqual(searchAndSortTaskQueue(tasks,"high","priority").map(t=>t.id),["highnew","highold"]);
+  assert.equal(JSON.stringify(tasks),original);
+});
+
+test("Task Queue 2.6 counts respond to manual date edits and DONE without marking anything automatically", () => {
+  let task = { ...createTask("Finish report",0),status:TASK_STATES.READY };
+  task = setTaskSchedule(task,{priority:"high",dueDate:"2026-11-18"},100);
+  assert.deepEqual(summarizeTaskDeadlines([task],"2026-11-19"),{today:0,overdue:1});
+  assert.equal(task.status,TASK_STATES.READY);
+  const moved = setTaskSchedule(task,{dueDate:"2026-11-19"},200);
+  assert.deepEqual(summarizeTaskDeadlines([moved],"2026-11-19"),{today:1,overdue:0});
+  assert.equal(moved.priority,"high");
+  assert.equal(moved.status,TASK_STATES.READY);
+  const finished = transitionTask(moved,TASK_STATES.DONE,{},300);
+  assert.deepEqual(summarizeTaskDeadlines([finished],"2026-11-19"),{today:0,overdue:0});
+  assert.equal(finished.dueDate,"2026-11-19");
+  assert.equal(finished.priority,"high");
+  assert.deepEqual(getTaskSchedule(JSON.parse(JSON.stringify(finished))),{priority:"high",dueDate:"2026-11-19"});
 });

@@ -230,14 +230,19 @@ export function searchAndSortTaskQueue(queue, query = "", sort = "newest") {
     const terms = [task.title, task.details, task.plan?.summary];
     return terms.some(value => typeof value === "string" && value.toLocaleLowerCase().includes(needle));
   });
-  if (!["newest", "oldest"].includes(sort)) return matches;
+  if (!["newest", "oldest", "priority"].includes(sort)) return matches;
   const dateOf = task => {
     const parsed = Date.parse(task.createdAt || task.updatedAt || "");
     return Number.isFinite(parsed) ? parsed : 0;
   };
-  return matches.map((task, index) => ({ task, index, date: dateOf(task) }))
-    .sort((a, b) => (sort === "newest" ? b.date - a.date : a.date - b.date) || a.index - b.index)
-    .map(item => item.task);
+  const priorityRanks = { high: 3, medium: 2, low: 1, none: 0 };
+  return matches.map((task, index) => ({
+    task, index, date: dateOf(task),
+    rank: priorityRanks[getTaskSchedule(task).priority]
+  })).sort((a, b) => (
+    sort === "priority" ? (b.rank - a.rank || b.date - a.date) :
+    sort === "newest" ? b.date - a.date : a.date - b.date
+  ) || a.index - b.index).map(item => item.task);
 }
 
 
@@ -275,4 +280,42 @@ export function setTaskSchedule(task, changes, now = Date.now()) {
     result.dueDate = changes.dueDate;
   }
   return { ...task, ...result, updatedAt: timestamp(now) };
+}
+
+/**
+ * Deadline views use the device's calendar date, not UTC, so iPhone-local
+ * midnight changes the view at the right local time. This is not a reminder.
+ */
+export function localCalendarDate(now = new Date()) {
+  const date = now instanceof Date ? now : new Date(now);
+  if (!Number.isFinite(date.getTime())) throw new TypeError("Invalid current date.");
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return year + "-" + month + "-" + day;
+}
+
+export function taskDueState(task, today = localCalendarDate()) {
+  const dueDate = getTaskSchedule(task).dueDate;
+  if (!dueDate || task?.status === TASK_STATES.DONE || task?.status === TASK_STATES.SUCCEEDED) return "none";
+  if (dueDate < today) return "overdue";
+  if (dueDate === today) return "today";
+  return "upcoming";
+}
+
+export function summarizeTaskDeadlines(queue, today = localCalendarDate()) {
+  const result = { today: 0, overdue: 0 };
+  if (!Array.isArray(queue)) return result;
+  for (const task of queue) {
+    if (!task || typeof task.status !== "string") continue;
+    const state = taskDueState(task, today);
+    if (state === "today" || state === "overdue") result[state]++;
+  }
+  return result;
+}
+
+export function filterTaskDeadlines(queue, filter = "all", today = localCalendarDate()) {
+  if (!Array.isArray(queue)) return [];
+  if (filter !== "today" && filter !== "overdue") return queue.slice();
+  return queue.filter(task => task && taskDueState(task, today) === filter);
 }
