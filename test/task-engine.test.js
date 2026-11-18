@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
-  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory
+  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue
 } from "../src/task-engine.js";
 
 test("creates bounded queued tasks", () => {
@@ -286,4 +286,43 @@ test("dashboard filtering preserves checklist state across refreshes and manual 
   const done = transitionTask(persisted[0], TASK_STATES.DONE, {}, 500);
   assert.deepEqual(summarizeTaskQueue([done]), {all:1,pending:0,in_progress:0,done:1});
   assert.deepEqual(getChecklistProgress(filterTaskQueue([done],"done")[0]), {done:1,total:2,indices:[1]});
+});
+
+
+test("Task Queue search finds stored titles, owner details and plan summaries without editing records", () => {
+  const saved = [
+    {id:"a",title:"APPLIQ testing",details:"Website performance review",status:"ready",createdAt:"2026-11-17T10:00:00Z",completedStepIndices:[1]},
+    {id:"b",title:"JOMY Voice",plan:{summary:"Hindi speech check"},status:"done",createdAt:"2026-11-18T10:00:00Z"},
+    {id:"c",title:"भारत यात्रा",status:"ready",createdAt:"2026-11-19T10:00:00Z"}
+  ];
+  const snapshot = JSON.stringify(saved);
+  assert.deepEqual(searchAndSortTaskQueue(saved, "appliq").map(t => t.id), ["a"]);
+  assert.deepEqual(searchAndSortTaskQueue(saved, "WEBSITE").map(t => t.id), ["a"]);
+  assert.deepEqual(searchAndSortTaskQueue(saved, "hindi").map(t => t.id), ["b"]);
+  assert.deepEqual(searchAndSortTaskQueue(saved, "भारत").map(t => t.id), ["c"]);
+  assert.deepEqual(searchAndSortTaskQueue(saved, "  VoIcE  ").map(t => t.id), ["b"]);
+  assert.deepEqual(searchAndSortTaskQueue(saved, "absent"), []);
+  assert.equal(JSON.stringify(saved), snapshot);
+  assert.deepEqual(saved[0].completedStepIndices, [1]);
+});
+
+test("Task Queue newest and oldest sorting respects timestamps, is stable and local-only", () => {
+  const saved = [
+    {id:"old",title:"Task",createdAt:"2026-11-17T10:00:00Z"},
+    {id:"new",title:"Task",createdAt:"2026-11-19T10:00:00Z"},
+    {id:"same1",title:"Task",createdAt:"2026-11-18T10:00:00Z"},
+    {id:"same2",title:"Task",createdAt:"2026-11-18T10:00:00Z"}
+  ];
+  assert.deepEqual(searchAndSortTaskQueue(saved, "", "newest").map(t => t.id), ["new","same1","same2","old"]);
+  assert.deepEqual(searchAndSortTaskQueue(saved, "", "oldest").map(t => t.id), ["old","same1","same2","new"]);
+  assert.deepEqual(searchAndSortTaskQueue(saved, "task", "oldest").map(t => t.id), ["old","same1","same2","new"]);
+  assert.deepEqual(saved.map(t => t.id), ["old","new","same1","same2"], "sort must not reorder stored tasks");
+});
+
+test("Task Queue search safely handles old records, bad dates and invalid input", () => {
+  assert.deepEqual(searchAndSortTaskQueue(null, "a"), []);
+  const items = [{id:"a",title:"Alpha"}, {id:"b",title:"Beta",createdAt:"bad"}, null, {}, {id:"c",title:"Gamma",createdAt:"2026-11-17"}];
+  assert.deepEqual(searchAndSortTaskQueue(items, "", "oldest").map(t => t.id), ["a","b","c"]);
+  assert.deepEqual(searchAndSortTaskQueue(items, 123, "unrecognized").map(t => t.id), ["a","b","c"]);
+  assert.deepEqual(searchAndSortTaskQueue(items, "zz", "newest"), []);
 });

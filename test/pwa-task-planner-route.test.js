@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v41 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v42 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=41"/);
-  assert.match(html, /src="\/app\.js\?v=41"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v41"/);
-  assert.match(worker, /"\/styles\.css\?v=41"/);
-  assert.match(worker, /"\/app\.js\?v=41"/);
+  assert.match(html, /href="\/styles\.css\?v=42"/);
+  assert.match(html, /src="\/app\.js\?v=42"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v42"/);
+  assert.match(worker, /"\/styles\.css\?v=42"/);
+  assert.match(worker, /"\/app\.js\?v=42"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -187,4 +187,38 @@ test("PWA service worker never intercepts foreign origins or non-GETs", () => {
   // No browser-data resets: task and memory keys remain identical.
   assert.match(app, /const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
   assert.match(app, /const MEMORY_KEY = "jomy_agent_personal_memory_v1"/);
+});
+
+
+test("Task Queue Search/Sort controls are accessible and inside Task Queue only", () => {
+  const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
+  const taskPanel = html.split('id="taskPanel"')[1]?.split('<section class="memory-panel"')[0] || "";
+  assert.match(taskPanel, /id="taskSearchInput" type="search"/);
+  assert.match(taskPanel, /id="taskSortSelect" aria-label="Task order"/);
+  assert.match(taskPanel, /<option value="newest">Newest first<\/option>/);
+  assert.match(taskPanel, /<option value="oldest">Oldest first<\/option>/);
+  assert.ok(taskPanel.indexOf('id="taskForm"') < taskPanel.indexOf('id="taskSearchInput"'));
+  assert.ok(taskPanel.indexOf('id="taskSearchInput"') < taskPanel.indexOf('id="taskList"'));
+});
+
+test("Search/Sort composes with live status filters without changing task storage", () => {
+  const dashboard = app.split("  function renderTaskDashboard() {")[1]?.split("  function renderTaskQueue() {")[0] || "";
+  assert.match(dashboard, /filterTaskQueue\(taskQueue, activeTaskFilter\)/);
+  assert.match(dashboard, /searchAndSortTaskQueue\(visibleTasks, taskSearchInput\.value, taskSortSelect\.value\)/);
+  assert.match(dashboard, /matching your search/);
+  assert.doesNotMatch(dashboard, /fetch\(|localStorage\.setItem|saveTaskQueue\(/);
+  assert.match(app, /taskSearchInput\.addEventListener\("input", renderTaskQueue\)/);
+  assert.match(app, /taskSortSelect\.addEventListener\("change", renderTaskQueue\)/);
+  assert.match(app, /taskSearchInput\.value = "";/);
+  assert.match(app, /No tasks match your search/);
+  assert.match(app, /const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
+  assert.match(app, /const MEMORY_KEY = "jomy_agent_personal_memory_v1"/);
+});
+
+test("Task Search/Sort inputs fit iPhone and preserve existing dashboard card styling", () => {
+  const css = readFileSync(new URL("../pwa/styles.css", import.meta.url), "utf8");
+  assert.match(css, /\.task-browse-controls\{display:grid/);
+  assert.match(css, /\.task-browse-controls input,\.task-browse-controls select\{[^\n]*min-height:44px/);
+  assert.match(css, /@media\(max-width:480px\)\{\.task-browse-controls\{grid-template-columns:minmax\(0,1fr\)/);
+  assert.match(css, /\.task-stat\[aria-pressed="true"\]/);
 });
