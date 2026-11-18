@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v44 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v45 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=44"/);
-  assert.match(html, /src="\/app\.js\?v=44"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v44"/);
-  assert.match(worker, /"\/styles\.css\?v=44"/);
-  assert.match(worker, /"\/app\.js\?v=44"/);
+  assert.match(html, /href="\/styles\.css\?v=45"/);
+  assert.match(html, /src="\/app\.js\?v=45"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v45"/);
+  assert.match(worker, /"\/styles\.css\?v=45"/);
+  assert.match(worker, /"\/app\.js\?v=45"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -293,4 +293,39 @@ test("Task Queue 2.6 deadline controls meet iPhone sizing and remain outside Per
   const memory = app.split("  function renderMemories() {")[1]?.split("  function rememberFact(")[0] || "";
   assert.ok(memory.includes("memory-item"));
   assert.doesNotMatch(memory, /deadlineButtons|activeDeadlineFilter|taskDueState/);
+});
+
+
+test("Task Queue 2.7 backup form is collapsed and iPhone accessible", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const taskPanel=html.split('id="taskPanel"')[1]?.split('<section class="memory-panel"')[0] || "";
+  assert.match(taskPanel, /<details class="task-backup-panel" id="taskBackupPanel">/);
+  assert.match(taskPanel, /id="taskBackupExport"/);
+  assert.match(taskPanel, /id="taskBackupFile" type="file" accept="\.json,application\/json"/);
+  assert.match(taskPanel, /id="taskBackupImport" disabled/);
+  assert.match(taskPanel, /id="taskBackupStatus" role="status" aria-live="polite"/);
+  assert.ok(taskPanel.indexOf("taskBackupPanel") < taskPanel.indexOf('id="taskForm"'));
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  assert.match(css, /\.task-backup-panel\{/);
+  assert.match(css, /\.task-backup-actions button,\.task-backup-upload\{[^\n]*min-height:44px/);
+});
+
+test("Task Queue 2.7 import previews safely and requires confirmation before any storage write", () => {
+  const backup=app.split("  // Backup is entirely local;")[1]?.split("  function updateTask(taskId, updater) {")[0] || "";
+  assert.ok(backup,"Task Queue backup controls missing");
+  assert.match(backup,/createTaskQueueBackup\(taskQueue\)/);
+  assert.match(backup,/readTaskQueueBackup\(await file\.text\(\)\)/);
+  assert.match(backup,/mergeTaskQueueBackup\(taskQueue, incoming\)/);
+  assert.match(backup,/mergeTaskQueueBackup\(taskQueue, pendingBackupTasks\)/);
+  assert.match(backup,/window\.confirm\(/);
+  assert.match(backup,/localStorage\.setItem\(TASK_QUEUE_KEY, JSON\.stringify\(preview\.queue\)\)/);
+  assert.match(backup,/taskQueue = preview\.queue/);
+  assert.match(backup,/taskBackupImport\.disabled = true/);
+  assert.match(backup,/file\.size > 524288/);
+  const confirmation=backup.indexOf("window.confirm(");
+  const save=backup.indexOf("localStorage.setItem(TASK_QUEUE_KEY");
+  assert.ok(save > confirmation,"No restore save before confirmation");
+  assert.doesNotMatch(backup,/fetch\(|sendMessage\(|planTask\(|localStorage\.clear\(|removeItem\(/);
+  assert.match(app,/const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
+  assert.match(app,/const MEMORY_KEY = "jomy_agent_personal_memory_v1"/);
 });

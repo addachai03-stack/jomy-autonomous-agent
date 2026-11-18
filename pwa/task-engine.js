@@ -319,3 +319,135 @@ export function filterTaskDeadlines(queue, filter = "all", today = localCalendar
   if (filter !== "today" && filter !== "overdue") return queue.slice();
   return queue.filter(task => task && taskDueState(task, today) === filter);
 }
+
+
+/**
+ * Task Queue 2.7: explicit, device-only JSON backup. Only known task fields
+ * are exported/imported; Agent tokens, settings and Personal Memory are NEVER
+ * included. Import is merge-only, not an automatic replacement of local data.
+ */
+const TASK_BACKUP_FORMAT = "jomy-task-queue-backup";
+const TASK_BACKUP_VERSION = 1;
+const TASK_BACKUP_STATUSES = new Set(Object.values(TASK_STATES));
+const UNSAFE_RESUME_STATUSES = new Set([
+  TASK_STATES.RUNNING, TASK_STATES.PLANNING,
+  TASK_STATES.RETRY_WAIT, TASK_STATES.AWAITING_APPROVAL
+]);
+
+function backupDate(value, fallback) {
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) return fallback;
+  return new Date(value).toISOString();
+}
+
+function safeBackupTask(task) {
+  if (!task || typeof task !== "object" || Array.isArray(task) ||
+      typeof task.id !== "string" || !task.id.trim() || task.id.length > 128 ||
+      typeof task.title !== "string" || !task.title.trim() || task.title.length > 240 ||
+      !TASK_BACKUP_STATUSES.has(task.status)) {
+    throw new TypeError("Backup contains an invalid task identity, title or status.");
+  }
+  if (task.steps !== undefined && (
+    !Array.isArray(task.steps) || task.steps.length > 12 ||
+    task.steps.some(step => typeof step !== "string" || !step.trim() || step.length > 240)
+  )) throw new TypeError("Backup contains invalid checklist steps.");
+  if (task.details !== undefined && (typeof task.details !== "string" || task.details.length > 4000)) {
+    throw new TypeError("Backup contains invalid task details.");
+  }
+  const steps = Array.isArray(task.steps) ? task.steps.slice() : [];
+  const { priority, dueDate } = getTaskSchedule(task);
+  const fallback = "1970-01-01T00:00:00.000Z";
+  const createdAt = backupDate(task.createdAt, fallback);
+  const updatedAt = backupDate(task.updatedAt, createdAt);
+  const importedStatus = UNSAFE_RESUME_STATUSES.has(task.status) ? TASK_STATES.FAILED : task.status;
+  const record = {
+    id: task.id,
+    title: task.title,
+    status: importedStatus,
+    attempts: Number.isInteger(task.attempts) ? Math.max(0, Math.min(task.attempts, 2)) : 0,
+    maxAttempts: 2,
+    steps,
+    completedStepIndices: getChecklistProgress({steps,completedStepIndices:task.completedStepIndices}).indices,
+    createdAt,
+    updatedAt,
+    priority,
+    dueDate,
+    lastError: importedStatus === TASK_STATES.FAILED && importedStatus !== task.status
+      ? "Imported unfinished task. Review and retry manually."
+      : typeof task.lastError === "string" ? task.lastError.slice(0, 500) : null
+  };
+  if (typeof task.details === "string") record.details = task.details;
+  if (task.plan && typeof task.plan === "object" &&
+      typeof task.plan.summary === "string" && task.plan.summary.length <= 2000) {
+    record.plan = {
+      summary: task.plan.summary,
+      source: typeof task.plan.source === "string" ? task.plan.source.slice(0, 40) : "backup"
+    };
+  }
+  for (const key of ["manualStartedAt", "manualCompletedAt"]) {
+    const date = backupDate(task[key], null);
+    if (date) record[key] = date;
+  }
+  return record;
+}
+
+export function createTaskQueueBackup(queue, now = new Date()) {
+  if (!Array.isArray(queue) || queue.length > MAX_TASKS) {
+    throw new TypeError("Task backup requires up to 30 saved tasks.");
+  }
+  const timestampValue = now instanceof Date ? now : new Date(now);
+  if (!Number.isFinite(timestampValue.getTime())) throw new TypeError("Invalid backup timestamp.");
+  const ids = new Set();
+  const tasks = queue.map(task => {
+    const record = safeBackupTask(task);
+    if (ids.has(record.id)) throw new TypeError("Task backup contains duplicate IDs.");
+    ids.add(record.id);
+    return record;
+  });
+  return JSON.stringify({
+    format: TASK_BACKUP_FORMAT,
+    version: TASK_BACKUP_VERSION,
+    exportedAt: timestampValue.toISOString(),
+    tasks
+  }, null, 2);
+}
+
+export function readTaskQueueBackup(text) {
+  if (typeof text !== "string" || text.length > 524288) {
+    throw new TypeError("Backup file is too large or not text.");
+  }
+  let data;
+  try { data = JSON.parse(text); } catch (_) { throw new TypeError("File is not valid JSON."); }
+  if (!data || typeof data !== "object" || Array.isArray(data) ||
+      data.format !== TASK_BACKUP_FORMAT || data.version !== TASK_BACKUP_VERSION ||
+      !Array.isArray(data.tasks) || data.tasks.length > MAX_TASKS) {
+    throw new TypeError("Not a supported JOMY Task Queue backup (v1, max 30 tasks).");
+  }
+  const ids = new Set();
+  return data.tasks.map(task => {
+    const record = safeBackupTask(task);
+    if (ids.has(record.id)) throw new TypeError("Backup file has duplicate task IDs.");
+    ids.add(record.id);
+    return record;
+  });
+}
+
+export function mergeTaskQueueBackup(existing, incoming) {
+  if (!Array.isArray(existing) || !Array.isArray(incoming) ||
+      existing.length > MAX_TASKS || incoming.length > MAX_TASKS) {
+    throw new TypeError("Invalid task queue backup merge.");
+  }
+  const ids = new Set(existing.map(task => task?.id).filter(id => typeof id === "string"));
+  const queue = existing.slice();
+  let imported = 0;
+  let duplicates = 0;
+  let full = 0;
+  for (const item of incoming) {
+    const task = safeBackupTask(item);
+    if (ids.has(task.id)) { duplicates++; continue; }
+    ids.add(task.id);
+    if (queue.length >= MAX_TASKS) { full++; continue; }
+    queue.push(task);
+    imported++;
+  }
+  return { queue, imported, duplicates, full };
+}

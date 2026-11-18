@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -27,6 +27,11 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const taskSearchInput = $("taskSearchInput");
   const taskSortSelect = $("taskSortSelect");
   const taskList = $("taskList");
+  const taskBackupExport = $("taskBackupExport");
+  const taskBackupFile = $("taskBackupFile");
+  const taskBackupImport = $("taskBackupImport");
+  const taskBackupStatus = $("taskBackupStatus");
+  let pendingBackupTasks = null;
   const memoryForm = $("memoryForm");
   const memoryInput = $("memoryInput");
   const memoryList = $("memoryList");
@@ -203,6 +208,78 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     taskQueue = taskQueue.slice(-30);
     try { localStorage.setItem(TASK_QUEUE_KEY, JSON.stringify(taskQueue)); } catch (_) {}
   }
+  // Backup is entirely local; downloading JSON never sends task data to any API.
+  taskBackupExport.addEventListener("click", () => {
+    try {
+      const content = createTaskQueueBackup(taskQueue);
+      const blob = new Blob([content], {type:"application/json"});
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "jomy-task-backup-" + localCalendarDate() + ".json";
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+      taskBackupStatus.textContent = "Backup prepared for download: " + taskQueue.length + " tasks. Keep the JSON file private.";
+    } catch (error) {
+      taskBackupStatus.textContent = "Backup export failed: " + error.message;
+    }
+  });
+  taskBackupFile.addEventListener("change", async () => {
+    pendingBackupTasks = null;
+    taskBackupImport.disabled = true;
+    const file = taskBackupFile.files?.[0];
+    if (!file) {
+      taskBackupStatus.textContent = "Select a JOMY task backup file.";
+      return;
+    }
+    try {
+      if (file.size > 524288) throw new TypeError("Backup file is too large (maximum 512 KB).");
+      const incoming = readTaskQueueBackup(await file.text());
+      const preview = mergeTaskQueueBackup(taskQueue, incoming);
+      taskBackupStatus.textContent = "Preview: " + incoming.length + " saved tasks, "
+        + preview.imported + " new, " + preview.duplicates + " already here, "
+        + preview.full + " without space. Nothing has been imported yet.";
+      if (preview.imported > 0) {
+        pendingBackupTasks = incoming;
+        taskBackupImport.disabled = false;
+      }
+    } catch (error) {
+      taskBackupStatus.textContent = "Backup rejected: " + error.message;
+    }
+  });
+  taskBackupImport.addEventListener("click", () => {
+    if (!pendingBackupTasks) return;
+    try {
+      // Recalculate against live saved tasks in case anything changed since preview.
+      const preview = mergeTaskQueueBackup(taskQueue, pendingBackupTasks);
+      if (!preview.imported) {
+        taskBackupStatus.textContent = "No new tasks to import. Your saved tasks are unchanged.";
+        return;
+      }
+      if (!window.confirm("Import " + preview.imported + " NEW tasks on this device? "
+          + preview.duplicates + " duplicates and " + preview.full
+          + " over the 30-task limit will be skipped. Existing tasks will not be replaced.")) {
+        return;
+      }
+      // Commit to storage BEFORE changing in-memory queue; failed writes leave UI intact.
+      localStorage.setItem(TASK_QUEUE_KEY, JSON.stringify(preview.queue));
+      taskQueue = preview.queue;
+      pendingBackupTasks = null;
+      taskBackupFile.value = "";
+      taskBackupImport.disabled = true;
+      activeTaskFilter = "all";
+      activeDeadlineFilter = "all";
+      taskSearchInput.value = "";
+      renderTaskQueue();
+      taskBackupStatus.textContent = "Imported " + preview.imported + " new tasks. "
+        + preview.duplicates + " duplicates and " + preview.full
+        + " over-limit tasks skipped. Existing tasks were not changed.";
+    } catch (error) {
+      taskBackupStatus.textContent = "Import failed. Existing tasks were not changed: " + error.message;
+    }
+  });
   function updateTask(taskId, updater) {
     taskQueue = taskQueue.map(task => task.id === taskId ? updater(task) : task);
     saveTaskQueue();

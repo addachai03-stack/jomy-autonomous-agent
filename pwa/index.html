@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=44">
+  <link rel="stylesheet" href="/styles.css?v=45">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -56,6 +56,18 @@
           <button type="button" class="task-stat" data-task-filter="done" aria-pressed="false"><span class="task-stat-label">DONE</span><strong class="task-stat-number">0</strong></button>
         </div>
         <p class="task-dashboard-summary" id="taskFilterSummary" aria-live="polite">Showing all tasks saved on this device.</p>
+        <details class="task-backup-panel" id="taskBackupPanel">
+          <summary>BACKUP &amp; RESTORE TASKS <span>DEVICE ONLY</span></summary>
+          <p>Download a private JSON backup of saved tasks. No Owner Token, settings or Personal Memory included. Keep task details private.</p>
+          <div class="task-backup-actions">
+            <button type="button" id="taskBackupExport">EXPORT JSON</button>
+            <label class="task-backup-upload" for="taskBackupFile">SELECT BACKUP
+              <input id="taskBackupFile" type="file" accept=".json,application/json" aria-label="Select JOMY Task Queue JSON backup">
+            </label>
+            <button type="button" id="taskBackupImport" disabled>IMPORT NEW TASKS</button>
+          </div>
+          <p class="task-backup-status" id="taskBackupStatus" role="status" aria-live="polite">Import is preview-only until you confirm. Existing tasks are never overwritten.</p>
+        </details>
         <form class="task-form" id="taskForm"><label class="sr-only" for="taskInput">Add a task</label><input id="taskInput" maxlength="4000" placeholder="Add a task for JOMY to organize…" autocomplete="off"><button type="submit">ADD</button></form>
         <div class="task-browse-controls" role="group" aria-label="Find and sort saved tasks">
           <label class="sr-only" for="taskSearchInput">Search tasks by name or details</label>
@@ -262,6 +274,6 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=44"></script>
+  <script type="module" src="/app.js?v=45"></script>
 </body>
 </html>
