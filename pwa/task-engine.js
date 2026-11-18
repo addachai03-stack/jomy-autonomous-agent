@@ -239,3 +239,40 @@ export function searchAndSortTaskQueue(queue, query = "", sort = "newest") {
     .sort((a, b) => (sort === "newest" ? b.date - a.date : a.date - b.date) || a.index - b.index)
     .map(item => item.task);
 }
+
+
+/** Optional owner-only metadata on existing saved tasks; no reminders or execution. */
+const TASK_PRIORITIES = new Set(["none", "low", "medium", "high"]);
+function validTaskDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(value + "T12:00:00.000Z");
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+export function getTaskSchedule(task) {
+  return {
+    priority: TASK_PRIORITIES.has(task?.priority) ? task.priority : "none",
+    dueDate: validTaskDate(task?.dueDate) ? task.dueDate : ""
+  };
+}
+
+/** Keep status, plan, checklist, and existing other metadata untouched. */
+export function setTaskSchedule(task, changes, now = Date.now()) {
+  if (!task || typeof task.id !== "string" || !changes || typeof changes !== "object") {
+    throw new TypeError("Invalid task schedule update.");
+  }
+  const result = { ...getTaskSchedule(task) };
+  if (Object.hasOwn(changes, "priority")) {
+    if (typeof changes.priority !== "string" || !TASK_PRIORITIES.has(changes.priority)) {
+      throw new TypeError("Priority must be none, low, medium or high.");
+    }
+    result.priority = changes.priority;
+  }
+  if (Object.hasOwn(changes, "dueDate")) {
+    if (typeof changes.dueDate !== "string" || (changes.dueDate !== "" && !validTaskDate(changes.dueDate))) {
+      throw new TypeError("Due date must be an existing calendar date in YYYY-MM-DD format or empty.");
+    }
+    result.dueDate = changes.dueDate;
+  }
+  return { ...task, ...result, updatedAt: timestamp(now) };
+}
