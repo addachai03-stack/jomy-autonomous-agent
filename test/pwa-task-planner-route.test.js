@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v44 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v45 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=44"/);
-  assert.match(html, /src="\/app\.js\?v=44"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v44"/);
-  assert.match(worker, /"\/styles\.css\?v=44"/);
-  assert.match(worker, /"\/app\.js\?v=44"/);
+  assert.match(html, /href="\/styles\.css\?v=45"/);
+  assert.match(html, /src="\/app\.js\?v=45"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v45"/);
+  assert.match(worker, /"\/styles\.css\?v=45"/);
+  assert.match(worker, /"\/app\.js\?v=45"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
