@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
-  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue
+  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule
 } from "../src/task-engine.js";
 
 test("creates bounded queued tasks", () => {
@@ -325,4 +325,49 @@ test("Task Queue search safely handles old records, bad dates and invalid input"
   assert.deepEqual(searchAndSortTaskQueue(items, "", "oldest").map(t => t.id), ["a","b","c"]);
   assert.deepEqual(searchAndSortTaskQueue(items, 123, "unrecognized").map(t => t.id), ["a","b","c"]);
   assert.deepEqual(searchAndSortTaskQueue(items, "zz", "newest"), []);
+});
+
+
+test("Task 2.5 priority and due date save without changing task status or checklist", () => {
+  const task = { ...createTask("JOMY mobile review", 0), status:TASK_STATES.READY,
+    steps:["Step A", "Step B"], completedStepIndices:[1] };
+  const selected = setTaskSchedule(task, { priority:"high", dueDate:"2026-11-23" }, 100);
+  assert.deepEqual(getTaskSchedule(selected), {priority:"high",dueDate:"2026-11-23"});
+  assert.equal(selected.status, TASK_STATES.READY);
+  assert.deepEqual(selected.completedStepIndices,[1]);
+  assert.deepEqual(selected.steps,["Step A","Step B"]);
+  assert.equal(selected.updatedAt, new Date(100).toISOString());
+  assert.equal(task.priority, undefined);
+  assert.equal(task.dueDate, undefined);
+  const saved = JSON.parse(JSON.stringify([selected]))[0];
+  assert.deepEqual(getTaskSchedule(saved), {priority:"high",dueDate:"2026-11-23"});
+  const updatedPriority = setTaskSchedule(saved, {priority:"low"}, 200);
+  assert.equal(updatedPriority.dueDate, "2026-11-23");
+  const cleared = setTaskSchedule(updatedPriority, {dueDate:"",priority:"none"}, 300);
+  assert.deepEqual(getTaskSchedule(cleared), {priority:"none",dueDate:""});
+  assert.equal(cleared.status, TASK_STATES.READY);
+});
+
+test("Task 2.5 existing saved tasks safely display unset labels without migration", () => {
+  const legacy = {id:"legacy",title:"Old Task",status:TASK_STATES.DONE,createdAt:"2026-11-18"};
+  const unchanged = JSON.stringify(legacy);
+  assert.deepEqual(getTaskSchedule(legacy), {priority:"none",dueDate:""});
+  assert.deepEqual(getTaskSchedule({...legacy,priority:"urgent",dueDate:"2026-02-30"}), {priority:"none",dueDate:""});
+  assert.equal(JSON.stringify(legacy), unchanged);
+  const done = setTaskSchedule(legacy, {priority:"medium",dueDate:"2026-12-01"}, 100);
+  assert.equal(done.status,TASK_STATES.DONE);
+  assert.equal(done.priority,"medium");
+});
+
+test("Task 2.5 rejects invalid priorities and impossible calendar dates", () => {
+  const task = {id:"t",title:"Safe Task",status:TASK_STATES.QUEUED};
+  for (const priority of ["urgent", "HIGH", "", null, 99]) {
+    assert.throws(() => setTaskSchedule(task, {priority}), /Priority must/);
+  }
+  for (const dueDate of ["2026-02-29","2026-13-01","2026-11-31","2026/11/21","tomorrow",null,"2026-1-1"]) {
+    assert.throws(() => setTaskSchedule(task, {dueDate}), /Due date must/);
+  }
+  assert.equal(setTaskSchedule(task, {dueDate:"2028-02-29"}).dueDate,"2028-02-29");
+  assert.throws(() => setTaskSchedule(null,{priority:"high"}),/Invalid task schedule/);
+  assert.throws(() => setTaskSchedule(task,null),/Invalid task schedule/);
 });
