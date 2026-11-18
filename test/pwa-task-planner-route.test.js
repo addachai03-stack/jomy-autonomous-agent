@@ -161,3 +161,30 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
   assert.match(css, /\.task-stat\[aria-pressed="true"\]/);
   assert.match(css, /@media\(max-width:640px\)\{\.task-dashboard\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
 });
+
+
+test("PWA HTML and JS/CSS cache use the same v41 release on Safari", () => {
+  const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
+  const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
+  assert.match(html, /href="\/styles\.css\?v=41"/);
+  assert.match(html, /src="\/app\.js\?v=41"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v41"/);
+  assert.match(worker, /"\/styles\.css\?v=41"/);
+  assert.match(worker, /"\/app\.js\?v=41"/);
+  assert.match(worker, /const response = await fetch\(request\);/);
+  assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
+  assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
+  assert.doesNotMatch(worker, /caches\.match\(event\.request\)\.then\(\(cached\) => cached \|\| fetch\(event\.request\)\)/);
+});
+
+test("PWA service worker never intercepts foreign origins or non-GETs", () => {
+  const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
+  assert.match(worker, /request\.method !== "GET"/);
+  assert.match(worker, /url\.origin !== self\.location\.origin/);
+  assert.match(worker, /request\.mode !== "navigate" && !SHELL_PATHS\.has\(url\.pathname\)/);
+  assert.match(worker, /cache\.put\(request, copy\)/);
+  assert.match(worker, /return Response\.error\(\)/);
+  // No browser-data resets: task and memory keys remain identical.
+  assert.match(app, /const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
+  assert.match(app, /const MEMORY_KEY = "jomy_agent_personal_memory_v1"/);
+});
