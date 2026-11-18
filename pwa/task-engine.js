@@ -214,3 +214,28 @@ export function filterTaskQueue(queue, filter = "all") {
   if (!["pending", "in_progress", "done"].includes(filter)) return tasks;
   return tasks.filter(task => taskDashboardCategory(task.status) === filter);
 }
+
+
+/**
+ * Read-only search and ordering of the existing device-local task list.
+ * Match task names and owner-provided details (plus plan summary), case-insensitively.
+ * Sorting by creation date does not modify any stored task or its checklist.
+ */
+export function searchAndSortTaskQueue(queue, query = "", sort = "newest") {
+  if (!Array.isArray(queue)) return [];
+  const needle = typeof query === "string" ? query.trim().toLocaleLowerCase() : "";
+  const matches = queue.filter(task => {
+    if (!task || typeof task.title !== "string") return false;
+    if (!needle) return true;
+    const terms = [task.title, task.details, task.plan?.summary];
+    return terms.some(value => typeof value === "string" && value.toLocaleLowerCase().includes(needle));
+  });
+  if (!["newest", "oldest"].includes(sort)) return matches;
+  const dateOf = task => {
+    const parsed = Date.parse(task.createdAt || task.updatedAt || "");
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  return matches.map((task, index) => ({ task, index, date: dateOf(task) }))
+    .sort((a, b) => (sort === "newest" ? b.date - a.date : a.date - b.date) || a.index - b.index)
+    .map(item => item.task);
+}
