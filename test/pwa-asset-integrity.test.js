@@ -22,7 +22,8 @@ test("service worker precache contains no missing files", () => {
   const paths = JSON.parse(array[1]);
   for (const asset of paths) {
     if (asset === "/") continue;
-    assert.ok(existsSync(join(pwaDir, asset.slice(1))), `Missing precache asset: ${asset}`);
+    const pathname = new URL(asset, "https://jomy.local").pathname; // ignore version ?v= query
+    assert.ok(existsSync(join(pwaDir, pathname.slice(1))), `Missing precache asset: ${asset}`);
   }
 });
 
