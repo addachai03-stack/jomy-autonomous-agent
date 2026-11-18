@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
-  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines
+  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup
 } from "../src/task-engine.js";
 
 test("creates bounded queued tasks", () => {
@@ -439,4 +439,105 @@ test("Task Queue 2.6 counts respond to manual date edits and DONE without markin
   assert.equal(finished.dueDate,"2026-11-19");
   assert.equal(finished.priority,"high");
   assert.deepEqual(getTaskSchedule(JSON.parse(JSON.stringify(finished))),{priority:"high",dueDate:"2026-11-19"});
+});
+
+
+test("Task Queue 2.7 JSON roundtrip preserves checklist, priority, date and manual status", () => {
+  const source = {
+    ...createTask("JOMY Project A", 100),
+    status:TASK_STATES.IN_PROGRESS,
+    steps:["Review", "Report"],
+    completedStepIndices:[1],
+    priority:"high",
+    dueDate:"2026-11-20",
+    details:"User-provided notes",
+    plan:{summary:"Review the user-supplied project",source:"local",actionType:"unsafe.execute"},
+    manualStartedAt:"2026-11-19T01:00:00.000Z",
+    ownerToken:"DO_NOT_INCLUDE_SECRET",
+    settings:{ privateKey:"SECRET" }
+  };
+  const json = createTaskQueueBackup([source], new Date("2026-11-19T03:00:00.000Z"));
+  assert.match(json, /jomy-task-queue-backup/);
+  assert.doesNotMatch(json, /DO_NOT_INCLUDE_SECRET|SECRET|unsafe\.execute|privateKey|ownerToken/);
+  const restored = readTaskQueueBackup(json);
+  assert.equal(restored.length,1);
+  const task = restored[0];
+  assert.equal(task.status,TASK_STATES.IN_PROGRESS);
+  assert.deepEqual(task.steps,["Review","Report"]);
+  assert.deepEqual(getChecklistProgress(task),{done:1,total:2,indices:[1]});
+  assert.deepEqual(getTaskSchedule(task),{priority:"high",dueDate:"2026-11-20"});
+  assert.equal(task.details,"User-provided notes");
+  assert.equal(task.plan.summary,"Review the user-supplied project");
+  assert.equal(task.plan.source,"local");
+  assert.equal(task.plan.actionType,undefined);
+  assert.equal(task.manualStartedAt,"2026-11-19T01:00:00.000Z");
+  assert.equal(source.ownerToken,"DO_NOT_INCLUDE_SECRET");
+});
+
+test("Task Queue 2.7 backup import merges only new IDs and never overwrites saved records", () => {
+  const existing=[{...createTask("Existing",10),priority:"low",completedStepIndices:[0],steps:["A"]}];
+  const incoming=[
+    {...existing[0],title:"Malicious overwrite",priority:"high"},
+    {...createTask("New task",20),id:"unique-new",priority:"medium"}
+  ];
+  const original=JSON.stringify(existing);
+  const merged=mergeTaskQueueBackup(existing,readTaskQueueBackup(createTaskQueueBackup(incoming,30)));
+  assert.equal(merged.imported,1);
+  assert.equal(merged.duplicates,1);
+  assert.equal(merged.full,0);
+  assert.equal(merged.queue.length,2);
+  assert.equal(merged.queue[0],existing[0],"original object reference must be preserved");
+  assert.equal(merged.queue[0].title,"Existing");
+  assert.equal(merged.queue[0].priority,"low");
+  assert.equal(merged.queue[1].title,"New task");
+  assert.equal(JSON.stringify(existing),original);
+});
+
+test("Task Queue 2.7 backup does not trim or delete existing 30-task queue", () => {
+  const existing=Array.from({length:29},(_,i)=>({...createTask("Current "+i,i),id:"current-"+i}));
+  const extra=Array.from({length:3},(_,i)=>({...createTask("Backup "+i,i),id:"backup-"+i}));
+  const saved=JSON.stringify(existing);
+  const result=mergeTaskQueueBackup(existing,readTaskQueueBackup(createTaskQueueBackup(extra)));
+  assert.deepEqual({imported:result.imported,duplicates:result.duplicates,full:result.full},{imported:1,duplicates:0,full:2});
+  assert.equal(result.queue.length,30);
+  assert.equal(result.queue[29].id,"backup-0");
+  assert.equal(JSON.stringify(existing),saved);
+  const full=mergeTaskQueueBackup(result.queue,extra);
+  assert.equal(full.imported,0);
+  assert.equal(full.duplicates,1);
+  assert.equal(full.full,2);
+  assert.equal(full.queue.length,30);
+});
+
+test("Task Queue 2.7 parser rejects unrelated JSON, invalid records and duplicate IDs", () => {
+  const valid=JSON.parse(createTaskQueueBackup([createTask("Valid",0)]));
+  assert.throws(()=>readTaskQueueBackup("not-json"),/not valid JSON/);
+  assert.throws(()=>readTaskQueueBackup("{}"),/Not a supported JOMY/);
+  assert.throws(()=>readTaskQueueBackup(JSON.stringify({...valid,version:2})),/Not a supported JOMY/);
+  assert.throws(()=>readTaskQueueBackup(JSON.stringify({...valid,tasks:new Array(31).fill(valid.tasks[0])})),/Not a supported JOMY/);
+  assert.throws(()=>readTaskQueueBackup(JSON.stringify({...valid,tasks:[valid.tasks[0],valid.tasks[0]]})),/duplicate task IDs/);
+  assert.throws(()=>readTaskQueueBackup(JSON.stringify({...valid,tasks:[{...valid.tasks[0],status:"admin"}]})),/invalid task/);
+  assert.throws(()=>readTaskQueueBackup(JSON.stringify({...valid,tasks:[{...valid.tasks[0],steps:[""]}]})),/invalid checklist/);
+  assert.throws(()=>readTaskQueueBackup("a".repeat(524289)),/too large/);
+  assert.throws(()=>mergeTaskQueueBackup(null,[]),/Invalid task queue/);
+});
+
+test("Task Queue 2.7 imported interrupted tasks require manual retry, never resume execution", () => {
+  const old={...createTask("Interrupted",0),status:TASK_STATES.RUNNING,plan:{summary:"pending",actionType:"external.execute"}};
+  const restored=readTaskQueueBackup(createTaskQueueBackup([old]))[0];
+  assert.equal(restored.status,TASK_STATES.FAILED);
+  assert.match(restored.lastError,/Review and retry manually/);
+  assert.equal(restored.plan.actionType,undefined);
+  assert.equal(restored.attempts,0);
+  assert.deepEqual(mergeTaskQueueBackup([], [restored]).queue.map(t=>t.status),[TASK_STATES.FAILED]);
+});
+
+test("Task Queue 2.7 empty backup and legacy-safe fields are supported", () => {
+  const empty=readTaskQueueBackup(createTaskQueueBackup([],new Date(0)));
+  assert.deepEqual(empty,[]);
+  const task={id:"old",title:"Legacy",status:TASK_STATES.READY,steps:[],createdAt:"bad",priority:"urgent",dueDate:"2026-02-30",completedStepIndices:[999]};
+  const rec=readTaskQueueBackup(createTaskQueueBackup([task]))[0];
+  assert.equal(rec.createdAt,"1970-01-01T00:00:00.000Z");
+  assert.deepEqual(getTaskSchedule(rec),{priority:"none",dueDate:""});
+  assert.deepEqual(rec.completedStepIndices,[]);
 });
