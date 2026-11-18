@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -24,6 +24,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const taskPanel = $("taskPanel");
   const taskForm = $("taskForm");
   const taskInput = $("taskInput");
+  const taskSearchInput = $("taskSearchInput");
+  const taskSortSelect = $("taskSortSelect");
   const taskList = $("taskList");
   const memoryForm = $("memoryForm");
   const memoryInput = $("memoryInput");
@@ -296,10 +298,12 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     }
     const visibleTasks = filterTaskQueue(taskQueue, activeTaskFilter);
     const names = { pending: "pending / needs attention", in_progress: "in progress", done: "done" };
-    taskFilterSummary.textContent = activeTaskFilter === "all"
-      ? "Showing all " + counts.all + " tasks · saved on this device."
-      : "Showing " + visibleTasks.length + " of " + counts.all + " " + names[activeTaskFilter] + " tasks · saved on this device.";
-    return visibleTasks;
+    const selected = searchAndSortTaskQueue(visibleTasks, taskSearchInput.value, taskSortSelect.value);
+    const searchText = taskSearchInput.value.trim();
+    const label = activeTaskFilter === "all" ? "tasks" : names[activeTaskFilter] + " tasks";
+    taskFilterSummary.textContent = "Showing " + selected.length + " of " + counts.all + " " + label
+      + (searchText ? " matching your search" : "") + " · saved on this device.";
+    return selected;
   }
   function renderTaskQueue() {
     taskCount.textContent = taskQueue.length + "/30";
@@ -308,9 +312,11 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     if (!visibleTasks.length) {
       const empty = document.createElement("p");
       empty.className = "task-empty";
-      empty.textContent = taskQueue.length
-        ? "No tasks match this filter. Tap TOTAL to see all tasks."
-        : "No tasks yet. Add a task you want JOMY to organize.";
+      empty.textContent = !taskQueue.length
+        ? "No tasks yet. Add a task you want JOMY to organize."
+        : taskSearchInput.value.trim()
+          ? "No tasks match your search. Try a different name or clear search."
+          : "No tasks match this filter. Tap TOTAL to see all tasks.";
       taskList.append(empty);
       return;
     }
@@ -736,6 +742,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         taskQueue = addTask(taskQueue, task);
         saveTaskQueue();
         activeTaskFilter = "all"; // Newly added task should always be visible.
+        taskSearchInput.value = "";
         renderTaskQueue();
         wakeActivityBoard();
         if (needsTaskDetails(task.title)) {
@@ -818,6 +825,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       renderTaskQueue();
     });
   }
+  taskSearchInput.addEventListener("input", renderTaskQueue);
+  taskSortSelect.addEventListener("change", renderTaskQueue);
   renderTaskQueue();
   setupRecognition();
   setConnection(false, endpoint ? (ownerToken ? "Endpoint ready · not tested" : "Owner token needed · this browser") : "Not connected");
@@ -895,6 +904,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       taskQueue = addTask(taskQueue, task);
       saveTaskQueue();
       activeTaskFilter = "all"; // Newly added task should always be visible.
+      taskSearchInput.value = "";
       renderTaskQueue();
       taskInput.value = "";
       wakeActivityBoard();
