@@ -222,3 +222,31 @@ test("Task Search/Sort inputs fit iPhone and preserve existing dashboard card st
   assert.match(css, /@media\(max-width:480px\)\{\.task-browse-controls\{grid-template-columns:minmax\(0,1fr\)/);
   assert.match(css, /\.task-stat\[aria-pressed="true"\]/);
 });
+
+
+test("Task Queue 2.5 renders owner-only priority and due date controls in task cards", () => {
+  const renderer = app.split('  function renderTaskQueue() {')[1]?.split('  function wakeActivityBoard() {')[0] || "";
+  assert.ok(renderer, "Task Queue renderer missing");
+  assert.ok(renderer.includes('const schedule = getTaskSchedule(task);'));
+  assert.ok(renderer.includes('scheduleEditor.className = "task-schedule"'));
+  assert.ok(renderer.includes('prioritySelect.className = "task-priority-select"'));
+  assert.ok(renderer.includes('dueInput.type = "date"'));
+  assert.ok(renderer.includes('dueInput.value = schedule.dueDate'));
+  assert.ok(renderer.includes('["none", "Not set"], ["high", "High"], ["medium", "Medium"], ["low", "Low"]'));
+  assert.ok(renderer.includes('setManualTaskSchedule(task.id, { priority: prioritySelect.value })'));
+  assert.ok(renderer.includes('setManualTaskSchedule(task.id, { dueDate: dueInput.value })'));
+  assert.ok(!renderer.includes('localStorage.clear()'));
+});
+
+test("Task 2.5 schedule controls are local-only and preserve existing queue keys", () => {
+  const handler = app.split('  function setManualTaskSchedule(taskId, changes) {')[1]?.split('  function setManualStepProgress(taskId, stepIndex, checked) {')[0] || "";
+  assert.ok(handler, "schedule update handler missing");
+  assert.ok(handler.includes('updateTask(taskId, task => setTaskSchedule(task, changes));'));
+  assert.doesNotMatch(handler, /fetch\(|planTask\(|sendMessage\(/);
+  assert.ok(app.includes('const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1";'));
+  assert.ok(app.includes('const MEMORY_KEY = "jomy_agent_personal_memory_v1";'));
+  const css = readFileSync(new URL("../pwa/styles.css", import.meta.url), "utf8");
+  assert.match(css, /\.task-schedule\{display:grid/);
+  assert.ok(css.includes('min-height:44px'));
+  assert.ok(css.includes('@media(max-width:420px){.task-schedule{grid-template-columns:minmax(0,1fr)'));
+});
