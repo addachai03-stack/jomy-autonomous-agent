@@ -57,6 +57,15 @@
         </div>
         <p class="task-dashboard-summary" id="taskFilterSummary" aria-live="polite">Showing all tasks saved on this device.</p>
         <form class="task-form" id="taskForm"><label class="sr-only" for="taskInput">Add a task</label><input id="taskInput" maxlength="4000" placeholder="Add a task for JOMY to organize…" autocomplete="off"><button type="submit">ADD</button></form>
+        <div class="task-browse-controls" role="group" aria-label="Find and sort saved tasks">
+          <label class="sr-only" for="taskSearchInput">Search tasks by name or details</label>
+          <input id="taskSearchInput" type="search" inputmode="search" maxlength="120" placeholder="Search saved tasks…" autocomplete="off" aria-controls="taskList">
+          <label class="sr-only" for="taskSortSelect">Sort saved tasks</label>
+          <select id="taskSortSelect" aria-label="Task order" aria-controls="taskList">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+          </select>
+        </div>
         <div id="taskList" class="task-list" aria-live="polite"></div>
         <p class="task-note">Saved on this iPhone only. Say “Task: …” to JOMY or add one here. Planning never executes external actions.</p>
         <section class="memory-panel" aria-label="Personal memory">
