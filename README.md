@@ -9,7 +9,7 @@ JOMY is a private, iPhone-first Hindi/Hinglish AI chat and task-planning PWA wit
 - Optional hands-free wake phrase mode. It is opt-in, requires the page to stay open, and depends on browser speech-recognition support.
 - Local task queue (up to 30 items), task planning, retry and status display. Task records are stored on this device.
 - Personal memory (up to 15 short facts) stored only in this browser on this device. Facts are sent as limited chat context; users can add/remove facts. Explicit “Mera naam … hai” and “Yaad rakho …” statements are captured locally. Credential-like facts such as passwords, OTPs, tokens, card security codes and Aadhaar/PAN numbers are rejected.
-- Installable PWA shell with cached static assets.
+- Installable PWA shell with offline fallback for static assets. PWA cache v41 uses versioned app.js/styles.css URLs and network-first loading for the shell to avoid an old Safari service worker mixing newer HTML with older scripts/styles; existing device-local tasks, checklists, memories, and tokens are not cleared.
 
 ## API
 The PWA default endpoint is:
