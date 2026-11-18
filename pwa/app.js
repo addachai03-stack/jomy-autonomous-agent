@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -216,6 +216,14 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       console.warn("JOMY_MANUAL_TASK_STATUS_REJECTED", error?.name || "Error");
     }
   }
+  // Priority and date are local owner labels only. This never executes a task.
+  function setManualTaskSchedule(taskId, changes) {
+    try {
+      updateTask(taskId, task => setTaskSchedule(task, changes));
+    } catch (error) {
+      console.warn("JOMY_TASK_SCHEDULE_UPDATE_REJECTED", error?.name || "Error");
+    }
+  }
   // Checklist controls only change local task metadata. They never call the Worker.
   function setManualStepProgress(taskId, stepIndex, checked) {
     const task = taskQueue.find(item => item.id === taskId);
@@ -333,6 +341,40 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         : task.status.replaceAll("_", " ").toUpperCase();
       status.textContent = displayStatus + " · " + new Date(task.updatedAt || task.createdAt).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" });
       details.append(title, status);
+
+      // Every existing task can be labelled without changing its lifecycle.
+      const schedule = getTaskSchedule(task);
+      const scheduleEditor = document.createElement("div");
+      scheduleEditor.className = "task-schedule";
+      const priorityLabel = document.createElement("label");
+      const priorityTitle = document.createElement("span");
+      priorityTitle.textContent = "PRIORITY";
+      const prioritySelect = document.createElement("select");
+      prioritySelect.className = "task-priority-select";
+      prioritySelect.setAttribute("aria-label", "Priority for " + task.title);
+      for (const [value, text] of [["none", "Not set"], ["high", "High"], ["medium", "Medium"], ["low", "Low"]]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = text;
+        prioritySelect.append(option);
+      }
+      prioritySelect.value = schedule.priority;
+      prioritySelect.addEventListener("change", () => setManualTaskSchedule(task.id, { priority: prioritySelect.value }));
+      priorityLabel.append(priorityTitle, prioritySelect);
+
+      const dueLabel = document.createElement("label");
+      const dueTitle = document.createElement("span");
+      dueTitle.textContent = "DUE DATE (OPTIONAL)";
+      const dueInput = document.createElement("input");
+      dueInput.type = "date";
+      dueInput.className = "task-due-date";
+      dueInput.value = schedule.dueDate;
+      dueInput.setAttribute("aria-label", "Due date for " + task.title);
+      dueInput.addEventListener("change", () => setManualTaskSchedule(task.id, { dueDate: dueInput.value }));
+      dueLabel.append(dueTitle, dueInput);
+      scheduleEditor.append(priorityLabel, dueLabel);
+      details.append(scheduleEditor);
+
       if (typeof task.details === "string" && task.details.trim()) {
         const actualTasks = document.createElement("p");
         actualTasks.className = "task-summary";
