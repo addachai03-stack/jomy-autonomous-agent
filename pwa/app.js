@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -34,7 +34,10 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const taskDashboard = $("taskDashboard");
   const taskFilterSummary = $("taskFilterSummary");
   const taskDashboardButtons = [...taskDashboard.querySelectorAll("[data-task-filter]")];
+  const deadlineViews = $("taskDeadlineViews");
+  const deadlineButtons = [...deadlineViews.querySelectorAll("[data-deadline-filter]")];
   let activeTaskFilter = "all";
+  let activeDeadlineFilter = "all";
   const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1";
   const MEMORY_KEY = "jomy_agent_personal_memory_v1";
   let personalMemories = [];
@@ -304,13 +307,24 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       button.querySelector(".task-stat-number").textContent = String(counts[filter]);
       button.setAttribute("aria-pressed", String(activeTaskFilter === filter));
     }
-    const visibleTasks = filterTaskQueue(taskQueue, activeTaskFilter);
+    const today = localCalendarDate();
+    const dueCounts = summarizeTaskDeadlines(taskQueue, today);
+    for (const button of deadlineButtons) {
+      const filter = button.dataset.deadlineFilter;
+      const number = button.querySelector(".task-deadline-count");
+      if (number) number.textContent = String(dueCounts[filter]);
+      button.setAttribute("aria-pressed", String(activeDeadlineFilter === filter));
+    }
+    const visibleTasks = filterTaskDeadlines(
+      filterTaskQueue(taskQueue, activeTaskFilter), activeDeadlineFilter, today
+    );
     const names = { pending: "pending / needs attention", in_progress: "in progress", done: "done" };
     const selected = searchAndSortTaskQueue(visibleTasks, taskSearchInput.value, taskSortSelect.value);
     const searchText = taskSearchInput.value.trim();
     const label = activeTaskFilter === "all" ? "tasks" : names[activeTaskFilter] + " tasks";
+    const dueLabel = { today: " · due today", overdue: " · overdue", all: "" }[activeDeadlineFilter];
     taskFilterSummary.textContent = "Showing " + selected.length + " of " + counts.all + " " + label
-      + (searchText ? " matching your search" : "") + " · saved on this device.";
+      + dueLabel + (searchText ? " matching your search" : "") + " · saved on this device.";
     return selected;
   }
   function renderTaskQueue() {
@@ -324,7 +338,9 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         ? "No tasks yet. Add a task you want JOMY to organize."
         : taskSearchInput.value.trim()
           ? "No tasks match your search. Try a different name or clear search."
-          : "No tasks match this filter. Tap TOTAL to see all tasks.";
+          : activeDeadlineFilter !== "all"
+            ? "No tasks due in this view. Tap ALL DATES to see other tasks."
+            : "No tasks match this filter. Tap TOTAL to see all tasks.";
       taskList.append(empty);
       return;
     }
@@ -374,6 +390,13 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       dueLabel.append(dueTitle, dueInput);
       scheduleEditor.append(priorityLabel, dueLabel);
       details.append(scheduleEditor);
+      const dueState = taskDueState(task, localCalendarDate());
+      if (dueState === "today" || dueState === "overdue") {
+        const warning = document.createElement("small");
+        warning.className = "task-due-alert is-" + dueState;
+        warning.textContent = (dueState === "today" ? "DUE TODAY" : "OVERDUE") + " · " + schedule.dueDate;
+        details.append(warning);
+      }
 
       if (typeof task.details === "string" && task.details.trim()) {
         const actualTasks = document.createElement("p");
@@ -784,6 +807,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         taskQueue = addTask(taskQueue, task);
         saveTaskQueue();
         activeTaskFilter = "all"; // Newly added task should always be visible.
+        activeDeadlineFilter = "all";
         taskSearchInput.value = "";
         renderTaskQueue();
         wakeActivityBoard();
@@ -867,8 +891,18 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       renderTaskQueue();
     });
   }
+  for (const button of deadlineButtons) {
+    button.addEventListener("click", () => {
+      activeDeadlineFilter = button.dataset.deadlineFilter;
+      renderTaskQueue();
+    });
+  }
   taskSearchInput.addEventListener("input", renderTaskQueue);
   taskSortSelect.addEventListener("change", renderTaskQueue);
+  // Today's local date may have changed while Safari was closed/backgrounded.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) renderTaskQueue();
+  });
   renderTaskQueue();
   setupRecognition();
   setConnection(false, endpoint ? (ownerToken ? "Endpoint ready · not tested" : "Owner token needed · this browser") : "Not connected");
@@ -946,6 +980,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       taskQueue = addTask(taskQueue, task);
       saveTaskQueue();
       activeTaskFilter = "all"; // Newly added task should always be visible.
+      activeDeadlineFilter = "all";
       taskSearchInput.value = "";
       renderTaskQueue();
       taskInput.value = "";
