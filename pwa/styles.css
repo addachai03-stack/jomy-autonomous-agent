@@ -84,3 +84,12 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-browse-controls select{appearance:auto;color:#e8c788}
 .task-browse-controls input::-webkit-search-cancel-button{-webkit-appearance:searchfield-cancel-button}
 @media(max-width:480px){.task-browse-controls{grid-template-columns:minmax(0,1fr);gap:7px}}
+
+
+/* Task Queue 2.5: manual priority / due date, never automated reminders. */
+.task-schedule{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px;margin:8px 0 12px}
+.task-schedule label{display:flex;flex-direction:column;gap:6px;min-width:0;color:#dbbc83;font-size:10px;font-weight:700;letter-spacing:.06em}
+.task-schedule select,.task-schedule input[type="date"]{box-sizing:border-box;width:100%;min-width:0;min-height:44px;padding:10px 12px;background:#111b2a;color:#eee8dd;border:1px solid #e5bf7738;border-radius:9px;font-size:13px;letter-spacing:normal;color-scheme:dark}
+.task-schedule select:focus-visible,.task-schedule input[type="date"]:focus-visible{outline:2px solid #e8c788;outline-offset:2px}
+.task-schedule input[type="date"]::-webkit-calendar-picker-indicator{opacity:.8}
+@media(max-width:420px){.task-schedule{grid-template-columns:minmax(0,1fr);gap:11px}}
