@@ -104,3 +104,19 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-due-alert{box-sizing:border-box;display:inline-flex;align-self:flex-start;max-width:100%;margin:0 0 8px;padding:5px 9px;border:1px solid #d1af754f;border-radius:7px;background:#2b2118;color:#f5d293;font-size:10px;line-height:1.4;font-weight:800;letter-spacing:.04em;overflow-wrap:anywhere}
 .task-due-alert.is-overdue{color:#ffd2a4;border-color:#e99b655e;background:#38221d}
 @media(max-width:360px){.task-deadline-filter{font-size:9px;padding:8px 4px}}
+
+
+/* Task Queue 2.7: phone-friendly private backup section, collapsed by default. */
+.task-backup-panel{box-sizing:border-box;margin:10px 0 12px;padding:0 12px;border:1px solid #ddbc8040;border-radius:10px;background:#0e1726;color:#d6deec}
+.task-backup-panel summary{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;cursor:pointer;color:#e7c88b;font-size:11px;font-weight:800;letter-spacing:.08em;list-style:revert}
+.task-backup-panel summary span{color:#8995a8;font-size:9px;white-space:nowrap}
+.task-backup-panel p{font-size:11px;line-height:1.65;color:#acb7c8;margin:6px 0 12px}
+.task-backup-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.task-backup-actions button,.task-backup-upload{box-sizing:border-box;display:flex;align-items:center;justify-content:center;min-height:44px;padding:9px;border:1px solid #d9b87c7d;border-radius:9px;background:#241f19;color:#efd49d;font-size:10px;line-height:1.4;letter-spacing:.035em;font-weight:800;text-align:center;cursor:pointer}
+.task-backup-actions button:disabled{opacity:.45;cursor:not-allowed}
+.task-backup-upload{position:relative;overflow:hidden}
+.task-backup-upload input[type="file"]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0}
+.task-backup-upload:focus-within,.task-backup-actions button:focus-visible{outline:2px solid #e8c788;outline-offset:2px}
+#taskBackupImport{grid-column:1/-1}
+.task-backup-panel .task-backup-status{color:#d7c59e;overflow-wrap:anywhere;font-size:11px;margin:10px 0 13px}
+@media(max-width:360px){.task-backup-actions{grid-template-columns:minmax(0,1fr)}#taskBackupImport{grid-column:auto}}
