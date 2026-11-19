@@ -135,3 +135,21 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-annotation-save{box-sizing:border-box;width:100%;min-height:44px;display:block;padding:10px 12px;background:#2c2419;color:#ecd4a2;border:1px solid #e2bc777b;border-radius:9px;font-size:10px;font-weight:800;letter-spacing:.035em;cursor:pointer}
 .task-notes-status{display:block;min-height:16px;margin:8px 0 10px;color:#cbd4e2;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
 @media(max-width:420px){.task-notes-panel{padding:0 10px}.task-tag{font-size:10px}}
+
+
+/* Task Queue 2.9: opt-in reusable manual templates on a 390px iPhone. */
+.task-templates-panel{box-sizing:border-box;margin:10px 0 12px;padding:0 12px;border:1px solid #dfbd8050;border-radius:10px;background:#0d1725;color:#dbe3ef}
+.task-templates-panel summary{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;cursor:pointer;color:#efd29b;font-size:11px;font-weight:800;letter-spacing:.07em}
+.task-templates-panel summary span{color:#cbb582;font-variant-numeric:tabular-nums;white-space:nowrap}
+.task-templates-panel>p{margin:7px 0 12px;font-size:11px;line-height:1.6;color:#aeb9c8}
+.task-template-list{display:flex;flex-direction:column;gap:8px;min-width:0}
+.task-template-empty{margin:8px 0!important;color:#bac5d2}
+.task-template-item{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:10px;border:1px solid #ddbd7c40;border-radius:9px;background:#111d2c;min-width:0}
+.task-template-item>div:first-child{display:flex;flex:1 1 170px;flex-direction:column;gap:4px;min-width:0}
+.task-template-item strong{font-size:12px;color:#e6eaf3;line-height:1.4;overflow-wrap:anywhere}
+.task-template-item small{font-size:10px;color:#9eaabc;line-height:1.5;overflow-wrap:anywhere}
+.task-template-actions{display:flex;gap:7px;flex-wrap:wrap;flex:0 1 auto}
+.task-template-actions button{box-sizing:border-box;min-height:44px;min-width:68px;border:1px solid #d4ad6c70;background:#2a2218;color:#f4d598;border-radius:9px;font-size:10px;font-weight:800;cursor:pointer;padding:8px 10px}
+.task-template-actions button:focus-visible{outline:2px solid #e8c788;outline-offset:2px}
+.task-templates-panel .task-template-status{margin:10px 0 13px;font-size:11px;line-height:1.6;color:#dac9a6;overflow-wrap:anywhere}
+@media(max-width:400px){.task-template-item{align-items:stretch;flex-direction:column}.task-template-actions button{flex:1 1 100px}}
