@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v46 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v47 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=46"/);
-  assert.match(html, /src="\/app\.js\?v=46"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v46"/);
-  assert.match(worker, /"\/styles\.css\?v=46"/);
-  assert.match(worker, /"\/app\.js\?v=46"/);
+  assert.match(html, /href="\/styles\.css\?v=47"/);
+  assert.match(html, /src="\/app\.js\?v=47"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v47"/);
+  assert.match(worker, /"\/styles\.css\?v=47"/);
+  assert.match(worker, /"\/app\.js\?v=47"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -366,4 +366,41 @@ test("Task Queue 2.8 private notes editor fits iPhone and presents distinct tags
   assert.match(css,/\.task-tag-list\{display:flex/);
   assert.match(css,/\.task-annotation-save\{[^\n]*min-height:44px/);
   assert.match(css,/\.task-note-input,\.task-tags-input\{[^\n]*min-height:44px/);
+});
+
+
+test("Task Queue 2.9 exposes a collapsed reusable templates section and save buttons", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const queue=html.split('id="taskPanel"')[1]?.split('<section class="memory-panel"')[0] || "";
+  assert.match(queue, /<details class="task-templates-panel" id="taskTemplatesPanel">/);
+  assert.match(queue, /id="taskTemplateCount">0\/10/);
+  assert.match(queue, /id="taskTemplateList" class="task-template-list" aria-live="polite"/);
+  assert.match(queue, /id="taskTemplateStatus" class="task-template-status" role="status"/);
+  assert.ok(queue.indexOf("taskTemplatesPanel") < queue.indexOf('id="taskForm"'));
+  assert.match(app, /templateButton\.textContent = "SAVE TEMPLATE"/);
+  assert.match(app, /templateButton\.addEventListener\("click", \(\) => saveTaskAsTemplate\(task\.id\)\)/);
+});
+
+test("Task Queue 2.9 stores templates separately and USE never calls planning API", () => {
+  const handler=app.split("  // Reusable task templates are a separate, explicitly owner-controlled local list.")[1]
+    ?.split("  function updateTask(taskId, updater) {")[0] || "";
+  assert.ok(handler,"Missing task template UI handler");
+  assert.match(handler, /createTaskFromTemplate\(template\)/);
+  assert.match(handler, /if \(taskQueue\.length >= 30\)/);
+  assert.match(handler, /localStorage\.setItem\(TASK_QUEUE_KEY, JSON\.stringify\(next\)\)/);
+  assert.match(handler, /localStorage\.setItem\(TASK_TEMPLATES_KEY, JSON\.stringify\(next\)\)/);
+  assert.match(handler, /window\.confirm\("Remove saved template/);
+  assert.match(handler, /createTaskTemplate\(task\)/);
+  assert.match(handler, /renderTaskTemplates\(\)/);
+  assert.doesNotMatch(handler, /planTask\(|fetch\(|sendMessage\(|localStorage\.clear\(|localStorage\.removeItem\(/);
+  assert.ok(app.includes('const TASK_TEMPLATES_KEY = "jomy_agent_task_templates_v1"'));
+  assert.ok(app.includes('const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"'));
+  assert.ok(app.includes('const MEMORY_KEY = "jomy_agent_personal_memory_v1"'));
+});
+
+test("Task Queue 2.9 reusable templates have iPhone tap targets", () => {
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  assert.match(css, /\.task-templates-panel\{/);
+  assert.match(css, /\.task-template-actions button\{[^\n]*min-height:44px/);
+  assert.match(css, /@media\(max-width:400px\)\{\.task-template-item/);
 });

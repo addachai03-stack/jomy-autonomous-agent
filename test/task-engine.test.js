@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
-  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations
+  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate
 } from "../src/task-engine.js";
 
 test("creates bounded queued tasks", () => {
@@ -608,4 +608,77 @@ test("Task Queue 2.8 rejects excess, malformed or unsafe annotation values atomi
   const backup=JSON.parse(createTaskQueueBackup([task]));
   assert.throws(()=>readTaskQueueBackup(JSON.stringify({...backup,tasks:[{...backup.tasks[0],note:123}]})),/invalid task note/);
   assert.throws(()=>readTaskQueueBackup(JSON.stringify({...backup,tasks:[{...backup.tasks[0],tags:["a","b","c","d","e","f"]}]})),/at most 5 tags/);
+});
+
+
+test("Task Queue 2.9 saves a minimal reusable template without copying private notes/actions", () => {
+  const task = {
+    ...createTask("Go to Spiti", 10),
+    status:TASK_STATES.DONE,
+    steps:["Pack cash", "Check route"],
+    completedStepIndices:[1],
+    priority:"high",
+    dueDate:"2026-11-19",
+    tags:["Travel","Himachal"],
+    note:"Private information in original",
+    details:"Private details",
+    ownerToken:"DO_NOT_COPY",
+    plan:{summary:"Task summary",actionType:"mcp.execute"}
+  };
+  const template=createTaskTemplate(task,20);
+  assert.equal(template.title,"Go to Spiti");
+  assert.deepEqual(template.steps,["Pack cash","Check route"]);
+  assert.deepEqual(template.tags,["Travel","Himachal"]);
+  assert.equal(template.priority,"high");
+  const serialized=JSON.stringify(template);
+  assert.doesNotMatch(serialized,/Private|DO_NOT_COPY|mcp\.execute|actionType|dueDate|completedStepIndices|status|note/);
+  assert.equal(task.status,TASK_STATES.DONE);
+  assert.deepEqual(task.completedStepIndices,[1]);
+  assert.equal(MAX_TASK_TEMPLATES,10);
+});
+
+test("Task Queue 2.9 USE produces a fresh READY manual checklist without execution or inherited progress", () => {
+  const from={...createTask("Test APPLIQ", 0),status:TASK_STATES.IN_PROGRESS,
+    steps:["Home page","Search"],completedStepIndices:[0],priority:"medium",tags:["QA"],dueDate:"2026-11-19"};
+  const template=createTaskTemplate(from,10);
+  const result=createTaskFromTemplate(template,200);
+  assert.equal(result.title,"Test APPLIQ");
+  assert.equal(result.status,TASK_STATES.READY);
+  assert.deepEqual(result.steps,["Home page","Search"]);
+  assert.deepEqual(result.completedStepIndices,[]);
+  assert.equal(result.priority,"medium");
+  assert.deepEqual(result.tags,["QA"]);
+  assert.equal(result.dueDate,"");
+  assert.equal(result.note,"");
+  assert.equal(result.plan.source,"local");
+  assert.equal(result.plan.actionType,undefined);
+  assert.equal(result.attempts,0);
+  assert.notEqual(result.id,from.id);
+  assert.deepEqual(from.completedStepIndices,[0]);
+});
+
+test("Task Queue 2.9 templates persist safely, deduplicate title and do not override old entries", () => {
+  const a=createTaskTemplate({...createTask("Website review",0),steps:["Check 1"]},1);
+  const b=createTaskTemplate({...createTask("WEEKLY REPORT",0),steps:["Check 2"]},2);
+  const saved=addTaskTemplate(addTaskTemplate([],a),b);
+  const snapshot=JSON.stringify(saved);
+  assert.deepEqual(readTaskTemplates(JSON.parse(snapshot)),saved);
+  assert.throws(()=>addTaskTemplate(saved,{...b,id:"new-template-id",title:"weekly report"}),/already exists/);
+  assert.throws(()=>addTaskTemplate(saved,a),/already exists/);
+  assert.equal(JSON.stringify(saved),snapshot);
+  assert.deepEqual(readTaskTemplates([{id:3},...saved]),saved);
+  assert.deepEqual(readTaskTemplates({}),[]);
+});
+
+test("Task Queue 2.9 enforces 10 template limit, rejects malformed checklists and no mutation", () => {
+  const template=createTaskTemplate(createTask("Template",0),1);
+  const ten=Array.from({length:10},(_,i)=>({...template,id:"t-"+i,title:"Template "+i}));
+  const snapshot=JSON.stringify(ten);
+  assert.throws(()=>addTaskTemplate(ten,{...template,id:"new",title:"New"}),/limit reached/);
+  assert.deepEqual(readTaskTemplates(ten.concat([{...template,id:"eleventh",title:"Eleventh"}])),ten);
+  assert.equal(JSON.stringify(ten),snapshot);
+  assert.throws(()=>createTaskTemplate({title:"Task",steps:new Array(13).fill("step")}),/cannot become a template/);
+  assert.throws(()=>createTaskFromTemplate({...template,steps:[""]}),/Invalid reusable/);
+  assert.throws(()=>createTaskFromTemplate({...template,tags:["bad\nlabel"]}),/Invalid reusable task template tags/);
+  assert.throws(()=>createTaskTemplate({title:""}),/Cannot make a template/);
 });

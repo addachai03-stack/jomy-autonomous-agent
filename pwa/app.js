@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -27,6 +27,10 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const taskSearchInput = $("taskSearchInput");
   const taskSortSelect = $("taskSortSelect");
   const taskList = $("taskList");
+  const taskTemplateList = $("taskTemplateList");
+  const taskTemplateCount = $("taskTemplateCount");
+  const taskTemplateStatus = $("taskTemplateStatus");
+  const taskTemplatesPanel = $("taskTemplatesPanel");
   const taskBackupExport = $("taskBackupExport");
   const taskBackupFile = $("taskBackupFile");
   const taskBackupImport = $("taskBackupImport");
@@ -44,7 +48,12 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   let activeTaskFilter = "all";
   let activeDeadlineFilter = "all";
   const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1";
+  const TASK_TEMPLATES_KEY = "jomy_agent_task_templates_v1";
   const MEMORY_KEY = "jomy_agent_personal_memory_v1";
+  let taskTemplates = [];
+  try {
+    taskTemplates = readTaskTemplates(JSON.parse(localStorage.getItem(TASK_TEMPLATES_KEY) || "[]"));
+  } catch (_) { taskTemplates = []; }
   let personalMemories = [];
   try {
     const savedMemories = JSON.parse(localStorage.getItem(MEMORY_KEY) || "[]");
@@ -280,6 +289,88 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       taskBackupStatus.textContent = "Import failed. Existing tasks were not changed: " + error.message;
     }
   });
+  // Reusable task templates are a separate, explicitly owner-controlled local list.
+  function renderTaskTemplates() {
+    taskTemplateCount.textContent = taskTemplates.length + "/" + MAX_TASK_TEMPLATES;
+    taskTemplateList.replaceChildren();
+    if (!taskTemplates.length) {
+      const empty = document.createElement("p");
+      empty.className = "task-template-empty";
+      empty.textContent = "No templates yet. Choose SAVE TEMPLATE on one of your tasks.";
+      taskTemplateList.append(empty);
+      return;
+    }
+    for (const template of taskTemplates) {
+      const row = document.createElement("div");
+      row.className = "task-template-item";
+      const info = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = template.title;
+      const meta = document.createElement("small");
+      meta.textContent = template.steps.length + " steps · "
+        + (template.priority === "none" ? "No priority" : template.priority.toUpperCase() + " priority")
+        + (template.tags.length ? " · " + template.tags.map(tag => "#" + tag).join(" ") : "");
+      info.append(title, meta);
+      const actions = document.createElement("div");
+      actions.className = "task-template-actions";
+      const use = document.createElement("button");
+      use.type = "button";
+      use.textContent = "USE";
+      use.setAttribute("aria-label", "Use task template " + template.title);
+      use.addEventListener("click", () => {
+        try {
+          if (taskQueue.length >= 30) throw new Error("Task Queue is full (30/30). No task was changed.");
+          const task = createTaskFromTemplate(template);
+          const next = addTask(taskQueue, task);
+          localStorage.setItem(TASK_QUEUE_KEY, JSON.stringify(next));
+          taskQueue = next;
+          activeTaskFilter = "all";
+          activeDeadlineFilter = "all";
+          taskSearchInput.value = "";
+          renderTaskQueue();
+          taskTemplateStatus.textContent = "Created a new READY manual task from " + template.title
+            + ". No AI planning or external action was run.";
+        } catch (error) {
+          taskTemplateStatus.textContent = "Template not used: " + error.message;
+        }
+      });
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "REMOVE";
+      remove.setAttribute("aria-label", "Remove template " + template.title);
+      remove.addEventListener("click", () => {
+        if (!window.confirm("Remove saved template '" + template.title + "'? Existing tasks stay unchanged.")) return;
+        try {
+          const next = taskTemplates.filter(item => item.id !== template.id);
+          localStorage.setItem(TASK_TEMPLATES_KEY, JSON.stringify(next));
+          taskTemplates = next;
+          renderTaskTemplates();
+          taskTemplateStatus.textContent = "Template removed. Existing tasks were not changed.";
+        } catch (error) {
+          taskTemplateStatus.textContent = "Template not removed: " + error.message;
+        }
+      });
+      actions.append(use, remove);
+      row.append(info, actions);
+      taskTemplateList.append(row);
+    }
+  }
+  function saveTaskAsTemplate(taskId) {
+    try {
+      const task = taskQueue.find(item => item.id === taskId);
+      if (!task) throw new Error("Task not found.");
+      const next = addTaskTemplate(taskTemplates, createTaskTemplate(task));
+      localStorage.setItem(TASK_TEMPLATES_KEY, JSON.stringify(next));
+      taskTemplates = next;
+      renderTaskTemplates();
+      taskTemplatesPanel.open = true;
+      taskTemplateStatus.textContent = "Saved reusable template: " + task.title
+        + ". Existing task, its notes and checklist are unchanged.";
+    } catch (error) {
+      taskTemplatesPanel.open = true;
+      taskTemplateStatus.textContent = "Template not saved: " + error.message;
+    }
+  }
   function updateTask(taskId, updater) {
     taskQueue = taskQueue.map(task => task.id === taskId ? updater(task) : task);
     saveTaskQueue();
@@ -666,6 +757,13 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       }
       const actions = document.createElement("div");
       actions.className = "task-actions";
+      const templateButton = document.createElement("button");
+      templateButton.type = "button";
+      templateButton.className = "task-action";
+      templateButton.textContent = "SAVE TEMPLATE";
+      templateButton.setAttribute("aria-label", "Save task as template: " + task.title);
+      templateButton.addEventListener("click", () => saveTaskAsTemplate(task.id));
+      actions.append(templateButton);
       if (task.status === TASK_STATES.QUEUED || task.status === TASK_STATES.FAILED) {
         const planButton = document.createElement("button");
         planButton.type = "button";
@@ -1049,6 +1147,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   }
   taskSearchInput.addEventListener("input", renderTaskQueue);
   taskSortSelect.addEventListener("change", renderTaskQueue);
+  renderTaskTemplates();
   // Today's local date may have changed while Safari was closed/backgrounded.
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) renderTaskQueue();
