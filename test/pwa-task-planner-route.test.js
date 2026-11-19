@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v45 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v46 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=45"/);
-  assert.match(html, /src="\/app\.js\?v=45"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v45"/);
-  assert.match(worker, /"\/styles\.css\?v=45"/);
-  assert.match(worker, /"\/app\.js\?v=45"/);
+  assert.match(html, /href="\/styles\.css\?v=46"/);
+  assert.match(html, /src="\/app\.js\?v=46"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v46"/);
+  assert.match(worker, /"\/styles\.css\?v=46"/);
+  assert.match(worker, /"\/app\.js\?v=46"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -328,4 +328,42 @@ test("Task Queue 2.7 import previews safely and requires confirmation before any
   assert.doesNotMatch(backup,/fetch\(|sendMessage\(|planTask\(|localStorage\.clear\(|removeItem\(/);
   assert.match(app,/const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
   assert.match(app,/const MEMORY_KEY = "jomy_agent_personal_memory_v1"/);
+});
+
+
+test("Task Queue 2.8 creates private Notes & Tags drawer on each task, never in Memory", () => {
+  const renderer=app.split('  function renderTaskQueue() {')[1]?.split('  function wakeActivityBoard() {')[0] || "";
+  assert.ok(renderer);
+  assert.ok(renderer.includes('const annotation = getTaskAnnotations(task);'));
+  assert.ok(renderer.includes('editor.className = "task-notes-panel";'));
+  assert.ok(renderer.includes('editorHeading.textContent = "NOTES & TAGS'));
+  assert.ok(renderer.includes('noteInput.maxLength = 1000;'));
+  assert.ok(renderer.includes('tagsInput.maxLength = 140;'));
+  assert.ok(renderer.includes('saveManualTaskAnnotations(task.id, noteInput.value, tagsInput.value)'));
+  assert.ok(renderer.includes('badge.textContent = "#" + tag;'));
+  assert.ok(renderer.includes('editorTags.append(tagsInput);'));
+  const memory=app.split('  function renderMemories() {')[1]?.split('  function rememberFact(')[0] || "";
+  assert.ok(memory.includes("memory-item"));
+  assert.doesNotMatch(memory,/task-notes-panel|task-tags-input|saveManualTaskAnnotations/);
+});
+
+test("Task Queue 2.8 notes save locally, not via network or fake completion", () => {
+  const handler=app.split('  function saveManualTaskAnnotations(taskId, note, tags) {')[1]
+    ?.split('  // Only the owner changes these manual progress states;')[0] || "";
+  assert.ok(handler);
+  assert.match(handler,/setTaskAnnotations\(task, \{note, tags\}\)/);
+  assert.match(handler,/localStorage\.setItem\(TASK_QUEUE_KEY, JSON\.stringify\(next\)\)/);
+  assert.ok(handler.indexOf('localStorage.setItem') < handler.indexOf('taskQueue = next;'));
+  assert.match(handler,/Notes and tags saved on this device/);
+  assert.doesNotMatch(handler,/fetch\(|planTask\(|sendMessage\(|localStorage\.clear\(/);
+  assert.ok(app.includes('const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"'));
+  assert.ok(app.includes('const MEMORY_KEY = "jomy_agent_personal_memory_v1"'));
+});
+
+test("Task Queue 2.8 private notes editor fits iPhone and presents distinct tags", () => {
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  assert.match(css,/\.task-notes-panel\{/);
+  assert.match(css,/\.task-tag-list\{display:flex/);
+  assert.match(css,/\.task-annotation-save\{[^\n]*min-height:44px/);
+  assert.match(css,/\.task-note-input,\.task-tags-input\{[^\n]*min-height:44px/);
 });

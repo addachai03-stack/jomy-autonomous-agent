@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
-  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup
+  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations
 } from "../src/task-engine.js";
 
 test("creates bounded queued tasks", () => {
@@ -540,4 +540,72 @@ test("Task Queue 2.7 empty backup and legacy-safe fields are supported", () => {
   assert.equal(rec.createdAt,"1970-01-01T00:00:00.000Z");
   assert.deepEqual(getTaskSchedule(rec),{priority:"none",dueDate:""});
   assert.deepEqual(rec.completedStepIndices,[]);
+});
+
+
+test("Task Queue 2.8 notes and Unicode tags save locally with a full task roundtrip", () => {
+  const source = {...createTask("Travel planning", 0), status:TASK_STATES.READY,
+    steps:["Pack","Route"],completedStepIndices:[1],priority:"high",dueDate:"2026-11-20"};
+  const modified = setTaskAnnotations(source,{
+    note:"Carry cash.\nPhone battery charged.",
+    tags:"Travel, जरूरी, travel,  Spiti "
+  }, 100);
+  assert.deepEqual(getTaskAnnotations(modified), {
+    note:"Carry cash.\nPhone battery charged.",
+    tags:["Travel","जरूरी","Spiti"]
+  });
+  assert.equal(source.note, undefined);
+  assert.equal(modified.status,TASK_STATES.READY);
+  assert.deepEqual(modified.completedStepIndices,[1]);
+  assert.equal(modified.priority,"high");
+  assert.equal(modified.dueDate,"2026-11-20");
+  assert.equal(modified.updatedAt,new Date(100).toISOString());
+  const stored=JSON.parse(JSON.stringify(modified));
+  assert.deepEqual(getTaskAnnotations(stored),getTaskAnnotations(modified));
+  const cleared=setTaskAnnotations(stored,{tags:"",note:""});
+  assert.deepEqual(getTaskAnnotations(cleared),{note:"",tags:[]});
+});
+
+test("Task Queue 2.8 search matches title, notes and tags without editing order", () => {
+  const tasks=[
+    {...createTask("Website work", 0), tags:["APPLIQ", "Important"],note:"Check Safari on iPhone"},
+    {...createTask("Weekly review", 100), tags:["जॉमी"],note:"Backup check"},
+    {...createTask("Buy vegetables", 200), tags:[]}
+  ];
+  const original=JSON.stringify(tasks);
+  assert.deepEqual(searchAndSortTaskQueue(tasks,"appliq").map(t=>t.title),["Website work"]);
+  assert.deepEqual(searchAndSortTaskQueue(tasks,"SAFARI").map(t=>t.title),["Website work"]);
+  assert.deepEqual(searchAndSortTaskQueue(tasks,"जॉमी").map(t=>t.title),["Weekly review"]);
+  assert.deepEqual(searchAndSortTaskQueue(tasks,"backup").map(t=>t.title),["Weekly review"]);
+  assert.deepEqual(searchAndSortTaskQueue(tasks,"no match"),[]);
+  assert.equal(JSON.stringify(tasks),original);
+});
+
+test("Task Queue 2.8 notes/tags survive allowlisted private backup and cannot include secrets", () => {
+  const task={
+    ...createTask("JOMY test", 0),note:"Use Hindi only",
+    tags:["Work","अभी"],steps:["One"],ownerToken:"SECRET_TOKEN",
+    plan:{summary:"Safe checklist",source:"local",actionType:"mcp.execute"}
+  };
+  const json=createTaskQueueBackup([task]);
+  assert.doesNotMatch(json,/SECRET_TOKEN|ownerToken|mcp\.execute|actionType/);
+  const [restored]=readTaskQueueBackup(json);
+  assert.deepEqual(getTaskAnnotations(restored),{note:"Use Hindi only",tags:["Work","अभी"]});
+  assert.deepEqual(getTaskAnnotations(mergeTaskQueueBackup([], [restored]).queue[0]),getTaskAnnotations(restored));
+  assert.deepEqual(getTaskAnnotations({id:"legacy"}),{note:"",tags:[]});
+});
+
+test("Task Queue 2.8 rejects excess, malformed or unsafe annotation values atomically", () => {
+  const task={...createTask("Keep",0),note:"Unchanged",tags:["Existing"]};
+  const original=JSON.stringify(task);
+  for(const changes of [
+    {note:"x".repeat(1001)},{note:123},{note:"bad\u0000note"},
+    {tags:"a,b,c,d,e,f"},{tags:"x".repeat(25)},{tags:"a,,b"},{tags:42},
+    {tags:["valid",null]},{tags:["bad\nline"]}
+  ]) assert.throws(()=>setTaskAnnotations(task,changes),/Task note|tags|tag/i);
+  assert.equal(JSON.stringify(task),original);
+  assert.throws(()=>setTaskAnnotations(null,{note:"x"}),/Invalid task annotation/);
+  const backup=JSON.parse(createTaskQueueBackup([task]));
+  assert.throws(()=>readTaskQueueBackup(JSON.stringify({...backup,tasks:[{...backup.tasks[0],note:123}]})),/invalid task note/);
+  assert.throws(()=>readTaskQueueBackup(JSON.stringify({...backup,tasks:[{...backup.tasks[0],tags:["a","b","c","d","e","f"]}]})),/at most 5 tags/);
 });
