@@ -507,3 +507,95 @@ export function setTaskAnnotations(task, changes, now = Date.now()) {
   const tags = Object.hasOwn(changes, "tags") ? validatedTaskTags(changes.tags) : current.tags;
   return { ...task, note, tags, updatedAt: timestamp(now) };
 }
+
+
+/**
+ * Task Queue 2.9: reusable, owner-created templates in separate device storage.
+ * Deliberately exclude notes, private details, due dates, checkmarks, plans,
+ * API actions and credentials. Using a template never starts a Worker request.
+ */
+export const MAX_TASK_TEMPLATES = 10;
+
+function normalizedTaskTemplate(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value) ||
+      typeof value.id !== "string" || !value.id.trim() || value.id.length > 128 ||
+      typeof value.title !== "string" || !value.title.trim() || value.title.length > 240 ||
+      !Array.isArray(value.steps) || value.steps.length > 12 ||
+      value.steps.some(step => typeof step !== "string" || !step.trim() || step.length > 240)) {
+    throw new TypeError("Invalid reusable task template.");
+  }
+  const priority = ["none", "low", "medium", "high"].includes(value.priority) ? value.priority : "none";
+  let tags = [];
+  try { tags = validatedTaskTags(value.tags ?? []); } catch (_) {
+    throw new TypeError("Invalid reusable task template tags.");
+  }
+  return { id: value.id, title: value.title.trim(), steps: value.steps.map(step => step.trim()), priority, tags };
+}
+
+export function createTaskTemplate(task, now = Date.now()) {
+  if (!task || typeof task.title !== "string" || !task.title.trim() ||
+      task.title.trim().length > 240) throw new TypeError("Cannot make a template from this task.");
+  const steps = Array.isArray(task.steps) ? task.steps : [];
+  if (steps.length > 12 || steps.some(step => typeof step !== "string" || !step.trim() || step.length > 240)) {
+    throw new TypeError("Task steps cannot become a template.");
+  }
+  const timestampValue = new Date(now).toISOString();
+  return normalizedTaskTemplate({
+    id: globalThis.crypto?.randomUUID?.() || "template-" + String(now) + "-" + Math.random().toString(36).slice(2, 9),
+    title: task.title.trim(),
+    steps: steps.slice(),
+    priority: getTaskSchedule(task).priority,
+    tags: getTaskAnnotations(task).tags,
+    createdAt: timestampValue
+  });
+}
+
+export function readTaskTemplates(value) {
+  if (!Array.isArray(value)) return [];
+  const result = [];
+  const ids = new Set();
+  const titles = new Set();
+  for (const item of value.slice(0, MAX_TASK_TEMPLATES)) {
+    try {
+      const template = normalizedTaskTemplate(item);
+      const titleKey = template.title.toLocaleLowerCase();
+      if (ids.has(template.id) || titles.has(titleKey)) continue;
+      ids.add(template.id);
+      titles.add(titleKey);
+      result.push(template);
+    } catch (_) {}
+  }
+  return result;
+}
+
+export function addTaskTemplate(templates, template) {
+  if (!Array.isArray(templates) || templates.length > MAX_TASK_TEMPLATES) {
+    throw new TypeError("Invalid saved template collection.");
+  }
+  const next = normalizedTaskTemplate(template);
+  if (templates.length >= MAX_TASK_TEMPLATES) throw new Error("Template limit reached (10).");
+  if (templates.some(item => item?.id === next.id ||
+      (typeof item?.title === "string" && item.title.toLocaleLowerCase() === next.title.toLocaleLowerCase()))) {
+    throw new Error("A template with this name already exists.");
+  }
+  return [...templates, next];
+}
+
+export function createTaskFromTemplate(template, now = Date.now()) {
+  const saved = normalizedTaskTemplate(template);
+  const task = createTask(saved.title, now);
+  return {
+    ...task,
+    status: TASK_STATES.READY,
+    steps: saved.steps.slice(),
+    completedStepIndices: [],
+    priority: saved.priority,
+    tags: saved.tags.slice(),
+    dueDate: "",
+    note: "",
+    plan: {
+      source: "local",
+      summary: "Reusable template · manual checklist only. No external action has been executed."
+    }
+  };
+}
