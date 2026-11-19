@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -285,6 +285,27 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     saveTaskQueue();
     renderTaskQueue();
   }
+  // Explicit local-save only; task notes never enter AI planning or network calls.
+  function saveManualTaskAnnotations(taskId, note, tags) {
+    try {
+      const next = taskQueue.map(task => task.id === taskId
+        ? setTaskAnnotations(task, {note, tags}) : task);
+      // Persist first: do not say "saved" when iPhone storage rejects a write.
+      localStorage.setItem(TASK_QUEUE_KEY, JSON.stringify(next));
+      taskQueue = next;
+      renderTaskQueue();
+      const editor = [...taskList.querySelectorAll(".task-notes-panel")]
+        .find(panel => panel.dataset.taskId === taskId);
+      if (editor) {
+        editor.open = true;
+        editor.querySelector(".task-notes-status").textContent = "Notes and tags saved on this device.";
+      }
+    } catch (error) {
+      const editor = [...taskList.querySelectorAll(".task-notes-panel")]
+        .find(panel => panel.dataset.taskId === taskId);
+      if (editor) editor.querySelector(".task-notes-status").textContent = "Not saved: " + error.message;
+    }
+  }
   // Only the owner changes these manual progress states; no API request is made.
   function setManualTaskProgress(taskId, nextStatus) {
     const current = taskQueue.find(task => task.id === taskId);
@@ -467,6 +488,58 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       dueLabel.append(dueTitle, dueInput);
       scheduleEditor.append(priorityLabel, dueLabel);
       details.append(scheduleEditor);
+
+      const annotation = getTaskAnnotations(task);
+      if (annotation.tags.length) {
+        const badges = document.createElement("div");
+        badges.className = "task-tag-list";
+        for (const tag of annotation.tags) {
+          const badge = document.createElement("span");
+          badge.className = "task-tag";
+          badge.textContent = "#" + tag;
+          badges.append(badge);
+        }
+        details.append(badges);
+      }
+      const editor = document.createElement("details");
+      editor.className = "task-notes-panel";
+      editor.dataset.taskId = task.id;
+      const editorHeading = document.createElement("summary");
+      editorHeading.textContent = "NOTES & TAGS · " + annotation.tags.length + " TAGS"
+        + (annotation.note ? " · NOTE SAVED" : "");
+      const editorNote = document.createElement("label");
+      editorNote.textContent = "PRIVATE TASK NOTE · MAX 1000";
+      const noteInput = document.createElement("textarea");
+      noteInput.className = "task-note-input";
+      noteInput.maxLength = 1000;
+      noteInput.rows = 3;
+      noteInput.value = annotation.note;
+      noteInput.placeholder = "Add your own note (saved only on this device)";
+      noteInput.setAttribute("aria-label", "Private note for " + task.title);
+      editorNote.append(noteInput);
+      const editorTags = document.createElement("label");
+      editorTags.textContent = "TAGS · UP TO 5, COMMA-SEPARATED";
+      const tagsInput = document.createElement("input");
+      tagsInput.type = "text";
+      tagsInput.className = "task-tags-input";
+      tagsInput.maxLength = 140;
+      tagsInput.value = annotation.tags.join(", ");
+      tagsInput.placeholder = "e.g. Work, Urgent, Personal";
+      tagsInput.setAttribute("aria-label", "Tags for " + task.title);
+      editorTags.append(tagsInput);
+      const saveNotes = document.createElement("button");
+      saveNotes.type = "button";
+      saveNotes.className = "task-annotation-save";
+      saveNotes.textContent = "SAVE NOTES & TAGS";
+      saveNotes.addEventListener("click", () =>
+        saveManualTaskAnnotations(task.id, noteInput.value, tagsInput.value));
+      const annotationStatus = document.createElement("small");
+      annotationStatus.className = "task-notes-status";
+      annotationStatus.setAttribute("role", "status");
+      annotationStatus.setAttribute("aria-live", "polite");
+      editor.append(editorHeading, editorNote, editorTags, saveNotes, annotationStatus);
+      details.append(editor);
+
       const dueState = taskDueState(task, localCalendarDate());
       if (dueState === "today" || dueState === "overdue") {
         const warning = document.createElement("small");
