@@ -227,7 +227,8 @@ export function searchAndSortTaskQueue(queue, query = "", sort = "newest") {
   const matches = queue.filter(task => {
     if (!task || typeof task.title !== "string") return false;
     if (!needle) return true;
-    const terms = [task.title, task.details, task.plan?.summary];
+    const annotation = getTaskAnnotations(task);
+    const terms = [task.title, task.details, task.plan?.summary, annotation.note, ...annotation.tags];
     return terms.some(value => typeof value === "string" && value.toLocaleLowerCase().includes(needle));
   });
   if (!["newest", "oldest", "priority"].includes(sort)) return matches;
@@ -376,6 +377,16 @@ function safeBackupTask(task) {
       : typeof task.lastError === "string" ? task.lastError.slice(0, 500) : null
   };
   if (typeof task.details === "string") record.details = task.details;
+  if (task.note !== undefined && (typeof task.note !== "string" || task.note.length > 1000)) {
+    throw new TypeError("Backup contains invalid task note.");
+  }
+  if (task.tags !== undefined && (
+    !Array.isArray(task.tags) || task.tags.length > 5 ||
+    task.tags.some(tag => typeof tag !== "string" || !tag.trim() || tag.length > 24 || /[,\\x00-\\x1f]/.test(tag))
+  )) throw new TypeError("Backup contains invalid task tags.");
+  const annotation = getTaskAnnotations(task);
+  record.note = annotation.note;
+  record.tags = annotation.tags;
   if (task.plan && typeof task.plan === "object" &&
       typeof task.plan.summary === "string" && task.plan.summary.length <= 2000) {
     record.plan = {
@@ -450,4 +461,51 @@ export function mergeTaskQueueBackup(existing, incoming) {
     imported++;
   }
   return { queue, imported, duplicates, full };
+}
+
+
+/** Owner-only, device-local task annotations, never included in AI planning calls. */
+const MAX_TASK_NOTE = 1000;
+const MAX_TASK_TAGS = 5;
+const MAX_TASK_TAG_LENGTH = 24;
+
+function validatedTaskTags(input) {
+  const items = typeof input === "string" ? input.split(",") : input;
+  if (!Array.isArray(items)) throw new TypeError("Tags must be comma-separated text or a list.");
+  if (items.length > MAX_TASK_TAGS) throw new TypeError("Use at most 5 tags.");
+  const tags = [];
+  const seen = new Set();
+  for (const value of items) {
+    if (typeof value !== "string") throw new TypeError("Tags must be text.");
+    const tag = value.trim();
+    if (!tag || tag.length > MAX_TASK_TAG_LENGTH || /[,\x00-\x1f\x7f]/.test(tag)) {
+      throw new TypeError("Each tag must contain 1–24 characters, no commas or control characters.");
+    }
+    const key = tag.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    tags.push(tag);
+  }
+  return tags;
+}
+
+export function getTaskAnnotations(task) {
+  const note = typeof task?.note === "string" && task.note.length <= MAX_TASK_NOTE ? task.note : "";
+  let tags = [];
+  try { tags = validatedTaskTags(task?.tags ?? []); } catch (_) {}
+  return { note, tags };
+}
+
+/** Atomic edit: invalid input never changes an existing task or its checklist. */
+export function setTaskAnnotations(task, changes, now = Date.now()) {
+  if (!task || typeof task.id !== "string" || !changes || typeof changes !== "object" || Array.isArray(changes)) {
+    throw new TypeError("Invalid task annotation update.");
+  }
+  const current = getTaskAnnotations(task);
+  const note = Object.hasOwn(changes, "note") ? changes.note : current.note;
+  if (typeof note !== "string" || note.length > MAX_TASK_NOTE || /[\x00-\x08\x0b-\x1f\x7f]/.test(note)) {
+    throw new TypeError("Task note must be text up to 1000 characters.");
+  }
+  const tags = Object.hasOwn(changes, "tags") ? validatedTaskTags(changes.tags) : current.tags;
+  return { ...task, note, tags, updatedAt: timestamp(now) };
 }
