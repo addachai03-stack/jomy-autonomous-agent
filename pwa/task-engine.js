@@ -599,3 +599,64 @@ export function createTaskFromTemplate(template, now = Date.now()) {
     }
   };
 }
+
+
+/**
+ * JOMY 3.0: read-only analytics from tasks currently saved on this device.
+ * No tracking requests, telemetry, historical log or claim of task execution.
+ * A completion contributes to the daily chart ONLY if the task is currently
+ * manually DONE with a valid manualCompletedAt timestamp. Legacy SUCCEEDED
+ * tasks are counted as currently done but not assigned to invented dates.
+ */
+export function summarizeTaskAnalytics(queue, now = new Date()) {
+  const end = now instanceof Date ? new Date(now.getTime()) : new Date(now);
+  if (!Number.isFinite(end.getTime())) throw new TypeError("Invalid analytics date.");
+  const source = Array.isArray(queue) ? queue : [];
+  const counts = summarizeTaskQueue(source);
+  const rate = counts.all ? Math.round(counts.done / counts.all * 100) : 0;
+  const days = [];
+  const indices = new Map();
+  for (let back = 6; back >= 0; back--) {
+    const d = new Date(end.getFullYear(), end.getMonth(), end.getDate() - back, 12);
+    const day = localCalendarDate(d);
+    indices.set(day, days.length);
+    days.push({
+      day,
+      label: d.toLocaleDateString("en-IN", { weekday: "short" }),
+      created: 0,
+      completed: 0
+    });
+  }
+  let undatedCompleted = 0;
+  for (const task of source) {
+    if (!task || typeof task.status !== "string") continue;
+    const dateKey = value => {
+      if (typeof value !== "string" || !value.trim()) return "";
+      const date = new Date(value);
+      return Number.isFinite(date.getTime()) ? localCalendarDate(date) : "";
+    };
+    const created = dateKey(task.createdAt);
+    if (indices.has(created)) days[indices.get(created)].created++;
+    if (task.status === TASK_STATES.DONE) {
+      const completed = dateKey(task.manualCompletedAt);
+      if (indices.has(completed)) days[indices.get(completed)].completed++;
+      else if (!completed) undatedCompleted++;
+    } else if (task.status === TASK_STATES.SUCCEEDED) {
+      // Legacy successful tasks may lack a trusted completion date.
+      undatedCompleted++;
+    }
+  }
+  return {
+    total: counts.all,
+    pending: counts.pending,
+    inProgress: counts.in_progress,
+    done: counts.done,
+    completionRate: rate,
+    todayCreated: days[6].created,
+    todayCompleted: days[6].completed,
+    last7Created: days.reduce((sum, day) => sum + day.created, 0),
+    last7Completed: days.reduce((sum, day) => sum + day.completed, 0),
+    undatedCompleted,
+    days
+  };
+}
