@@ -120,3 +120,18 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 #taskBackupImport{grid-column:1/-1}
 .task-backup-panel .task-backup-status{color:#d7c59e;overflow-wrap:anywhere;font-size:11px;margin:10px 0 13px}
 @media(max-width:360px){.task-backup-actions{grid-template-columns:minmax(0,1fr)}#taskBackupImport{grid-column:auto}}
+
+
+/* Task Queue 2.8: private notes and tags, compact by default on iPhone. */
+.task-tag-list{display:flex;gap:6px;flex-wrap:wrap;min-width:0;margin:8px 0}
+.task-tag{display:inline-flex;max-width:100%;box-sizing:border-box;padding:4px 8px;border:1px solid #daba7a50;border-radius:7px;color:#ecd39f;background:#252015;font-size:10px;line-height:1.4;overflow-wrap:anywhere}
+.task-notes-panel{box-sizing:border-box;width:100%;min-width:0;margin:9px 0 12px;padding:0 12px;border:1px solid #d5b4783d;border-radius:10px;background:#101725}
+.task-notes-panel summary{box-sizing:border-box;min-height:44px;display:flex;align-items:center;color:#e6c88d;font-size:10px;font-weight:800;letter-spacing:.04em;cursor:pointer;overflow-wrap:anywhere}
+.task-notes-panel label{display:flex;flex-direction:column;gap:6px;margin:8px 0;color:#cfb68c;font-size:10px;font-weight:700;letter-spacing:.035em}
+.task-note-input,.task-tags-input{box-sizing:border-box;width:100%;min-width:0;min-height:44px;border:1px solid #c6ad734d;border-radius:9px;padding:10px 11px;background:#0a1220;color:#ebeff4;font-size:13px;font-weight:400;line-height:1.5;letter-spacing:normal;font-family:inherit}
+.task-note-input{min-height:80px;resize:vertical;white-space:pre-wrap}
+.task-note-input::placeholder,.task-tags-input::placeholder{color:#8895aa}
+.task-note-input:focus-visible,.task-tags-input:focus-visible,.task-annotation-save:focus-visible{outline:2px solid #e8c788;outline-offset:2px}
+.task-annotation-save{box-sizing:border-box;width:100%;min-height:44px;display:block;padding:10px 12px;background:#2c2419;color:#ecd4a2;border:1px solid #e2bc777b;border-radius:9px;font-size:10px;font-weight:800;letter-spacing:.035em;cursor:pointer}
+.task-notes-status{display:block;min-height:16px;margin:8px 0 10px;color:#cbd4e2;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
+@media(max-width:420px){.task-notes-panel{padding:0 10px}.task-tag{font-size:10px}}
