@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
-  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate
+  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics
 } from "../src/task-engine.js";
 
 test("creates bounded queued tasks", () => {
@@ -681,4 +681,84 @@ test("Task Queue 2.9 enforces 10 template limit, rejects malformed checklists an
   assert.throws(()=>createTaskFromTemplate({...template,steps:[""]}),/Invalid reusable/);
   assert.throws(()=>createTaskFromTemplate({...template,tags:["bad\nlabel"]}),/Invalid reusable task template tags/);
   assert.throws(()=>createTaskTemplate({title:""}),/Cannot make a template/);
+});
+
+
+test("JOMY 3.0 renders empty analytics as zero without inventing activity", () => {
+  const now=new Date(2026,10,19,12,0,0);
+  const result=summarizeTaskAnalytics([],now);
+  assert.deepEqual([result.total,result.pending,result.inProgress,result.done,result.completionRate],[0,0,0,0,0]);
+  assert.equal(result.days.length,7);
+  assert.deepEqual(result.days.map(d=>d.day),[
+    "2026-11-13","2026-11-14","2026-11-15","2026-11-16",
+    "2026-11-17","2026-11-18","2026-11-19"
+  ]);
+  assert.deepEqual([result.todayCreated,result.todayCompleted,result.last7Created,result.last7Completed,result.undatedCompleted],[0,0,0,0,0]);
+  assert.deepEqual(summarizeTaskAnalytics(null,now).days,result.days);
+});
+
+test("JOMY 3.0 daily metrics count only saved task creations and recorded manual completions", () => {
+  const stamp=(day,hour=11)=>new Date(2026,10,day,hour).toISOString();
+  const queue=[
+    {id:"a",title:"Done today",status:TASK_STATES.DONE,createdAt:stamp(18),manualCompletedAt:stamp(19),updatedAt:stamp(19)},
+    {id:"b",title:"Done yesterday",status:TASK_STATES.DONE,createdAt:stamp(17),manualCompletedAt:stamp(18),updatedAt:stamp(19)},
+    {id:"c",title:"Open today",status:TASK_STATES.READY,createdAt:stamp(19),updatedAt:stamp(19)},
+    {id:"d",title:"Legacy succeeded",status:TASK_STATES.SUCCEEDED,createdAt:stamp(15)},
+    {id:"e",title:"Reopened",status:TASK_STATES.READY,createdAt:stamp(16),manualCompletedAt:stamp(18)},
+    {id:"f",title:"Old creation",status:TASK_STATES.IN_PROGRESS,createdAt:stamp(10)},
+    {id:"g",title:"Undated manual done",status:TASK_STATES.DONE,createdAt:stamp(19)}
+  ];
+  const snapshot=JSON.stringify(queue);
+  const a=summarizeTaskAnalytics(queue,new Date(2026,10,19,17));
+  assert.deepEqual([a.total,a.done,a.pending,a.inProgress,a.completionRate],[7,4,2,1,57]);
+  assert.equal(a.todayCreated,2);
+  assert.equal(a.todayCompleted,1);
+  assert.equal(a.last7Created,6);
+  assert.equal(a.last7Completed,2);
+  assert.equal(a.undatedCompleted,2);
+  assert.equal(a.days[6].created,2);
+  assert.equal(a.days[6].completed,1);
+  assert.equal(a.days[5].completed,1);
+  assert.equal(JSON.stringify(queue),snapshot, "analytics must be read-only");
+});
+
+test("JOMY 3.0 manual completion timestamp is not inferred from updatedAt or old statuses", () => {
+  const now=new Date(2026,10,19,9);
+  const created=new Date(2026,10,18,10).toISOString();
+  const task={...createTask("Manual demo",new Date(2026,10,18,10).getTime()),status:TASK_STATES.READY};
+  const done=transitionTask(task,TASK_STATES.DONE,{},new Date(2026,10,19,9).getTime());
+  const changed={...done,updatedAt:new Date(2026,10,19,11).toISOString()};
+  let a=summarizeTaskAnalytics([changed],now);
+  assert.equal(a.todayCompleted,1);
+  const missing={...changed,manualCompletedAt:undefined};
+  a=summarizeTaskAnalytics([missing],now);
+  assert.equal(a.todayCompleted,0);
+  assert.equal(a.undatedCompleted,1);
+  const reopened=transitionTask(done,TASK_STATES.READY,{},new Date(2026,10,19,10).getTime());
+  a=summarizeTaskAnalytics([reopened],now);
+  assert.equal(a.todayCompleted,0);
+  assert.equal(a.done,0);
+  assert.equal(a.todayCreated,0);
+  assert.equal(summarizeTaskAnalytics([{id:"x",status:TASK_STATES.READY,createdAt:"invalid"}],now).todayCreated,0);
+  assert.throws(()=>summarizeTaskAnalytics([],"invalid date"),/Invalid analytics date/);
+});
+
+test("JOMY 3.0 seven-day analytics use local calendar boundaries across month and year", () => {
+  const reference=new Date(2027,0,2,12,0);
+  const localDay=(y,m,d)=>new Date(y,m,d,1).toISOString();
+  const tasks=[
+    {id:"a",title:"Start",status:TASK_STATES.READY,createdAt:localDay(2026,11,27)},
+    {id:"b",title:"Year end",status:TASK_STATES.DONE,createdAt:localDay(2026,11,31),manualCompletedAt:localDay(2027,0,1)},
+    {id:"c",title:"Today",status:TASK_STATES.READY,createdAt:localDay(2027,0,2)},
+    {id:"d",title:"Out of range",status:TASK_STATES.DONE,createdAt:localDay(2026,11,25),manualCompletedAt:localDay(2026,11,26)}
+  ];
+  const a=summarizeTaskAnalytics(tasks,reference);
+  assert.deepEqual(a.days.map(x=>x.day),[
+    "2026-12-27","2026-12-28","2026-12-29","2026-12-30",
+    "2026-12-31","2027-01-01","2027-01-02"
+  ]);
+  assert.equal(a.last7Created,3);
+  assert.equal(a.last7Completed,1);
+  assert.equal(a.days[5].completed,1);
+  assert.equal(a.todayCreated,1);
 });
