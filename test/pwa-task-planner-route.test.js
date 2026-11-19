@@ -404,3 +404,46 @@ test("Task Queue 2.9 reusable templates have iPhone tap targets", () => {
   assert.match(css, /\.task-template-actions button\{[^\n]*min-height:44px/);
   assert.match(css, /@media\(max-width:400px\)\{\.task-template-item/);
 });
+
+
+test("JOMY 3.0 analytics dashboard is collapsed, accessible and separated from personal memory", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const panel=html.split('id="taskPanel"')[1]?.split('<section class="memory-panel"')[0] || "";
+  assert.ok(panel.includes('<details class="task-insights-panel" id="taskInsightsPanel">'));
+  for (const id of ["insightsDone","insightsRate","insightsCreatedToday","insightsDoneToday",
+                    "insightsWeek","insightsBars","insightsNote"]) {
+    assert.ok(panel.includes('id="' + id + '"'),id + " missing");
+  }
+  assert.match(panel,/LAST 7 DAYS · DEVICE ONLY/);
+  assert.match(panel,/COMPLETION RATE/);
+  assert.ok(panel.indexOf("taskInsightsPanel")<panel.indexOf("taskTemplatesPanel"));
+  assert.match(panel,/role="img" aria-label="Task creations and manual completions/);
+  assert.doesNotMatch(panel,/iframe|<canvas|<script/);
+});
+
+test("JOMY 3.0 analytics only reads in-memory tasks with no remote calls or storage writes", () => {
+  const render=app.split("  // Read-only, device-local analytics.")[1]
+    ?.split("  // Dashboard counts are derived from existing local tasks, never guessed or fetched.")[0] || "";
+  assert.ok(render);
+  assert.match(render,/summarizeTaskAnalytics\(taskQueue, new Date\(\)\)/);
+  assert.match(render,/insightsDone\.textContent = String\(analytics\.done\)/);
+  assert.match(render,/insightsRate\.textContent = String\(analytics\.completionRate\) \+ "%"/);
+  assert.match(render,/insightsBars\.replaceChildren\(\)/);
+  assert.match(render,/Only tasks still saved on this device count/);
+  assert.doesNotMatch(render,/fetch\(|sendMessage\(|planTask\(|localStorage\.|sessionStorage\.|Worker|JSON\.stringify\(taskQueue\)/);
+  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount\.textContent = taskQueue\.length \+ "\/30";\s+renderTaskInsights\(\)/);
+  assert.match(app,/document\.addEventListener\("visibilitychange", \(\) => \{\s+if \(!document\.hidden\) renderTaskQueue\(\);/);
+  assert.match(app,/const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
+  assert.match(app,/const MEMORY_KEY = "jomy_agent_personal_memory_v1"/);
+});
+
+test("JOMY 3.0 seven-day analytics are responsive and do not override dashboard filters", () => {
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  assert.match(css,/\.task-insights-panel\{/);
+  assert.match(css,/\.task-insights-panel summary\{[^\n]*min-height:44px/);
+  assert.match(css,/\.task-insights-metrics\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(css,/\.task-insights-bars\{[^\n]*grid-template-columns:repeat\(7,minmax\(0,1fr\)\)/);
+  assert.match(css,/@media\(max-width:380px\)/);
+  assert.match(css,/prefers-reduced-motion:reduce/);
+  assert.match(app,/taskDashboardButtons\.querySelector|for \(const button of taskDashboardButtons\)/);
+});
