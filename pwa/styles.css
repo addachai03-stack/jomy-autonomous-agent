@@ -153,3 +153,29 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-template-actions button:focus-visible{outline:2px solid #e8c788;outline-offset:2px}
 .task-templates-panel .task-template-status{margin:10px 0 13px;font-size:11px;line-height:1.6;color:#dac9a6;overflow-wrap:anywhere}
 @media(max-width:400px){.task-template-item{align-items:stretch;flex-direction:column}.task-template-actions button{flex:1 1 100px}}
+
+
+/* JOMY 3.0: lightweight, local-only productivity insights. */
+.task-insights-panel{box-sizing:border-box;margin:12px 0;padding:0 12px;border:1px solid #d7b67750;border-radius:11px;background:#101b2a;color:#d5dfec}
+.task-insights-panel summary{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;color:#efd29d;font-size:11px;font-weight:800;letter-spacing:.07em;cursor:pointer}
+.task-insights-panel summary span{font-size:9px;color:#a9b6c5;white-space:nowrap;letter-spacing:.02em}
+.task-insights-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:9px 0 11px}
+.task-insights-metric{display:flex;flex-direction:column;gap:3px;box-sizing:border-box;min-width:0;padding:12px 10px;border:1px solid #d2ab6745;border-radius:9px;background:#0a1320}
+.task-insights-metric span{font-size:10px;line-height:1.4;letter-spacing:.04em;font-weight:750;color:#b7c4d3}
+.task-insights-metric strong{font-size:24px;font-weight:800;line-height:1.3;color:#efcd86;font-variant-numeric:tabular-nums}
+.task-insights-week{margin:8px 0 8px!important;color:#edcf96!important;font-size:11px!important;line-height:1.5!important;font-weight:750}
+.task-insights-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:10px;color:#aebccf;margin:8px 0}
+.task-insights-legend span{display:inline-flex;align-items:center;gap:5px}
+.task-insights-legend i{display:inline-block;width:9px;height:9px;border-radius:2px}
+.insights-created-key{background:#cca05b}
+.insights-done-key{background:#5ab0a4}
+.task-insights-bars{box-sizing:border-box;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;min-width:0;height:116px;margin:8px 0 13px;padding:8px 4px 0;background:#0a1220;border:1px solid #ffffff12;border-radius:8px}
+.task-insights-day{display:flex;flex-direction:column;align-items:center;justify-content:end;gap:6px;min-width:0}
+.task-insights-day-bars{display:flex;gap:3px;align-items:flex-end;justify-content:center;width:100%;height:82px;min-height:0}
+.task-insights-bar{display:block;width:min(12px,37%);min-height:0;border-radius:4px 4px 0 0;transition:height .15s ease}
+.task-insights-bar.is-created{background:#cca05b}
+.task-insights-bar.is-done{background:#5ab0a4}
+.task-insights-day-label{font-size:9px;line-height:1.3;font-weight:700;color:#acb8ca;white-space:nowrap}
+.task-insights-panel .task-insights-note{margin:3px 0 12px;font-size:10px;line-height:1.6;color:#a9b7c8;overflow-wrap:anywhere}
+@media(max-width:380px){.task-insights-panel{padding:0 9px}.task-insights-panel summary{font-size:10px}.task-insights-panel summary span{font-size:8px}.task-insights-bars{gap:2px}.task-insights-bar{width:min(9px,38%)}}
+@media(prefers-reduced-motion:reduce){.task-insights-bar{transition:none}}
