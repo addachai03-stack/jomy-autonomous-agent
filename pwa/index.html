@@ -56,6 +56,19 @@
           <button type="button" class="task-stat" data-task-filter="done" aria-pressed="false"><span class="task-stat-label">DONE</span><strong class="task-stat-number">0</strong></button>
         </div>
         <p class="task-dashboard-summary" id="taskFilterSummary" aria-live="polite">Showing all tasks saved on this device.</p>
+        <details class="task-insights-panel" id="taskInsightsPanel">
+          <summary>PRODUCTIVITY INSIGHTS <span>LAST 7 DAYS · DEVICE ONLY</span></summary>
+          <div class="task-insights-metrics" role="group" aria-label="Current task productivity summary">
+            <div class="task-insights-metric"><span>DONE NOW</span><strong id="insightsDone">0</strong></div>
+            <div class="task-insights-metric"><span>COMPLETION RATE</span><strong id="insightsRate">0%</strong></div>
+            <div class="task-insights-metric"><span>CREATED TODAY</span><strong id="insightsCreatedToday">0</strong></div>
+            <div class="task-insights-metric"><span>DONE TODAY</span><strong id="insightsDoneToday">0</strong></div>
+          </div>
+          <p class="task-insights-week" id="insightsWeek" aria-live="polite">7-day task activity will appear here.</p>
+          <div class="task-insights-legend"><span><i class="insights-created-key"></i> Created</span><span><i class="insights-done-key"></i> Manually done</span></div>
+          <div class="task-insights-bars" id="insightsBars" role="img" aria-label="Task creations and manual completions during the last seven calendar days"></div>
+          <p class="task-insights-note" id="insightsNote">Counts reflect tasks still saved on this device. No server tracking or external task execution.</p>
+        </details>
         <details class="task-backup-panel" id="taskBackupPanel">
           <summary>BACKUP &amp; RESTORE TASKS <span>DEVICE ONLY</span></summary>
           <p>Download a private JSON backup of saved tasks. No Owner Token, settings or Personal Memory included. Keep task details private.</p>
