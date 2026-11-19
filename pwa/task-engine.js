@@ -377,13 +377,11 @@ function safeBackupTask(task) {
       : typeof task.lastError === "string" ? task.lastError.slice(0, 500) : null
   };
   if (typeof task.details === "string") record.details = task.details;
-  if (task.note !== undefined && (typeof task.note !== "string" || task.note.length > 1000)) {
+  if (task.note !== undefined && (typeof task.note !== "string" ||
+    task.note.length > 1000 || /[\x00-\x08\x0b-\x1f\x7f]/.test(task.note))) {
     throw new TypeError("Backup contains invalid task note.");
   }
-  if (task.tags !== undefined && (
-    !Array.isArray(task.tags) || task.tags.length > 5 ||
-    task.tags.some(tag => typeof tag !== "string" || !tag.trim() || tag.length > 24 || /[,\\x00-\\x1f]/.test(tag))
-  )) throw new TypeError("Backup contains invalid task tags.");
+  if (task.tags !== undefined) validatedTaskTags(task.tags);
   const annotation = getTaskAnnotations(task);
   record.note = annotation.note;
   record.tags = annotation.tags;
