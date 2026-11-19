@@ -814,7 +814,7 @@ test("JOMY 3.1 CSV includes only dates and aggregated numbers, never task privat
   assert.equal(csv.trim().split("\r\n").length,8);
   assert.match(csv,/2026-11-19,1,1/);
   assert.doesNotMatch(csv,/HYPERLINK|attacker|SECRET|ownerToken|PRIVATE|note|tags/);
-  assert.ok(csv.trim().split("\\r\\n").slice(1).every(line => /^\\d{4}-\\d{2}-\\d{2},\\d+,\\d+$/.test(line)));
+  assert.ok(csv.trim().split("\r\n").slice(1).every(line => /^\d{4}-\d{2}-\d{2},\d+,\d+$/.test(line)));
 });
 
 test("JOMY 3.1 report reverses completion when task is reopened", () => {
