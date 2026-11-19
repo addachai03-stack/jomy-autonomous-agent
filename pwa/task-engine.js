@@ -468,7 +468,7 @@ const MAX_TASK_TAGS = 5;
 const MAX_TASK_TAG_LENGTH = 24;
 
 function validatedTaskTags(input) {
-  const items = typeof input === "string" ? input.split(",") : input;
+  const items = typeof input === "string" ? (input.trim() ? input.split(",") : []) : input;
   if (!Array.isArray(items)) throw new TypeError("Tags must be comma-separated text or a list.");
   if (items.length > MAX_TASK_TAGS) throw new TypeError("Use at most 5 tags.");
   const tags = [];
