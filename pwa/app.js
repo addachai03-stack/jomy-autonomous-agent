@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -42,6 +42,13 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const taskCount = $("taskCount");
   const taskDashboard = $("taskDashboard");
   const taskFilterSummary = $("taskFilterSummary");
+  const insightsDone = $("insightsDone");
+  const insightsRate = $("insightsRate");
+  const insightsCreatedToday = $("insightsCreatedToday");
+  const insightsDoneToday = $("insightsDoneToday");
+  const insightsWeek = $("insightsWeek");
+  const insightsBars = $("insightsBars");
+  const insightsNote = $("insightsNote");
   const taskDashboardButtons = [...taskDashboard.querySelectorAll("[data-task-filter]")];
   const deadlineViews = $("taskDeadlineViews");
   const deadlineButtons = [...deadlineViews.querySelectorAll("[data-deadline-filter]")];
@@ -488,6 +495,41 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       }
     }
   }
+  // Read-only, device-local analytics. Legacy finished tasks without an actual
+  // completion timestamp are deliberately excluded from daily completion bars.
+  function renderTaskInsights() {
+    const analytics = summarizeTaskAnalytics(taskQueue, new Date());
+    insightsDone.textContent = String(analytics.done);
+    insightsRate.textContent = String(analytics.completionRate) + "%";
+    insightsCreatedToday.textContent = String(analytics.todayCreated);
+    insightsDoneToday.textContent = String(analytics.todayCompleted);
+    insightsWeek.textContent = "LAST 7 DAYS · " + analytics.last7Created
+      + " created · " + analytics.last7Completed + " manually done";
+    insightsBars.replaceChildren();
+    const max = Math.max(1, ...analytics.days.map(day => Math.max(day.created, day.completed)));
+    for (const day of analytics.days) {
+      const column = document.createElement("div");
+      column.className = "task-insights-day";
+      column.setAttribute("aria-label", day.day + ": " + day.created + " created, " + day.completed + " manually done");
+      const bars = document.createElement("div");
+      bars.className = "task-insights-day-bars";
+      const created = document.createElement("span");
+      created.className = "task-insights-bar is-created";
+      created.style.height = String(day.created / max * 100) + "%";
+      const done = document.createElement("span");
+      done.className = "task-insights-bar is-done";
+      done.style.height = String(day.completed / max * 100) + "%";
+      bars.append(created, done);
+      const label = document.createElement("span");
+      label.className = "task-insights-day-label";
+      label.textContent = day.label;
+      column.append(bars, label);
+      insightsBars.append(column);
+    }
+    insightsNote.textContent = "Only tasks still saved on this device count. Daily completions need a recorded manual DONE date."
+      + (analytics.undatedCompleted ? " " + analytics.undatedCompleted + " finished task(s) have no usable completion date." : "")
+      + " No server analytics, reminders or external execution.";
+  }
   // Dashboard counts are derived from existing local tasks, never guessed or fetched.
   function renderTaskDashboard() {
     const counts = summarizeTaskQueue(taskQueue);
@@ -518,6 +560,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   }
   function renderTaskQueue() {
     taskCount.textContent = taskQueue.length + "/30";
+    renderTaskInsights();
     const visibleTasks = renderTaskDashboard();
     taskList.replaceChildren();
     if (!visibleTasks.length) {
