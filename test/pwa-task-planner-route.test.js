@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v48 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v49 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=48"/);
-  assert.match(html, /src="\/app\.js\?v=48"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v48"/);
-  assert.match(worker, /"\/styles\.css\?v=48"/);
-  assert.match(worker, /"\/app\.js\?v=48"/);
+  assert.match(html, /href="\/styles\.css\?v=49"/);
+  assert.match(html, /src="\/app\.js\?v=49"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v49"/);
+  assert.match(worker, /"\/styles\.css\?v=49"/);
+  assert.match(worker, /"\/app\.js\?v=49"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -446,4 +446,45 @@ test("JOMY 3.0 seven-day analytics are responsive and do not override dashboard 
   assert.match(css,/@media\(max-width:380px\)/);
   assert.match(css,/prefers-reduced-motion:reduce/);
   assert.match(app,/taskDashboardButtons\.querySelector|for \(const button of taskDashboardButtons\)/);
+});
+
+
+test("JOMY 3.1 report exposes accessible 7/30-day select and count-only download", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const panel=html.split('id="taskPanel"')[1]?.split('<section class="memory-panel"')[0] || "";
+  assert.ok(panel.includes('class="task-report" id="taskReport"'));
+  assert.ok(panel.includes('<option value="7">Last 7 days</option>'));
+  assert.ok(panel.includes('<option value="30">Last 30 days</option>'));
+  for(const id of ["reportRangeSelect","reportCreated","reportDone","reportTopDay","reportExport","reportStatus"]) {
+    assert.ok(panel.includes('id="' + id + '"'),id + " must exist");
+  }
+  assert.ok(panel.includes('id="reportStatus" role="status" aria-live="polite"'));
+  assert.ok(panel.includes('No task titles, notes, tags, tokens or private details'));
+  assert.ok(panel.indexOf("taskReport") < panel.indexOf("taskBackupPanel"));
+});
+
+test("JOMY 3.1 CSV is triggered by an explicit click, no remote calls or task storage writes", () => {
+  const src=app.split("  // JOMY 3.1: numeric daily counts only, computed in-browser from saved tasks.")[1]
+    ?.split("  // Read-only, device-local analytics.")[0] || "";
+  assert.ok(src);
+  assert.match(src,/summarizeTaskActivityReport\(taskQueue, days, new Date\(\)\)/);
+  assert.match(src,/createTaskActivityCsv\(taskQueue, days, new Date\(\)\)/);
+  assert.match(src,/reportRangeSelect.addEventListener\("change", renderTaskReport\)/);
+  assert.match(src,/reportExport.addEventListener\("click"/);
+  assert.match(src,/link.download = "jomy-productivity-"/);
+  assert.match(src,/text\/csv;charset=utf-8/);
+  assert.match(src,/reportStatus.textContent = "CSV prepared for download/);
+  assert.doesNotMatch(src,/fetch\(|planTask\(|sendMessage\(|localStorage\.|sessionStorage\.|clear\(|removeItem\(/);
+  assert.match(app,/function renderTaskInsights\(\) \{\s+renderTaskReport\(\);/);
+  assert.ok(app.includes('const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"'));
+  assert.ok(app.includes('const MEMORY_KEY = "jomy_agent_personal_memory_v1"'));
+});
+
+test("JOMY 3.1 report uses iPhone-friendly 44px controls and does not disturb task dashboard", () => {
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  assert.match(css,/\.task-report\{/);
+  assert.match(css,/\.task-report-controls select\{[^\n]*min-height:44px/);
+  assert.match(css,/\.task-report-download\{[^\n]*min-height:44px/);
+  assert.match(css,/@media\(max-width:380px\)\{\.task-report/);
+  assert.match(app,/for \(const button of taskDashboardButtons\)/);
 });

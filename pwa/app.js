@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -49,6 +49,12 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const insightsWeek = $("insightsWeek");
   const insightsBars = $("insightsBars");
   const insightsNote = $("insightsNote");
+  const reportRangeSelect = $("reportRangeSelect");
+  const reportCreated = $("reportCreated");
+  const reportDone = $("reportDone");
+  const reportTopDay = $("reportTopDay");
+  const reportExport = $("reportExport");
+  const reportStatus = $("reportStatus");
   const taskDashboardButtons = [...taskDashboard.querySelectorAll("[data-task-filter]")];
   const deadlineViews = $("taskDeadlineViews");
   const deadlineButtons = [...deadlineViews.querySelectorAll("[data-deadline-filter]")];
@@ -495,9 +501,41 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       }
     }
   }
+  // JOMY 3.1: numeric daily counts only, computed in-browser from saved tasks.
+  function renderTaskReport() {
+    const days = Number(reportRangeSelect.value);
+    const report = summarizeTaskActivityReport(taskQueue, days, new Date());
+    reportCreated.textContent = String(report.created);
+    reportDone.textContent = String(report.manuallyDone);
+    reportTopDay.textContent = report.bestDay
+      ? "Top manual completion day: " + report.bestDay.date
+        + " (" + report.bestDay.manuallyDone + " task(s))"
+      : "Top completion day: No recorded manual completions in this period.";
+  }
+  reportRangeSelect.addEventListener("change", renderTaskReport);
+  reportExport.addEventListener("click", () => {
+    try {
+      const days = Number(reportRangeSelect.value);
+      const csv = createTaskActivityCsv(taskQueue, days, new Date());
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "jomy-productivity-" + days + "d-" + localCalendarDate() + ".csv";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+      reportStatus.textContent = "CSV prepared for download: " + days
+        + " daily rows, counts only. No task names or private notes included.";
+    } catch (error) {
+      reportStatus.textContent = "CSV export failed: " + error.message;
+    }
+  });
   // Read-only, device-local analytics. Legacy finished tasks without an actual
   // completion timestamp are deliberately excluded from daily completion bars.
   function renderTaskInsights() {
+    renderTaskReport();
     const analytics = summarizeTaskAnalytics(taskQueue, new Date());
     insightsDone.textContent = String(analytics.done);
     insightsRate.textContent = String(analytics.completionRate) + "%";

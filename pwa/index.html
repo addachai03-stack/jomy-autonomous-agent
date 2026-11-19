@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=48">
+  <link rel="stylesheet" href="/styles.css?v=49">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -68,6 +68,22 @@
           <div class="task-insights-legend"><span><i class="insights-created-key"></i> Created</span><span><i class="insights-done-key"></i> Manually done</span></div>
           <div class="task-insights-bars" id="insightsBars" role="img" aria-label="Task creations and manual completions during the last seven calendar days"></div>
           <p class="task-insights-note" id="insightsNote">Counts reflect tasks still saved on this device. No server tracking or external task execution.</p>
+          <div class="task-report" id="taskReport" aria-label="Private productivity report">
+            <div class="task-report-controls">
+              <label for="reportRangeSelect">REPORT PERIOD</label>
+              <select id="reportRangeSelect" aria-label="Productivity report period">
+                <option value="7">Last 7 days</option>
+                <option value="30">Last 30 days</option>
+              </select>
+            </div>
+            <div class="task-report-metrics" role="group" aria-label="Selected period productivity counts">
+              <div><span>CREATED IN PERIOD</span><strong id="reportCreated">0</strong></div>
+              <div><span>MANUALLY DONE</span><strong id="reportDone">0</strong></div>
+            </div>
+            <p class="task-report-best" id="reportTopDay" aria-live="polite">Top completion day: No recorded manual completions.</p>
+            <button type="button" class="task-report-download" id="reportExport">DOWNLOAD PRIVATE CSV</button>
+            <p class="task-report-status" id="reportStatus" role="status" aria-live="polite">Exports daily counts only. No task titles, notes, tags, tokens or private details.</p>
+          </div>
         </details>
         <details class="task-backup-panel" id="taskBackupPanel">
           <summary>BACKUP &amp; RESTORE TASKS <span>DEVICE ONLY</span></summary>
@@ -293,6 +309,6 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=48"></script>
+  <script type="module" src="/app.js?v=49"></script>
 </body>
 </html>
