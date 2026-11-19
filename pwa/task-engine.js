@@ -660,3 +660,60 @@ export function summarizeTaskAnalytics(queue, now = new Date()) {
     days
   };
 }
+
+
+/**
+ * JOMY 3.1: 7/30-day private aggregate. Counts ONLY tasks still saved locally.
+ * Completed days require a real manualCompletedAt and a current DONE status.
+ * This is a current snapshot, not a permanent history/audit log.
+ */
+export function summarizeTaskActivityReport(queue, dayCount = 7, now = new Date()) {
+  if (dayCount !== 7 && dayCount !== 30) throw new RangeError("Report range must be 7 or 30 days.");
+  const end = now instanceof Date ? new Date(now.getTime()) : new Date(now);
+  if (!Number.isFinite(end.getTime())) throw new TypeError("Invalid report date.");
+  const rows = [];
+  const index = new Map();
+  for (let back = dayCount - 1; back >= 0; back--) {
+    const date = new Date(end.getFullYear(), end.getMonth(), end.getDate() - back, 12);
+    const day = localCalendarDate(date);
+    index.set(day, rows.length);
+    rows.push({ date: day, created: 0, manuallyDone: 0 });
+  }
+  const source = Array.isArray(queue) ? queue : [];
+  const toLocalDay = value => {
+    if (typeof value !== "string" || !value.trim()) return "";
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? localCalendarDate(date) : "";
+  };
+  for (const task of source) {
+    if (!task || typeof task.status !== "string") continue;
+    const createdDay = toLocalDay(task.createdAt);
+    if (index.has(createdDay)) rows[index.get(createdDay)].created++;
+    if (task.status === TASK_STATES.DONE) {
+      const doneDay = toLocalDay(task.manualCompletedAt);
+      if (index.has(doneDay)) rows[index.get(doneDay)].manuallyDone++;
+    }
+  }
+  const created = rows.reduce((total, row) => total + row.created, 0);
+  const manuallyDone = rows.reduce((total, row) => total + row.manuallyDone, 0);
+  let top = null;
+  for (const row of rows) {
+    if (row.manuallyDone && (!top || row.manuallyDone >= top.manuallyDone)) top = row;
+  }
+  return {
+    dayCount,
+    periodStart: rows[0].date,
+    periodEnd: rows[rows.length - 1].date,
+    created,
+    manuallyDone,
+    bestDay: top ? { date: top.date, manuallyDone: top.manuallyDone } : null,
+    rows
+  };
+}
+
+/** Aggregated numeric CSV only: no task titles, notes, tags or credentials. */
+export function createTaskActivityCsv(queue, dayCount = 7, now = new Date()) {
+  const report = summarizeTaskActivityReport(queue, dayCount, now);
+  return "Date,Created,Manually Done\r\n" +
+    report.rows.map(row => row.date + "," + row.created + "," + row.manuallyDone).join("\r\n") + "\r\n";
+}
