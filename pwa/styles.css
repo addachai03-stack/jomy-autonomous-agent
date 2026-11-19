@@ -179,3 +179,19 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-insights-panel .task-insights-note{margin:3px 0 12px;font-size:10px;line-height:1.6;color:#a9b7c8;overflow-wrap:anywhere}
 @media(max-width:380px){.task-insights-panel{padding:0 9px}.task-insights-panel summary{font-size:10px}.task-insights-panel summary span{font-size:8px}.task-insights-bars{gap:2px}.task-insights-bar{width:min(9px,38%)}}
 @media(prefers-reduced-motion:reduce){.task-insights-bar{transition:none}}
+
+
+/* JOMY 3.1 — private numeric productivity report. Compact iPhone layout. */
+.task-report{box-sizing:border-box;margin:12px 0 0;padding:12px;border:1px solid #d4b77c45;border-radius:10px;background:#0b1523;min-width:0}
+.task-report-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:9px}
+.task-report-controls label{font-size:10px;font-weight:800;letter-spacing:.06em;color:#d2b984}
+.task-report-controls select{box-sizing:border-box;min-height:44px;min-width:130px;padding:10px 12px;background:#131f2f;border:1px solid #d4b77c66;border-radius:9px;color:#f1d398;font-size:12px}
+.task-report-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.task-report-metrics>div{display:flex;flex-direction:column;gap:5px;padding:10px 8px;border:1px solid #e7bd7950;border-radius:9px;background:#101b2b;min-width:0}
+.task-report-metrics span{color:#acb9c8;font-size:9px;line-height:1.4;font-weight:800;letter-spacing:.03em}
+.task-report-metrics strong{color:#f0ce8b;font-size:24px;font-variant-numeric:tabular-nums;line-height:1.15}
+.task-report .task-report-best{font-size:11px;color:#d7c8ab;line-height:1.6;margin:10px 0}
+.task-report-download{display:block;box-sizing:border-box;width:100%;min-height:44px;padding:10px 14px;border:1px solid #d8b46f87;border-radius:9px;background:#30271a;color:#f4d59d;font-size:11px;font-weight:800;letter-spacing:.03em;cursor:pointer}
+.task-report-download:focus-visible,.task-report-controls select:focus-visible{outline:2px solid #e8c788;outline-offset:2px}
+.task-report .task-report-status{font-size:10px;line-height:1.6;color:#aebbd1;margin:10px 0 0;overflow-wrap:anywhere}
+@media(max-width:380px){.task-report{padding:9px}.task-report-controls{align-items:stretch;flex-direction:column;gap:6px}.task-report-controls select{width:100%}}
