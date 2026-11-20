@@ -251,6 +251,8 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-focus-view{min-width:84px;flex-shrink:0}
 .task-focus-view[aria-pressed="true"]{border-color:#f4daaa;background:#49321c}
 .task-focus-view:focus-visible,.task-focus-reset:focus-visible{outline:2px solid #e8c788;outline-offset:2px}
+.task-item[data-daily-focus="true"]{border-color:#e8c788aa;box-shadow:0 0 0 1px #e8c78855}
+.task-item[data-daily-focus="true"]:focus{outline:2px solid #e8c788;outline-offset:2px}
 .task-focus-reset{display:block;width:100%;margin:10px 0 13px}
 .task-focus-reset:disabled{opacity:.45;cursor:not-allowed}
 .task-focus-empty{margin:5px 0 10px!important;color:#aab8c8}
