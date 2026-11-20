@@ -216,3 +216,21 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-weekly-goal .task-weekly-hint{margin:8px 0 0!important;color:#aab8c8!important;font-size:10px!important;line-height:1.55!important}
 @media(max-width:370px){.task-weekly-goal{padding:9px}.task-weekly-form-row{grid-template-columns:1fr}.task-weekly-heading{font-size:11px}}
 @media(prefers-reduced-motion:reduce){.task-weekly-progress>span{transition:none}}
+
+
+/* JOMY 3.3 — read-only upcoming seven-day calendar. */
+.task-calendar-panel{box-sizing:border-box;margin:12px 0;padding:0 12px;border:1px solid #dfbb7b54;border-radius:11px;background:#0d1827;min-width:0}
+.task-calendar-panel summary{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;color:#f1d29d;font-size:11px;font-weight:800;letter-spacing:.05em;cursor:pointer}
+.task-calendar-panel summary span{color:#aebbc9;font-size:9px;white-space:nowrap}
+.task-calendar-panel>p{margin:6px 0 10px;font-size:11px;line-height:1.6;color:#aebbca}
+.task-calendar-summary{box-sizing:border-box;margin:8px 0 10px;padding:9px 10px;background:#142132;border-radius:8px;color:#e4ca98;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+.task-calendar-days{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.task-calendar-day{display:flex;flex-direction:column;gap:5px;min-width:0;min-height:72px;box-sizing:border-box;padding:10px;border:1px solid #dfb97552;border-radius:9px;background:#111e30;color:#e6ebf2;text-align:left;cursor:pointer}
+.task-calendar-day[aria-pressed="true"]{border-color:#f3d69a;background:#302719}
+.task-calendar-day:focus-visible,.task-calendar-reset:focus-visible{outline:2px solid #e8c788;outline-offset:2px}
+.task-calendar-day-label{font-size:11px;line-height:1.5;color:#d7c8a7;font-weight:700}
+.task-calendar-day-count{font-size:15px;color:#f2d296;font-variant-numeric:tabular-nums}
+.task-calendar-preview{font-size:10px;line-height:1.5;color:#aab9c8;overflow-wrap:anywhere}
+.task-calendar-reset{display:block;box-sizing:border-box;width:100%;min-height:44px;margin:10px 0 13px;border:1px solid #ddb97877;border-radius:9px;background:#2a2419;color:#f4d49b;font-size:11px;font-weight:800;cursor:pointer}
+.task-calendar-reset:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:390px){.task-calendar-panel{padding:0 9px}.task-calendar-days{grid-template-columns:minmax(0,1fr)}.task-calendar-panel summary{font-size:10px}.task-calendar-panel summary span{font-size:8px}.task-calendar-day{min-height:62px}}
