@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, summarizeDailyTaskProgress, TASK_STATES } from "./task-engine.js";
+import { createTask, createManualTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, summarizeDailyTaskProgress, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -23,6 +23,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const activityBoard = document.querySelector(".activity");
   const taskPanel = $("taskPanel");
   const taskForm = $("taskForm");
+  const taskAddStatus = $("taskAddStatus");
   const taskInput = $("taskInput");
   const taskSearchInput = $("taskSearchInput");
   const taskSortSelect = $("taskSortSelect");
@@ -1520,10 +1521,18 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     event.preventDefault();
     const title = taskInput.value.trim();
     if (!title) return;
+    // Explicit button choice: manual READY never calls the owner-token API.
+    const manual = event.submitter?.value === "manual";
     try {
-      const task = createTask(title);
-      taskQueue = addTask(taskQueue, task);
-      saveTaskQueue();
+      // addTask() trims old tasks when over limit; never silently lose an
+      // existing task through the UI in either manual or AI-plan mode.
+      if (taskQueue.length >= 30) throw new RangeError("Task Queue full (30/30). Export or remove a task first.");
+      const task = manual ? createManualTask(title) : createTask(title);
+      const nextQueue = addTask(taskQueue, task);
+      // Persist BEFORE mutating the in-memory queue; failed Safari storage
+      // must not claim success or drop previously saved tasks.
+      localStorage.setItem(TASK_QUEUE_KEY, JSON.stringify(nextQueue));
+      taskQueue = nextQueue;
       activeTaskFilter = "all"; // Newly added task should always be visible.
       activeDeadlineFilter = "all";
       activeCalendarDay = "";
@@ -1531,11 +1540,15 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       taskSearchInput.value = "";
       renderTaskQueue();
       taskInput.value = "";
-      wakeActivityBoard();
-      planTask(task.id);
+      taskAddStatus.textContent = manual
+        ? "Manual READY task saved on this iPhone. Use MARK DONE / REOPEN to update daily progress."
+        : "Task saved. JOMY is preparing a plan; no external task has been executed.";
+      if (!manual) {
+        wakeActivityBoard();
+        planTask(task.id);
+      }
     } catch (error) {
-      addMessage("agent", "Task add nahi hua: " + error.message);
-      wakeActivityBoard();
+      taskAddStatus.textContent = "Task not saved: " + error.message;
     }
   });
   chatForm.addEventListener("submit", (event) => {
