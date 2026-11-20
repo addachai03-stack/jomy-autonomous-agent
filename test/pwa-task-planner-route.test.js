@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v53 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v54 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=53"/);
-  assert.match(html, /src="\/app\.js\?v=53"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v53"/);
-  assert.match(worker, /"\/styles\.css\?v=53"/);
-  assert.match(worker, /"\/app\.js\?v=53"/);
+  assert.match(html, /href="\/styles\.css\?v=54"/);
+  assert.match(html, /src="\/app\.js\?v=54"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v54"/);
+  assert.match(worker, /"\/styles\.css\?v=54"/);
+  assert.match(worker, /"\/app\.js\?v=54"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -627,4 +627,24 @@ test("JOMY 3.4 focus cards are iPhone responsive with accessible 44px controls",
   assert.match(css,/\.task-focus-view,\.task-focus-reset\{[^\n]*min-height:44px/);
   assert.match(css,/@media\(max-width:400px\)\{\.task-focus-panel/);
   assert.match(app,/document.addEventListener\("visibilitychange", \(\) => \{\s+if \(!document.hidden\) renderTaskQueue\(\);/);
+});
+
+test("JOMY 3.5 progress is device-only, accessible and connected to manual task changes", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  const queue=html.split('id="taskPanel"')[1]?.split('<section class="memory-panel"')[0]||"";
+  const render=app.split("  function renderDailyFocus() {")[1]
+    ?.split("  // Local-calendar date view: no external requests, no storage writes and no timers.")[0]||"";
+  assert.ok(queue && render);
+  assert.match(queue,/id="taskFocusProgress" role="progressbar" aria-label="Manual progress today"/);
+  assert.match(queue,/id="taskFocusProgressLabel" role="status" aria-live="polite"/);
+  assert.match(queue,/id="taskFocusProgressFill" class="task-focus-progress-fill"/);
+  assert.match(queue,/not a fixed daily goal/);
+  assert.match(render,/summarizeDailyTaskProgress\(taskQueue, new Date\(\)\)/);
+  assert.match(render,/taskFocusProgress\.setAttribute\("aria-valuenow", String\(progress.percent\)\)/);
+  assert.match(render,/taskFocusProgressFill\.style\.width = progress.percent \+ "%"/);
+  assert.match(app,/function setManualTaskProgress\(taskId, nextStatus\)/);
+  assert.match(app,/renderDailyFocus\(\)/);
+  assert.match(css,/\.task-focus-progress-track\{/);
+  assert.doesNotMatch(render,/fetch\(|localStorage\.|sessionStorage\.|setTimeout\(/);
 });
