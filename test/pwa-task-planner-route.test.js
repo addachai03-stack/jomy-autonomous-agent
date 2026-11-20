@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v52 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v53 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=52"/);
-  assert.match(html, /src="\/app\.js\?v=52"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v52"/);
-  assert.match(worker, /"\/styles\.css\?v=52"/);
-  assert.match(worker, /"\/app\.js\?v=52"/);
+  assert.match(html, /href="\/styles\.css\?v=53"/);
+  assert.match(html, /src="\/app\.js\?v=53"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v53"/);
+  assert.match(worker, /"\/styles\.css\?v=53"/);
+  assert.match(worker, /"\/app\.js\?v=53"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -601,6 +601,14 @@ test("JOMY 3.4 focus controls safely filter existing queue without task mutation
   assert.match(focus,/view.setAttribute\("aria-pressed", String\(activeFocusTaskId === item.id\)\)/);
   assert.match(focus,/activeFocusTaskId = activeFocusTaskId === item.id \? "" : item.id/);
   assert.match(focus,/taskFocusClear.addEventListener\("click"/);
+  assert.match(focus,/view\.dataset\.focusTaskId = item\.id/);
+  assert.match(focus,/selectedCard\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(focus,/selectedCard\.scrollIntoView\(\{ behavior: "smooth", block: "center" \}\)/);
+  assert.match(focus,/restoredButton\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(app,/item\.dataset\.dailyFocus = "true"/);
+  assert.match(app,/item\.tabIndex = -1/);
+  const css = readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  assert.match(css,/\.task-item\[data-daily-focus="true"\]:focus\{/);
   assert.match(focus,/heading.textContent = \(index \+ 1\) \+ "\. " \+ item.title/);
   assert.doesNotMatch(focus,/fetch\(|planTask\(|sendMessage\(|localStorage\.|sessionStorage\.|Worker|setTimeout\(/);
   assert.match(dashboard,/!activeFocusTaskId \|\| task.id === activeFocusTaskId/);
