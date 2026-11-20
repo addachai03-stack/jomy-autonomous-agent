@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v50 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v51 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=50"/);
-  assert.match(html, /src="\/app\.js\?v=50"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v50"/);
-  assert.match(worker, /"\/styles\.css\?v=50"/);
-  assert.match(worker, /"\/app\.js\?v=50"/);
+  assert.match(html, /href="\/styles\.css\?v=51"/);
+  assert.match(html, /src="\/app\.js\?v=51"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v51"/);
+  assert.match(worker, /"\/styles\.css\?v=51"/);
+  assert.match(worker, /"\/app\.js\?v=51"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -530,4 +530,49 @@ test("JOMY 3.2 weekly goal progress responds to task updates and small iPhone wi
   assert.match(css,/prefers-reduced-motion:reduce/);
   assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount.textContent = taskQueue.length \+ "\/30";\s+renderTaskInsights\(\)/);
   assert.match(app,/document.addEventListener\("visibilitychange"/);
+});
+
+
+test("JOMY 3.3 Upcoming Calendar is collapsible and accessible in Task Queue", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const panel=html.split('id="taskPanel"')[1]?.split('<section class="memory-panel"')[0] || "";
+  assert.match(panel,/<details class="task-calendar-panel" id="taskCalendarPanel">/);
+  assert.match(panel,/id="calendarSummary" role="status" aria-live="polite"/);
+  assert.match(panel,/id="calendarDays" role="group" aria-label="Filter tasks by due date/);
+  assert.match(panel,/id="calendarClear" type="button" disabled>SHOW ALL DATES/);
+  assert.ok(panel.indexOf('id="taskFilterSummary"') < panel.indexOf('id="taskCalendarPanel"'));
+  assert.ok(panel.indexOf('id="taskCalendarPanel"') < panel.indexOf('id="taskInsightsPanel"'));
+  assert.match(panel,/No reminders or automatic execution/);
+});
+
+test("JOMY 3.3 calendar composes with status/search filters without changing tasks", () => {
+  const calendar = app.split("  // Local-calendar date view: no external requests, no storage writes and no timers.")[1]
+    ?.split("  // Dashboard counts are derived from existing local tasks, never guessed or fetched.")[0] || "";
+  const dashboard = app.split("  function renderTaskDashboard() {")[1]
+    ?.split("  function renderTaskQueue() {")[0] || "";
+  assert.ok(calendar && dashboard);
+  assert.match(calendar,/summarizeUpcomingCalendar\(taskQueue, new Date\(\)\)/);
+  assert.match(calendar,/calendarDays.replaceChildren\(\)/);
+  assert.match(calendar,/button.dataset.calendarDate = day.date/);
+  assert.match(calendar,/button.setAttribute\("aria-pressed", String\(activeCalendarDay === day.date\)\)/);
+  assert.match(calendar,/activeCalendarDay = activeCalendarDay === day.date \? "" : day.date/);
+  assert.match(calendar,/calendarClear.addEventListener\("click"/);
+  assert.doesNotMatch(calendar,/fetch\(|planTask\(|sendMessage\(|localStorage\.|sessionStorage\.|setTimeout\(/);
+  assert.match(dashboard,/getTaskSchedule\(task\).dueDate === activeCalendarDay/);
+  assert.match(dashboard,/task.status !== TASK_STATES.DONE && task.status !== TASK_STATES.SUCCEEDED/);
+  assert.match(dashboard,/filterTaskQueue\(taskQueue, activeTaskFilter\)/);
+  assert.match(dashboard,/searchAndSortTaskQueue\(visibleTasks, taskSearchInput.value, taskSortSelect.value\)/);
+  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount.textContent = taskQueue.length \+ "\/30";\s+renderTaskInsights\(\);\s+renderUpcomingCalendar\(\)/);
+  assert.match(app,/activeCalendarDay = "";\s+taskSearchInput.value = "";\s+renderTaskQueue\(\)/);
+  assert.match(app,/const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
+  assert.match(app,/const MEMORY_KEY = "jomy_agent_personal_memory_v1"/);
+});
+
+test("JOMY 3.3 upcoming calendar has tappable iPhone-size day buttons and no input to the Worker", () => {
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  assert.match(css,/\.task-calendar-panel\{/);
+  assert.match(css,/\.task-calendar-panel summary\{[^\n]*min-height:44px/);
+  assert.match(css,/\.task-calendar-reset\{[^\n]*min-height:44px/);
+  assert.match(css,/@media\(max-width:390px\)\{\.task-calendar-panel/);
+  assert.match(app,/document.addEventListener\("visibilitychange", \(\) => \{\s+if \(!document.hidden\) renderTaskQueue\(\);/);
 });

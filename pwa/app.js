@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -42,6 +42,10 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const taskCount = $("taskCount");
   const taskDashboard = $("taskDashboard");
   const taskFilterSummary = $("taskFilterSummary");
+  const calendarSummary = $("calendarSummary");
+  const calendarDays = $("calendarDays");
+  const calendarClear = $("calendarClear");
+  let activeCalendarDay = "";
   const insightsDone = $("insightsDone");
   const insightsRate = $("insightsRate");
   const insightsCreatedToday = $("insightsCreatedToday");
@@ -308,6 +312,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       taskBackupImport.disabled = true;
       activeTaskFilter = "all";
       activeDeadlineFilter = "all";
+      activeCalendarDay = "";
       taskSearchInput.value = "";
       renderTaskQueue();
       taskBackupStatus.textContent = "Imported " + preview.imported + " new tasks. "
@@ -354,6 +359,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
           taskQueue = next;
           activeTaskFilter = "all";
           activeDeadlineFilter = "all";
+          activeCalendarDay = "";
           taskSearchInput.value = "";
           renderTaskQueue();
           taskTemplateStatus.textContent = "Created a new READY manual task from " + template.title
@@ -613,6 +619,51 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       + (analytics.undatedCompleted ? " " + analytics.undatedCompleted + " finished task(s) have no usable completion date." : "")
       + " No server analytics, reminders or external execution.";
   }
+  // Local-calendar date view: no external requests, no storage writes and no timers.
+  function renderUpcomingCalendar() {
+    const overview = summarizeUpcomingCalendar(taskQueue, new Date());
+    if (activeCalendarDay && !overview.days.some(day => day.date === activeCalendarDay)) {
+      activeCalendarDay = "";
+    }
+    calendarSummary.textContent = overview.upcoming + " upcoming · " + overview.overdue
+      + " overdue · " + overview.unscheduled + " without due date · "
+      + overview.later + " later";
+    calendarDays.replaceChildren();
+    for (const day of overview.days) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "task-calendar-day";
+      button.dataset.calendarDate = day.date;
+      button.setAttribute("aria-pressed", String(activeCalendarDay === day.date));
+      button.setAttribute("aria-label", day.label + ": " + day.tasks.length
+        + " unfinished tasks due. Filter Task Queue by this date.");
+      const label = document.createElement("span");
+      label.className = "task-calendar-day-label";
+      label.textContent = day.label;
+      const count = document.createElement("strong");
+      count.className = "task-calendar-day-count";
+      count.textContent = day.tasks.length + (day.tasks.length === 1 ? " task" : " tasks");
+      button.append(label, count);
+      const preview = document.createElement("small");
+      preview.className = "task-calendar-preview";
+      preview.textContent = day.tasks.length ? day.tasks.slice(0,2).map(task => task.title).join(" · ")
+        : "No deadlines";
+      button.append(preview);
+      button.addEventListener("click", () => {
+        activeCalendarDay = activeCalendarDay === day.date ? "" : day.date;
+        activeTaskFilter = "all";
+        activeDeadlineFilter = "all";
+        taskSearchInput.value = "";
+        renderTaskQueue();
+      });
+      calendarDays.append(button);
+    }
+    calendarClear.disabled = !activeCalendarDay;
+  }
+  calendarClear.addEventListener("click", () => {
+    activeCalendarDay = "";
+    renderTaskQueue();
+  });
   // Dashboard counts are derived from existing local tasks, never guessed or fetched.
   function renderTaskDashboard() {
     const counts = summarizeTaskQueue(taskQueue);
@@ -631,19 +682,24 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     }
     const visibleTasks = filterTaskDeadlines(
       filterTaskQueue(taskQueue, activeTaskFilter), activeDeadlineFilter, today
-    );
+    ).filter(task => !activeCalendarDay || (
+      getTaskSchedule(task).dueDate === activeCalendarDay
+      && task.status !== TASK_STATES.DONE && task.status !== TASK_STATES.SUCCEEDED
+    ));
     const names = { pending: "pending / needs attention", in_progress: "in progress", done: "done" };
     const selected = searchAndSortTaskQueue(visibleTasks, taskSearchInput.value, taskSortSelect.value);
     const searchText = taskSearchInput.value.trim();
     const label = activeTaskFilter === "all" ? "tasks" : names[activeTaskFilter] + " tasks";
     const dueLabel = { today: " · due today", overdue: " · overdue", all: "" }[activeDeadlineFilter];
+    const calendarLabel = activeCalendarDay ? " · due " + activeCalendarDay : "";
     taskFilterSummary.textContent = "Showing " + selected.length + " of " + counts.all + " " + label
-      + dueLabel + (searchText ? " matching your search" : "") + " · saved on this device.";
+      + dueLabel + calendarLabel + (searchText ? " matching your search" : "") + " · saved on this device.";
     return selected;
   }
   function renderTaskQueue() {
     taskCount.textContent = taskQueue.length + "/30";
     renderTaskInsights();
+    renderUpcomingCalendar();
     const visibleTasks = renderTaskDashboard();
     taskList.replaceChildren();
     if (!visibleTasks.length) {
@@ -653,9 +709,11 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         ? "No tasks yet. Add a task you want JOMY to organize."
         : taskSearchInput.value.trim()
           ? "No tasks match your search. Try a different name or clear search."
-          : activeDeadlineFilter !== "all"
-            ? "No tasks due in this view. Tap ALL DATES to see other tasks."
-            : "No tasks match this filter. Tap TOTAL to see all tasks.";
+          : activeCalendarDay
+            ? "No unfinished tasks due on " + activeCalendarDay + ". Tap SHOW ALL DATES in Calendar."
+            : activeDeadlineFilter !== "all"
+              ? "No tasks due in this view. Tap ALL DATES to see other tasks."
+              : "No tasks match this filter. Tap TOTAL to see all tasks.";
       taskList.append(empty);
       return;
     }
@@ -1182,6 +1240,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         saveTaskQueue();
         activeTaskFilter = "all"; // Newly added task should always be visible.
         activeDeadlineFilter = "all";
+        activeCalendarDay = "";
         taskSearchInput.value = "";
         renderTaskQueue();
         wakeActivityBoard();
@@ -1356,6 +1415,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       saveTaskQueue();
       activeTaskFilter = "all"; // Newly added task should always be visible.
       activeDeadlineFilter = "all";
+      activeCalendarDay = "";
       taskSearchInput.value = "";
       renderTaskQueue();
       taskInput.value = "";

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
-  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal
+  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar
 } from "../src/task-engine.js";
 
 test("creates bounded queued tasks", () => {
@@ -892,4 +892,90 @@ test("JOMY 3.2 goal enforces 1 to 30 and safely rolls over New Year", () => {
   assert.deepEqual([x.weekStart,x.weekEnd],["2026-12-28","2027-01-03"]);
   const y=summarizeWeeklyTaskGoal([],3,new Date(2027,0,4,10));
   assert.deepEqual([y.weekStart,y.weekEnd],["2027-01-04","2027-01-10"]);
+});
+
+
+test("JOMY 3.3 Upcoming Calendar groups next 7 days by device-local date", () => {
+  const today = new Date(2026,10,20,12);
+  const queue = [
+    {id:"today",title:"Due today",status:TASK_STATES.READY,dueDate:"2026-11-20",priority:"medium"},
+    {id:"tomorrow",title:"Due tomorrow",status:TASK_STATES.FAILED,dueDate:"2026-11-21",priority:"low"},
+    {id:"last",title:"Last day",status:TASK_STATES.IN_PROGRESS,dueDate:"2026-11-26",priority:"none"},
+    {id:"late",title:"Later",status:TASK_STATES.READY,dueDate:"2026-11-27",priority:"high"},
+    {id:"over",title:"Yesterday",status:TASK_STATES.READY,dueDate:"2026-11-19",priority:"high"},
+    {id:"unset",title:"Unscheduled",status:TASK_STATES.READY},
+    {id:"done",title:"Done yesterday",status:TASK_STATES.DONE,dueDate:"2026-11-19"},
+    {id:"succeeded",title:"Legacy succeeded",status:TASK_STATES.SUCCEEDED,dueDate:"2026-11-20"}
+  ];
+  const snapshot=JSON.stringify(queue);
+  const result=summarizeUpcomingCalendar(queue,today);
+  assert.equal(result.today,"2026-11-20");
+  assert.deepEqual(result.days.map(x=>x.date),[
+    "2026-11-20","2026-11-21","2026-11-22","2026-11-23",
+    "2026-11-24","2026-11-25","2026-11-26"
+  ]);
+  assert.deepEqual([result.open,result.upcoming,result.overdue,result.unscheduled,result.later],
+    [6,3,1,1,1]);
+  assert.deepEqual(result.days[0].tasks.map(x=>x.id),["today"]);
+  assert.deepEqual(result.days[1].tasks.map(x=>x.id),["tomorrow"]);
+  assert.deepEqual(result.days[6].tasks.map(x=>x.id),["last"]);
+  assert.deepEqual(result.days[2].tasks,[]);
+  assert.equal(JSON.stringify(queue),snapshot,"Calendar must not mutate saved tasks");
+});
+
+test("JOMY 3.3 calendar sorts daily tasks by priority without changing records", () => {
+  const queue = [
+    {id:"low",title:"Low",status:TASK_STATES.READY,dueDate:"2026-11-20",priority:"low"},
+    {id:"high1",title:"High 1",status:TASK_STATES.BLOCKED,dueDate:"2026-11-20",priority:"high"},
+    {id:"none",title:"Unranked",status:TASK_STATES.QUEUED,dueDate:"2026-11-20"},
+    {id:"high2",title:"High 2",status:TASK_STATES.READY,dueDate:"2026-11-20",priority:"high"},
+    {id:"medium",title:"Medium",status:TASK_STATES.READY,dueDate:"2026-11-20",priority:"medium"}
+  ];
+  const before=JSON.stringify(queue);
+  const result=summarizeUpcomingCalendar(queue,new Date(2026,10,20,18));
+  assert.deepEqual(result.days[0].tasks.map(x=>x.id),
+    ["high1","high2","medium","low","none"]);
+  assert.deepEqual(result.days[0].tasks.map(x=>x.priority),
+    ["high","high","medium","low","none"]);
+  assert.equal(JSON.stringify(queue),before);
+});
+
+test("JOMY 3.3 calendar handles leap day, New Year, invalid and legacy dates safely", () => {
+  const now=new Date(2026,11,29,12);
+  const queue=[
+    {id:"end",title:"Year end",status:TASK_STATES.READY,dueDate:"2026-12-31"},
+    {id:"next",title:"New year",status:TASK_STATES.READY,dueDate:"2027-01-04"},
+    {id:"invalid",title:"Old bad date",status:TASK_STATES.READY,dueDate:"2026-02-30"},
+    {id:"blank",title:"Blank",status:TASK_STATES.READY,dueDate:""},
+    {id:"missing",title:"Missing",status:TASK_STATES.DONE}
+  ];
+  const r=summarizeUpcomingCalendar(queue,now);
+  assert.deepEqual(r.days.map(d=>d.date),[
+    "2026-12-29","2026-12-30","2026-12-31","2027-01-01",
+    "2027-01-02","2027-01-03","2027-01-04"
+  ]);
+  assert.equal(r.days[2].tasks.length,1);
+  assert.equal(r.days[6].tasks.length,1);
+  assert.equal(r.unscheduled,2);
+  assert.equal(r.overdue,0);
+  assert.throws(()=>summarizeUpcomingCalendar([],"bad-date"),/Invalid calendar date/);
+  assert.deepEqual(summarizeUpcomingCalendar(null,new Date(2026,10,20)).days.map(x=>x.tasks.length),[0,0,0,0,0,0,0]);
+  const leap=summarizeUpcomingCalendar([],new Date(2028,1,27,12));
+  assert.deepEqual(leap.days.slice(0,3).map(x=>x.date),["2028-02-27","2028-02-28","2028-02-29"]);
+});
+
+test("JOMY 3.3 calendar reacts to manual due-date edit and completed status", () => {
+  const now=new Date(2026,10,20,14);
+  const task={...createTask("Sample",now.getTime()),status:TASK_STATES.READY};
+  let r=summarizeUpcomingCalendar([task],now);
+  assert.equal(r.unscheduled,1);
+  const dated=setTaskSchedule(task,{dueDate:"2026-11-22"},now.getTime()+10);
+  r=summarizeUpcomingCalendar([dated],now);
+  assert.equal(r.upcoming,1);
+  assert.equal(r.unscheduled,0);
+  assert.equal(r.days[2].tasks[0].title,"Sample");
+  const done=transitionTask(dated,TASK_STATES.DONE,{},now.getTime()+20);
+  r=summarizeUpcomingCalendar([done],now);
+  assert.deepEqual([r.upcoming,r.overdue,r.unscheduled,r.open],[0,0,0,0]);
+  assert.equal(task.dueDate,undefined);
 });
