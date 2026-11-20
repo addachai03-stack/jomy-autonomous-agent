@@ -562,8 +562,8 @@ test("JOMY 3.3 calendar composes with status/search filters without changing tas
   assert.match(dashboard,/task.status !== TASK_STATES.DONE && task.status !== TASK_STATES.SUCCEEDED/);
   assert.match(dashboard,/filterTaskQueue\(taskQueue, activeTaskFilter\)/);
   assert.match(dashboard,/searchAndSortTaskQueue\(visibleTasks, taskSearchInput.value, taskSortSelect.value\)/);
-  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount.textContent = taskQueue.length \+ "\/30";\s+renderTaskInsights\(\);\s+renderUpcomingCalendar\(\)/);
-  assert.match(app,/activeCalendarDay = "";\s+taskSearchInput.value = "";\s+renderTaskQueue\(\)/);
+  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount.textContent = taskQueue.length \+ "\/30";\s+renderTaskInsights\(\);\s+renderDailyFocus\(\);\s+renderUpcomingCalendar\(\)/);
+  assert.match(app,/activeCalendarDay = "";\s+activeFocusTaskId = "";\s+taskSearchInput.value = "";\s+renderTaskQueue\(\)/);
   assert.match(app,/const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
   assert.match(app,/const MEMORY_KEY = "jomy_agent_personal_memory_v1"/);
 });
