@@ -274,3 +274,13 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-transfer-actions a,.task-transfer-actions button{display:flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:44px;padding:9px;text-align:center;background:#30251b;border:1px solid #d9bb81;border-radius:9px;color:#f1d39a;font:800 11px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-decoration:none;cursor:pointer}
 .task-transfer-actions a:focus-visible,.task-transfer-actions button:focus-visible{outline:2px solid #f2d99a;outline-offset:3px}
 @media(max-width:400px){.task-transfer-actions{grid-template-columns:minmax(0,1fr)}}
+
+
+/* Local manual quick-add: clear mode choice and 44px iPhone touch targets. */
+.task-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.task-form input{grid-column:1/-1;min-height:44px}
+.task-form button{box-sizing:border-box;min-height:44px;padding:9px 7px;line-height:1.4;letter-spacing:.025em}
+.task-form button[value="manual"]{background:#243349;color:#f3d59b;border:1px solid #e2c08288}
+.task-form button:focus-visible{outline:2px solid #f2d79a;outline-offset:2px}
+.task-add-status{font-size:11px;line-height:1.5;color:#becbdc;margin:8px 0 13px;overflow-wrap:anywhere}
+@media(max-width:350px){.task-form button{font-size:9px;letter-spacing:0}}
