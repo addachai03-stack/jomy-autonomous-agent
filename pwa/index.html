@@ -56,6 +56,13 @@
           <button type="button" class="task-stat" data-task-filter="done" aria-pressed="false"><span class="task-stat-label">DONE</span><strong class="task-stat-number">0</strong></button>
         </div>
         <p class="task-dashboard-summary" id="taskFilterSummary" aria-live="polite">Showing all tasks saved on this device.</p>
+        <details class="task-focus-panel" id="taskFocusPanel">
+          <summary>SMART DAILY PLANNER <span>TOP 5 · DEVICE ONLY</span></summary>
+          <p>Today's rule-based suggestions from your saved deadlines and priorities. Open a task to review it manually; no AI execution or reminders.</p>
+          <p class="task-focus-overview" id="focusOverview" role="status" aria-live="polite">Calculating your daily focus…</p>
+          <div id="focusList" class="task-focus-list" role="list" aria-label="Suggested manual tasks for today"></div>
+          <p class="task-focus-footnote" id="focusFootnote">Based on unfinished tasks saved on this device; no task statuses are changed.</p>
+        </details>
         <details class="task-calendar-panel" id="taskCalendarPanel">
           <summary>UPCOMING TASKS CALENDAR <span>NEXT 7 DAYS · DEVICE ONLY</span></summary>
           <p>Upcoming deadlines for unfinished saved tasks. Tap a day to view its tasks in MY TASK QUEUE. No reminders or automatic execution.</p>
