@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, createManualTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, summarizeDailyTaskProgress, TASK_STATES } from "./task-engine.js";
+import { createTask, createManualTask, addTask, persistTaskQueueSafely, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, summarizeDailyTaskProgress, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -24,6 +24,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const taskPanel = $("taskPanel");
   const taskForm = $("taskForm");
   const taskAddStatus = $("taskAddStatus");
+  const taskStorageStatus = $("taskStorageStatus");
   const taskInput = $("taskInput");
   const taskSearchInput = $("taskSearchInput");
   const taskSortSelect = $("taskSortSelect");
@@ -256,9 +257,20 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       $("activityChevron").textContent = "−";
     }
   }
-  function saveTaskQueue() {
-    taskQueue = taskQueue.slice(-30);
-    try { localStorage.setItem(TASK_QUEUE_KEY, JSON.stringify(taskQueue)); } catch (_) {}
+  function persistTaskQueue(nextQueue) {
+    try {
+      // Commit first. Never modify the visible queue if Safari storage rejects the write.
+      const saved = persistTaskQueueSafely(nextQueue, localStorage, TASK_QUEUE_KEY);
+      taskQueue = saved;
+      taskStorageStatus.hidden = true;
+      taskStorageStatus.textContent = "";
+      return true;
+    } catch (error) {
+      taskStorageStatus.hidden = false;
+      taskStorageStatus.textContent = "Changes NOT saved on this iPhone. Your previous tasks are unchanged. Check Safari storage, then retry or EXPORT JSON. "
+        + (error?.name === "QuotaExceededError" ? "Storage is full." : "Storage write failed.");
+      throw error;
+    }
   }
   // Other Preview subdomains have isolated browser storage. Never attempt a
   // cross-origin read or claim an automatic sync: use the existing validated,
@@ -426,8 +438,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     }
   }
   function updateTask(taskId, updater) {
-    taskQueue = taskQueue.map(task => task.id === taskId ? updater(task) : task);
-    saveTaskQueue();
+    const nextQueue = taskQueue.map(task => task.id === taskId ? updater(task) : task);
+    persistTaskQueue(nextQueue);
     renderTaskQueue();
   }
   // Explicit local-save only; task notes never enter AI planning or network calls.
@@ -1089,9 +1101,12 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       remove.textContent = "×";
       remove.setAttribute("aria-label", "Remove task");
       remove.addEventListener("click", () => {
-        taskQueue = taskQueue.filter(entry => entry.id !== task.id);
-        saveTaskQueue();
-        renderTaskQueue();
+        try {
+          persistTaskQueue(taskQueue.filter(entry => entry.id !== task.id));
+          renderTaskQueue();
+        } catch (error) {
+          console.warn("JOMY_TASK_REMOVE_NOT_SAVED", error?.name || "Error");
+        }
       });
       actions.append(remove);
       item.append(details, actions);
@@ -1346,9 +1361,9 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     const explicitTask = text.match(/^(?:task|kaam)\s*:\s*([\s\S]+)$/i);
     if (explicitTask && explicitTask[1].trim()) {
       try {
+        if (taskQueue.length >= 30) throw new RangeError("Task Queue full (30/30). Export or remove a task first.");
         const task = createTask(explicitTask[1].trim());
-        taskQueue = addTask(taskQueue, task);
-        saveTaskQueue();
+        persistTaskQueue(addTask(taskQueue, task));
         activeTaskFilter = "all"; // Newly added task should always be visible.
         activeDeadlineFilter = "all";
         activeCalendarDay = "";
