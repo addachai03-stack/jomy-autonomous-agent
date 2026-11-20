@@ -84,6 +84,21 @@
             <button type="button" class="task-report-download" id="reportExport">DOWNLOAD PRIVATE CSV</button>
             <p class="task-report-status" id="reportStatus" role="status" aria-live="polite">Exports daily counts only. No task titles, notes, tags, tokens or private details.</p>
           </div>
+          <section class="task-weekly-goal" aria-label="Weekly productivity goal" id="weeklyGoalPanel">
+            <div class="task-weekly-heading"><strong>WEEKLY GOAL</strong><span>MON – SUN · DEVICE ONLY</span></div>
+            <p class="task-weekly-period" id="weeklyGoalPeriod">Current week · manual DONE only</p>
+            <form id="weeklyGoalForm" class="task-weekly-form">
+              <label for="weeklyGoalInput">Manual tasks to complete this week</label>
+              <div class="task-weekly-form-row">
+                <input id="weeklyGoalInput" inputmode="numeric" type="number" min="1" max="30" step="1" required value="5" aria-label="Weekly manual completion target">
+                <button type="submit">SAVE GOAL</button>
+              </div>
+            </form>
+            <div class="task-weekly-progress-label"><strong id="weeklyGoalProgress">0 / 5 completed</strong><span id="weeklyGoalPercentage">0%</span></div>
+            <div class="task-weekly-progress" role="progressbar" id="weeklyGoalBar" aria-label="Weekly manual completion goal" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="weeklyGoalFill"></span></div>
+            <p id="weeklyGoalStatus" class="task-weekly-status" role="status" aria-live="polite">Goal not saved yet. Save a target to start tracking.</p>
+            <p class="task-weekly-hint">Only currently DONE manual tasks with a recorded completion date count. Reopening a task removes it from the current total. No reminders or notifications.</p>
+          </section>
         </details>
         <details class="task-backup-panel" id="taskBackupPanel">
           <summary>BACKUP &amp; RESTORE TASKS <span>DEVICE ONLY</span></summary>
