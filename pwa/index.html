@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=56">
+  <link rel="stylesheet" href="/styles.css?v=57">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -56,6 +56,7 @@
           <button type="button" class="task-stat" data-task-filter="done" aria-pressed="false"><span class="task-stat-label">DONE</span><strong class="task-stat-number">0</strong></button>
         </div>
         <p class="task-dashboard-summary" id="taskFilterSummary" aria-live="polite">Showing all tasks saved on this device.</p>
+        <p class="task-storage-status" id="taskStorageStatus" role="alert" hidden></p>
         <section class="task-transfer-panel" id="taskTransferPanel" aria-label="Restore tasks from older preview" hidden>
           <strong>USED AN OLDER JOMY PREVIEW?</strong>
           <p>0 tasks here does not mean your older tasks were deleted. Each Preview address has its own private iPhone browser storage. A different address cannot read it automatically.</p>
@@ -359,6 +360,6 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=56"></script>
+  <script type="module" src="/app.js?v=57"></script>
 </body>
 </html>
