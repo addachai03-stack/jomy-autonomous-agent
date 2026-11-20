@@ -855,3 +855,33 @@ export function summarizeDailyFocusPlan(queue, now = new Date(), limit = 5) {
   const focus = candidates.slice(0, limit).map(({categoryRank,originalIndex,...entry}) => entry);
   return { today, focus, totalOpen: candidates.length, counts };
 }
+
+/**
+ * JOMY 3.5 — snapshot-only manual daily progress for retained local tasks.
+ * Numerator: currently DONE tasks with an actual valid manual completion date today.
+ * Denominator: those completions + all currently unfinished saved tasks.
+ * This deliberately is NOT a fixed daily target or a history of work executed.
+ */
+export function summarizeDailyTaskProgress(queue, now = new Date()) {
+  const current = now instanceof Date ? new Date(now.getTime()) : new Date(now);
+  if (!Number.isFinite(current.getTime())) throw new TypeError("Invalid daily progress date.");
+  const today = localCalendarDate(current);
+  let completedToday = 0;
+  let unfinished = 0;
+  for (const task of (Array.isArray(queue) ? queue : [])) {
+    if (!task || typeof task.id !== "string" || typeof task.title !== "string" ||
+        typeof task.status !== "string") continue;
+    if (task.status === TASK_STATES.DONE) {
+      if (typeof task.manualCompletedAt !== "string" || !task.manualCompletedAt.trim()) continue;
+      const completedAt = new Date(task.manualCompletedAt);
+      if (Number.isFinite(completedAt.getTime()) && localCalendarDate(completedAt) === today) {
+        completedToday++;
+      }
+    } else if (task.status !== TASK_STATES.SUCCEEDED) {
+      unfinished++;
+    }
+  }
+  const total = completedToday + unfinished;
+  return { today, completedToday, unfinished, total,
+    percent: total ? Math.round(completedToday / total * 100) : 0 };
+}
