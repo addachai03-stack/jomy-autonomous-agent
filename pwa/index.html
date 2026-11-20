@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=55">
+  <link rel="stylesheet" href="/styles.css?v=56">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -152,7 +152,8 @@
           <div id="taskTemplateList" class="task-template-list" aria-live="polite"></div>
           <p id="taskTemplateStatus" class="task-template-status" role="status" aria-live="polite">Templates are saved only in this browser. Using one does not contact the AI or execute work.</p>
         </details>
-        <form class="task-form" id="taskForm"><label class="sr-only" for="taskInput">Add a task</label><input id="taskInput" maxlength="4000" placeholder="Add a task for JOMY to organize…" autocomplete="off"><button type="submit">ADD</button></form>
+        <form class="task-form" id="taskForm"><label class="sr-only" for="taskInput">Add a task</label><input id="taskInput" maxlength="4000" placeholder="Apna task likho…" autocomplete="off" required><button type="submit" name="taskMode" value="manual">SAVE MANUAL</button><button type="submit" name="taskMode" value="plan">ADD &amp; PLAN (AI)</button></form>
+        <p class="task-add-status" id="taskAddStatus" role="status" aria-live="polite">SAVE MANUAL works without AI token. ADD &amp; PLAN needs the owner API token; neither mode executes outside actions.</p>
         <div class="task-browse-controls" role="group" aria-label="Find and sort saved tasks">
           <label class="sr-only" for="taskSearchInput">Search tasks by name or details</label>
           <input id="taskSearchInput" type="search" inputmode="search" maxlength="120" placeholder="Search saved tasks…" autocomplete="off" aria-controls="taskList">
@@ -358,6 +359,6 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=55"></script>
+  <script type="module" src="/app.js?v=56"></script>
 </body>
 </html>
