@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -42,6 +42,10 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const taskCount = $("taskCount");
   const taskDashboard = $("taskDashboard");
   const taskFilterSummary = $("taskFilterSummary");
+  const taskFocusSummary = $("taskFocusSummary");
+  const taskFocusList = $("taskFocusList");
+  const taskFocusClear = $("taskFocusClear");
+  let activeFocusTaskId = "";
   const calendarSummary = $("calendarSummary");
   const calendarDays = $("calendarDays");
   const calendarClear = $("calendarClear");
@@ -619,6 +623,62 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       + (analytics.undatedCompleted ? " " + analytics.undatedCompleted + " finished task(s) have no usable completion date." : "")
       + " No server analytics, reminders or external execution.";
   }
+  // JOMY 3.4: a read-only daily shortlist from local tasks. Nothing is executed.
+  function renderDailyFocus() {
+    const plan = summarizeDailyFocusPlan(taskQueue, new Date(), 5);
+    if (activeFocusTaskId && !plan.focus.some(item => item.id === activeFocusTaskId)) {
+      activeFocusTaskId = "";
+    }
+    const {overdue, dueToday, highPriority} = plan.counts;
+    taskFocusSummary.textContent = plan.focus.length + " suggested of " + plan.totalOpen
+      + " unfinished · " + overdue + " overdue · " + dueToday
+      + " due today · " + highPriority + " other high priority";
+    taskFocusList.replaceChildren();
+    if (!plan.focus.length) {
+      const empty = document.createElement("p");
+      empty.className = "task-focus-empty";
+      empty.textContent = "No unfinished tasks. Add a task to see today's focus.";
+      taskFocusList.append(empty);
+    }
+    const categories = {
+      overdue: "OVERDUE", dueToday: "DUE TODAY",
+      highPriority: "HIGH PRIORITY", upcoming: "UPCOMING", other: "OTHER"
+    };
+    for (const [index, item] of plan.focus.entries()) {
+      const row = document.createElement("div");
+      row.className = "task-focus-item";
+      const summary = document.createElement("div");
+      summary.className = "task-focus-item-summary";
+      const heading = document.createElement("strong");
+      heading.textContent = (index + 1) + ". " + item.title;
+      const meta = document.createElement("small");
+      meta.textContent = categories[item.category] + " · "
+        + (item.priority === "none" ? "No priority" : item.priority.toUpperCase())
+        + (item.dueDate ? " · due " + item.dueDate : "");
+      summary.append(heading, meta);
+      const view = document.createElement("button");
+      view.type = "button";
+      view.className = "task-focus-view";
+      view.textContent = "VIEW TASK";
+      view.setAttribute("aria-pressed", String(activeFocusTaskId === item.id));
+      view.setAttribute("aria-label", "Show focus task: " + item.title);
+      view.addEventListener("click", () => {
+        activeFocusTaskId = activeFocusTaskId === item.id ? "" : item.id;
+        activeCalendarDay = "";
+        activeTaskFilter = "all";
+        activeDeadlineFilter = "all";
+        taskSearchInput.value = "";
+        renderTaskQueue();
+      });
+      row.append(summary, view);
+      taskFocusList.append(row);
+    }
+    taskFocusClear.disabled = !activeFocusTaskId;
+  }
+  taskFocusClear.addEventListener("click", () => {
+    activeFocusTaskId = "";
+    renderTaskQueue();
+  });
   // Local-calendar date view: no external requests, no storage writes and no timers.
   function renderUpcomingCalendar() {
     const overview = summarizeUpcomingCalendar(taskQueue, new Date());
@@ -651,6 +711,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       button.append(preview);
       button.addEventListener("click", () => {
         activeCalendarDay = activeCalendarDay === day.date ? "" : day.date;
+        activeFocusTaskId = "";
         activeTaskFilter = "all";
         activeDeadlineFilter = "all";
         taskSearchInput.value = "";
@@ -682,23 +743,27 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     }
     const visibleTasks = filterTaskDeadlines(
       filterTaskQueue(taskQueue, activeTaskFilter), activeDeadlineFilter, today
-    ).filter(task => !activeCalendarDay || (
-      getTaskSchedule(task).dueDate === activeCalendarDay
-      && task.status !== TASK_STATES.DONE && task.status !== TASK_STATES.SUCCEEDED
-    ));
+    ).filter(task => (!activeFocusTaskId || task.id === activeFocusTaskId)
+      && (!activeCalendarDay || (
+        getTaskSchedule(task).dueDate === activeCalendarDay
+        && task.status !== TASK_STATES.DONE && task.status !== TASK_STATES.SUCCEEDED
+      )));
     const names = { pending: "pending / needs attention", in_progress: "in progress", done: "done" };
     const selected = searchAndSortTaskQueue(visibleTasks, taskSearchInput.value, taskSortSelect.value);
     const searchText = taskSearchInput.value.trim();
     const label = activeTaskFilter === "all" ? "tasks" : names[activeTaskFilter] + " tasks";
     const dueLabel = { today: " · due today", overdue: " · overdue", all: "" }[activeDeadlineFilter];
     const calendarLabel = activeCalendarDay ? " · due " + activeCalendarDay : "";
+    const focusLabel = activeFocusTaskId ? " · daily focus selected" : "";
     taskFilterSummary.textContent = "Showing " + selected.length + " of " + counts.all + " " + label
-      + dueLabel + calendarLabel + (searchText ? " matching your search" : "") + " · saved on this device.";
+      + dueLabel + calendarLabel + focusLabel + (searchText ? " matching your search" : "")
+      + " · saved on this device.";
     return selected;
   }
   function renderTaskQueue() {
     taskCount.textContent = taskQueue.length + "/30";
     renderTaskInsights();
+    renderDailyFocus();
     renderUpcomingCalendar();
     const visibleTasks = renderTaskDashboard();
     taskList.replaceChildren();
@@ -709,9 +774,11 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         ? "No tasks yet. Add a task you want JOMY to organize."
         : taskSearchInput.value.trim()
           ? "No tasks match your search. Try a different name or clear search."
-          : activeCalendarDay
-            ? "No unfinished tasks due on " + activeCalendarDay + ". Tap SHOW ALL DATES in Calendar."
-            : activeDeadlineFilter !== "all"
+          : activeFocusTaskId
+            ? "Selected focus task is not visible. Tap SHOW ALL TASKS in Daily Planner."
+            : activeCalendarDay
+              ? "No unfinished tasks due on " + activeCalendarDay + ". Tap SHOW ALL DATES in Calendar."
+              : activeDeadlineFilter !== "all"
               ? "No tasks due in this view. Tap ALL DATES to see other tasks."
               : "No tasks match this filter. Tap TOTAL to see all tasks.";
       taskList.append(empty);
