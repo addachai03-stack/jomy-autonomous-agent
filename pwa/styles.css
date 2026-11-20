@@ -263,3 +263,14 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-focus-reset:disabled{opacity:.45;cursor:not-allowed}
 .task-focus-empty{margin:5px 0 10px!important;color:#aab8c8}
 @media(max-width:400px){.task-focus-panel{padding:0 9px}.task-focus-panel summary{font-size:10px}.task-focus-panel summary span{font-size:8px}.task-focus-item{flex-direction:column;align-items:stretch}.task-focus-view{width:100%}}
+
+
+/* Preview migration notice: no cross-origin access, user-confirmed JSON import only. */
+.task-transfer-panel{box-sizing:border-box;margin:11px 0;padding:12px;border:1px solid #d9ba7e7d;border-radius:11px;background:#172335;color:#ead3a7}
+.task-transfer-panel[hidden]{display:none!important}
+.task-transfer-panel>strong{display:block;font-size:11px;letter-spacing:.06em}
+.task-transfer-panel p{font-size:11px;line-height:1.6;color:#c5d0de;margin:8px 0 10px}
+.task-transfer-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.task-transfer-actions a,.task-transfer-actions button{display:flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:44px;padding:9px;text-align:center;background:#30251b;border:1px solid #d9bb81;border-radius:9px;color:#f1d39a;font:800 11px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-decoration:none;cursor:pointer}
+.task-transfer-actions a:focus-visible,.task-transfer-actions button:focus-visible{outline:2px solid #f2d99a;outline-offset:3px}
+@media(max-width:400px){.task-transfer-actions{grid-template-columns:minmax(0,1fr)}}
