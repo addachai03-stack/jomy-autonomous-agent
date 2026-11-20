@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v55 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v56 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=55"/);
-  assert.match(html, /src="\/app\.js\?v=55"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v55"/);
-  assert.match(worker, /"\/styles\.css\?v=55"/);
-  assert.match(worker, /"\/app\.js\?v=55"/);
+  assert.match(html, /href="\/styles\.css\?v=56"/);
+  assert.match(html, /src="\/app\.js\?v=56"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v56"/);
+  assert.match(worker, /"\/styles\.css\?v=56"/);
+  assert.match(worker, /"\/app\.js\?v=56"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -665,4 +665,25 @@ test("JOMY 3.5 shows non-destructive old-preview restore guidance only for an em
   assert.match(css,/\.task-transfer-panel\[hidden\]\{display:none!important\}/);
   assert.match(css,/\.task-transfer-actions a,\.task-transfer-actions button\{[^\n]*min-height:44px/);
   assert.doesNotMatch(queue,/localStorage\.|sessionStorage\.|password|secret/i);
+});
+
+test("JOMY manual quick-add is no-token, non-destructive and iPhone accessible", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  const form=html.split('<form class="task-form" id="taskForm">')[1]
+    ?.split("</form>")[0]||"";
+  const submit=app.split('  taskForm.addEventListener("submit", (event) => {')[1]
+    ?.split('  chatForm.addEventListener("submit"',1)[0]||"";
+  assert.ok(form && submit);
+  assert.match(form,/type="submit" name="taskMode" value="manual">SAVE MANUAL/);
+  assert.match(form,/type="submit" name="taskMode" value="plan">ADD &amp; PLAN/);
+  assert.match(html,/id="taskAddStatus" role="status" aria-live="polite"/);
+  assert.match(submit,/event.submitter\?\.value === "manual"/);
+  assert.match(submit,/taskQueue.length >= 30/);
+  assert.match(submit,/const task = manual \? createManualTask\(title\) : createTask\(title\)/);
+  assert.match(submit,/localStorage.setItem\(TASK_QUEUE_KEY, JSON.stringify\(nextQueue\)\);\s+taskQueue = nextQueue/);
+  assert.match(submit,/if \(!manual\) \{\s+wakeActivityBoard\(\);\s+planTask\(task.id\)/);
+  assert.match(submit,/taskAddStatus.textContent = "Task not saved:/);
+  assert.match(css,/\.task-form button\{[^\n]*min-height:44px/);
+  assert.match(app,/const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
 });
