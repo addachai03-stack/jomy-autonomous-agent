@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
+  TASK_STATES, createTask, createManualTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
   actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, summarizeDailyTaskProgress
 } from "../src/task-engine.js";
 
@@ -1102,4 +1102,20 @@ test("JOMY 3.5 daily progress handles empty queue, invalid inputs and year rollo
     {id:"jan",title:"January completion",status:TASK_STATES.DONE,manualCompletedAt:janStamp}
   ],jan).completedToday,1);
   assert.throws(()=>summarizeDailyTaskProgress([],"bad-date"),/Invalid daily progress date/);
+});
+
+test("JOMY manual quick-add creates device-only READY tasks without planning", () => {
+  const task=createManualTask("  My real task  ",new Date(2026,10,21,12).getTime());
+  assert.equal(task.title,"My real task");
+  assert.equal(task.status,TASK_STATES.READY);
+  assert.deepEqual(task.steps,[]);
+  assert.equal(task.plan.source,"local");
+  assert.match(task.plan.summary,/No AI planning or external action ran/);
+  assert.equal(task.attempts,0);
+  assert.equal(task.manualCompletedAt,undefined);
+  assert.throws(()=>createManualTask(" "),/1–4000/);
+  assert.throws(()=>createManualTask("x".repeat(4001)),/1–4000/);
+  const completed=transitionTask(task,TASK_STATES.DONE,{},new Date(2026,10,21,13).getTime());
+  assert.equal(summarizeDailyTaskProgress([completed],new Date(2026,10,21,14)).percent,100);
+  assert.equal(task.status,TASK_STATES.READY,"original record stays unchanged");
 });
