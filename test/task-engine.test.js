@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  TASK_STATES, createTask, createManualTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
+  TASK_STATES, createTask, createManualTask, addTask, persistTaskQueueSafely, transitionTask, retryTask, recoverInterruptedTasks,
   actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, summarizeDailyTaskProgress
 } from "../src/task-engine.js";
 
@@ -1118,4 +1118,38 @@ test("JOMY manual quick-add creates device-only READY tasks without planning", (
   const completed=transitionTask(task,TASK_STATES.DONE,{},new Date(2026,10,21,13).getTime());
   assert.equal(summarizeDailyTaskProgress([completed],new Date(2026,10,21,14)).percent,100);
   assert.equal(task.status,TASK_STATES.READY,"original record stays unchanged");
+});
+
+
+test("JOMY Safari storage safety writes before exposing a new task snapshot", () => {
+  const current=[{id:"old",title:"Existing task",status:TASK_STATES.READY}];
+  const next=[...current,{id:"new",title:"New task",status:TASK_STATES.READY}];
+  const writes=[];
+  const storage={setItem:(key,data)=>writes.push({key,data})};
+  const result=persistTaskQueueSafely(next,storage,"jomy_agent_task_queue_v1");
+  assert.equal(result,next);
+  assert.deepEqual(writes,[{key:"jomy_agent_task_queue_v1",data:JSON.stringify(next)}]);
+  assert.equal(current.length,1);
+  assert.equal(next.length,2);
+});
+
+test("JOMY storage safety preserves existing queue when Safari rejects the write", () => {
+  const current=[{id:"saved",title:"Keep me",status:TASK_STATES.READY}];
+  const snapshot=JSON.stringify(current);
+  let calls=0;
+  const blocked={setItem:()=>{calls++;const err=new Error("Quota exceeded");err.name="QuotaExceededError";throw err;}};
+  const next=current.map(task=>({...task,status:TASK_STATES.DONE}));
+  assert.throws(()=>persistTaskQueueSafely(next,blocked,"jomy_agent_task_queue_v1"),/Quota exceeded/);
+  assert.equal(calls,1);
+  assert.equal(JSON.stringify(current),snapshot,"Original task state remains untouched");
+  assert.equal(current[0].status,TASK_STATES.READY);
+});
+
+test("JOMY storage safety never silently evicts old tasks on a full queue", () => {
+  const queue=Array.from({length:31},(_,i)=>({id:String(i),title:"Task "+i,status:TASK_STATES.READY}));
+  let wrote=false;
+  const fake={setItem:()=>{wrote=true;}};
+  assert.throws(()=>persistTaskQueueSafely(queue,fake,"jomy_agent_task_queue_v1"),/exceeds 30/);
+  assert.equal(wrote,false);
+  assert.throws(()=>persistTaskQueueSafely([],null,"jomy_agent_task_queue_v1"),/Valid local task storage/);
 });
