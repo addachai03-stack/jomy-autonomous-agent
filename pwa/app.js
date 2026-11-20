@@ -312,6 +312,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       taskBackupImport.disabled = true;
       activeTaskFilter = "all";
       activeDeadlineFilter = "all";
+      activeCalendarDay = "";
       taskSearchInput.value = "";
       renderTaskQueue();
       taskBackupStatus.textContent = "Imported " + preview.imported + " new tasks. "
@@ -358,6 +359,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
           taskQueue = next;
           activeTaskFilter = "all";
           activeDeadlineFilter = "all";
+          activeCalendarDay = "";
           taskSearchInput.value = "";
           renderTaskQueue();
           taskTemplateStatus.textContent = "Created a new READY manual task from " + template.title
@@ -1238,6 +1240,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         saveTaskQueue();
         activeTaskFilter = "all"; // Newly added task should always be visible.
         activeDeadlineFilter = "all";
+        activeCalendarDay = "";
         taskSearchInput.value = "";
         renderTaskQueue();
         wakeActivityBoard();
@@ -1412,6 +1415,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       saveTaskQueue();
       activeTaskFilter = "all"; // Newly added task should always be visible.
       activeDeadlineFilter = "all";
+      activeCalendarDay = "";
       taskSearchInput.value = "";
       renderTaskQueue();
       taskInput.value = "";
