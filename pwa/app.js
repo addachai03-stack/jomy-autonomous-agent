@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -55,6 +55,14 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const reportTopDay = $("reportTopDay");
   const reportExport = $("reportExport");
   const reportStatus = $("reportStatus");
+  const weeklyGoalForm = $("weeklyGoalForm");
+  const weeklyGoalInput = $("weeklyGoalInput");
+  const weeklyGoalPeriod = $("weeklyGoalPeriod");
+  const weeklyGoalProgress = $("weeklyGoalProgress");
+  const weeklyGoalPercentage = $("weeklyGoalPercentage");
+  const weeklyGoalBar = $("weeklyGoalBar");
+  const weeklyGoalFill = $("weeklyGoalFill");
+  const weeklyGoalStatus = $("weeklyGoalStatus");
   const taskDashboardButtons = [...taskDashboard.querySelectorAll("[data-task-filter]")];
   const deadlineViews = $("taskDeadlineViews");
   const deadlineButtons = [...deadlineViews.querySelectorAll("[data-deadline-filter]")];
@@ -62,7 +70,14 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   let activeDeadlineFilter = "all";
   const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1";
   const TASK_TEMPLATES_KEY = "jomy_agent_task_templates_v1";
+  const WEEKLY_GOAL_KEY = "jomy_agent_weekly_goal_v1";
   const MEMORY_KEY = "jomy_agent_personal_memory_v1";
+  let weeklyGoalTarget = null;
+  try {
+    const savedGoal = JSON.parse(localStorage.getItem(WEEKLY_GOAL_KEY) || "null");
+    if (savedGoal) weeklyGoalTarget = validateWeeklyTaskGoal(savedGoal.target);
+  } catch (_) { weeklyGoalTarget = null; }
+  if (weeklyGoalTarget !== null) weeklyGoalInput.value = String(weeklyGoalTarget);
   let taskTemplates = [];
   try {
     taskTemplates = readTaskTemplates(JSON.parse(localStorage.getItem(TASK_TEMPLATES_KEY) || "[]"));
@@ -501,6 +516,35 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       }
     }
   }
+  // JOMY 3.2: read-only weekly progress from currently retained local tasks.
+  function renderWeeklyGoal() {
+    const summary = summarizeWeeklyTaskGoal(taskQueue, weeklyGoalTarget ?? 5, new Date());
+    weeklyGoalPeriod.textContent = "WEEK: " + summary.weekStart + " to " + summary.weekEnd;
+    weeklyGoalProgress.textContent = weeklyGoalTarget === null
+      ? "Goal not set" : summary.completed + " / " + summary.target + " manually done";
+    const percent = weeklyGoalTarget === null ? 0 : summary.percent;
+    weeklyGoalPercentage.textContent = percent + "%";
+    weeklyGoalBar.setAttribute("aria-valuenow", String(percent));
+    weeklyGoalFill.style.width = percent + "%";
+    if (weeklyGoalTarget === null) {
+      weeklyGoalStatus.textContent = "Goal not saved yet. Save a target to start tracking.";
+    } else if (summary.reached) {
+      weeklyGoalStatus.textContent = "Weekly goal reached: " + summary.completed + " manual completions counted.";
+    } else {
+      weeklyGoalStatus.textContent = summary.remaining + " more manual completions to reach your goal.";
+    }
+  }
+  weeklyGoalForm.addEventListener("submit", event => {
+    event.preventDefault();
+    try {
+      const target = validateWeeklyTaskGoal(Number(weeklyGoalInput.value));
+      localStorage.setItem(WEEKLY_GOAL_KEY, JSON.stringify({ target }));
+      weeklyGoalTarget = target;
+      renderWeeklyGoal();
+    } catch (error) {
+      weeklyGoalStatus.textContent = "Goal not saved: " + error.message;
+    }
+  });
   // JOMY 3.1: numeric daily counts only, computed in-browser from saved tasks.
   function renderTaskReport() {
     const days = Number(reportRangeSelect.value);
@@ -536,6 +580,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   // completion timestamp are deliberately excluded from daily completion bars.
   function renderTaskInsights() {
     renderTaskReport();
+    renderWeeklyGoal();
     const analytics = summarizeTaskAnalytics(taskQueue, new Date());
     insightsDone.textContent = String(analytics.done);
     insightsRate.textContent = String(analytics.completionRate) + "%";

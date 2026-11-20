@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
-  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv
+  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal
 } from "../src/task-engine.js";
 
 test("creates bounded queued tasks", () => {
@@ -835,4 +835,61 @@ test("JOMY 3.1 report calendar crosses New Year without UTC-day guessing", () =>
     "2026-12-27","2026-12-28","2026-12-29","2026-12-30",
     "2026-12-31","2027-01-01","2027-01-02"
   ]);
+});
+
+
+test("JOMY 3.2 weekly goal starts Monday and reports current week at local midnight", () => {
+  const now=new Date(2026,10,20,12);
+  const r=summarizeWeeklyTaskGoal([],5,now);
+  assert.deepEqual(r,{
+    weekStart:"2026-11-16",weekEnd:"2026-11-22",target:5,completed:0,
+    remaining:5,percent:0,reached:false
+  });
+  assert.equal(summarizeWeeklyTaskGoal([],3,new Date(2026,10,22,23,59)).weekStart,"2026-11-16");
+  assert.equal(summarizeWeeklyTaskGoal([],3,new Date(2026,10,23,0,1)).weekStart,"2026-11-23");
+});
+
+test("JOMY 3.2 weekly goal counts only currently DONE tasks with real manual completion dates", () => {
+  const date=(day,hour=12)=>new Date(2026,10,day,hour).toISOString();
+  const tasks=[
+    {id:"a",status:TASK_STATES.DONE,manualCompletedAt:date(16)},
+    {id:"b",status:TASK_STATES.DONE,manualCompletedAt:date(20)},
+    {id:"c",status:TASK_STATES.DONE,manualCompletedAt:date(22)},
+    {id:"d",status:TASK_STATES.DONE,manualCompletedAt:date(15)},
+    {id:"e",status:TASK_STATES.DONE,manualCompletedAt:date(23)},
+    {id:"f",status:TASK_STATES.READY,manualCompletedAt:date(20)},
+    {id:"g",status:TASK_STATES.SUCCEEDED,manualCompletedAt:date(20)},
+    {id:"h",status:TASK_STATES.DONE,manualCompletedAt:"invalid"},
+    {id:"i",status:TASK_STATES.DONE,createdAt:date(20)}
+  ];
+  const saved=JSON.stringify(tasks);
+  const r=summarizeWeeklyTaskGoal(tasks,2,new Date(2026,10,20,9));
+  assert.deepEqual([r.completed,r.remaining,r.percent,r.reached],[3,0,100,true]);
+  assert.equal(JSON.stringify(tasks),saved,"reading analytics must never mutate records");
+  const x=summarizeWeeklyTaskGoal(tasks,5,new Date(2026,10,20,9));
+  assert.deepEqual([x.completed,x.remaining,x.percent,x.reached],[3,2,60,false]);
+});
+
+test("JOMY 3.2 manual DONE and REOPEN change goal count without task execution", () => {
+  const now=new Date(2026,10,20,13).getTime();
+  const task={...createTask("Weekly goal test",now),status:TASK_STATES.READY};
+  const done=transitionTask(task,TASK_STATES.DONE,{},now+500);
+  assert.equal(summarizeWeeklyTaskGoal([done],1,new Date(now+600)).completed,1);
+  assert.equal(summarizeWeeklyTaskGoal([done],1,new Date(now+600)).reached,true);
+  const reopened=transitionTask(done,TASK_STATES.READY,{},now+1000);
+  assert.equal(summarizeWeeklyTaskGoal([reopened],1,new Date(now+2000)).completed,0);
+  assert.equal(reopened.manualCompletedAt,undefined);
+});
+
+test("JOMY 3.2 goal enforces 1 to 30 and safely rolls over New Year", () => {
+  for(const value of [-1,0,31,2.5,"5",null,undefined,NaN]) {
+    assert.throws(()=>validateWeeklyTaskGoal(value),/Weekly goal/);
+  }
+  assert.equal(validateWeeklyTaskGoal(1),1);
+  assert.equal(validateWeeklyTaskGoal(30),30);
+  assert.throws(()=>summarizeWeeklyTaskGoal([],5,"bad"),/Invalid weekly goal date/);
+  const x=summarizeWeeklyTaskGoal([],3,new Date(2027,0,1,10));
+  assert.deepEqual([x.weekStart,x.weekEnd],["2026-12-28","2027-01-03"]);
+  const y=summarizeWeeklyTaskGoal([],3,new Date(2027,0,4,10));
+  assert.deepEqual([y.weekStart,y.weekEnd],["2027-01-04","2027-01-10"]);
 });
