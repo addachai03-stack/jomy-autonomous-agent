@@ -52,6 +52,22 @@ export function createTask(input, now = Date.now()) {
   };
 }
 
+/**
+ * A local-only READY task: no plan request, no claims of external execution.
+ * Uses the same task fields and storage key as existing manual template tasks.
+ */
+export function createManualTask(input, now = Date.now()) {
+  const task = createTask(input, now);
+  return {
+    ...task,
+    status: TASK_STATES.READY,
+    plan: {
+      source: "local",
+      summary: "Created manually on this device. No AI planning or external action ran."
+    }
+  };
+}
+
 export function addTask(queue, task) {
   if (!Array.isArray(queue)) throw new TypeError("Task queue must be an array.");
   if (queue.some(item => item?.id === task?.id)) return queue.slice();
