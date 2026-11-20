@@ -423,7 +423,7 @@ test("JOMY 3.0 analytics dashboard is collapsed, accessible and separated from p
 
 test("JOMY 3.0 analytics only reads in-memory tasks with no remote calls or storage writes", () => {
   const render=app.split("  // Read-only, device-local analytics.")[1]
-    ?.split("  // Dashboard counts are derived from existing local tasks, never guessed or fetched.")[0] || "";
+    ?.split("  // Transparent local ranking only. Nothing is marked DONE or sent to a Worker.")[0] || "";
   assert.ok(render);
   assert.match(render,/summarizeTaskAnalytics\(taskQueue, new Date\(\)\)/);
   assert.match(render,/insightsDone\.textContent = String\(analytics\.done\)/);
@@ -562,7 +562,7 @@ test("JOMY 3.3 calendar composes with status/search filters without changing tas
   assert.match(dashboard,/task.status !== TASK_STATES.DONE && task.status !== TASK_STATES.SUCCEEDED/);
   assert.match(dashboard,/filterTaskQueue\(taskQueue, activeTaskFilter\)/);
   assert.match(dashboard,/searchAndSortTaskQueue\(visibleTasks, taskSearchInput.value, taskSortSelect.value\)/);
-  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount.textContent = taskQueue.length \+ "\/30";\s+renderTaskInsights\(\);\s+renderUpcomingCalendar\(\)/);
+  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount.textContent = taskQueue.length \+ "\/30";\s+renderTaskInsights\(\);\s+renderDailyFocus\(\);\s+renderUpcomingCalendar\(\)/);
   assert.match(app,/activeCalendarDay = "";\s+taskSearchInput.value = "";\s+renderTaskQueue\(\)/);
   assert.match(app,/const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
   assert.match(app,/const MEMORY_KEY = "jomy_agent_personal_memory_v1"/);
