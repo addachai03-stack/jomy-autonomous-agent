@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=51">
+  <link rel="stylesheet" href="/styles.css?v=53">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -56,6 +56,13 @@
           <button type="button" class="task-stat" data-task-filter="done" aria-pressed="false"><span class="task-stat-label">DONE</span><strong class="task-stat-number">0</strong></button>
         </div>
         <p class="task-dashboard-summary" id="taskFilterSummary" aria-live="polite">Showing all tasks saved on this device.</p>
+        <details class="task-focus-panel" id="taskFocusPanel">
+          <summary>SMART DAILY PLANNER <span>TODAY'S FOCUS · DEVICE ONLY</span></summary>
+          <p>Your suggested order: overdue, due today, high priority, then upcoming tasks. Suggestions do not execute tasks, send reminders or contact AI.</p>
+          <p class="task-focus-summary" id="taskFocusSummary" role="status" aria-live="polite">Your daily focus will appear here.</p>
+          <div id="taskFocusList" class="task-focus-list" aria-label="Suggested focus tasks"></div>
+          <button type="button" class="task-focus-reset" id="taskFocusClear" disabled>SHOW ALL TASKS</button>
+        </details>
         <details class="task-calendar-panel" id="taskCalendarPanel">
           <summary>UPCOMING TASKS CALENDAR <span>NEXT 7 DAYS · DEVICE ONLY</span></summary>
           <p>Upcoming deadlines for unfinished saved tasks. Tap a day to view its tasks in MY TASK QUEUE. No reminders or automatic execution.</p>
@@ -331,6 +338,6 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=51"></script>
+  <script type="module" src="/app.js?v=53"></script>
 </body>
 </html>

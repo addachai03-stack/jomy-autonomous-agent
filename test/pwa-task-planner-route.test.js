@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v51 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v53 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=51"/);
-  assert.match(html, /src="\/app\.js\?v=51"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v51"/);
-  assert.match(worker, /"\/styles\.css\?v=51"/);
-  assert.match(worker, /"\/app\.js\?v=51"/);
+  assert.match(html, /href="\/styles\.css\?v=53"/);
+  assert.match(html, /src="\/app\.js\?v=53"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v53"/);
+  assert.match(worker, /"\/styles\.css\?v=53"/);
+  assert.match(worker, /"\/app\.js\?v=53"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -562,8 +562,8 @@ test("JOMY 3.3 calendar composes with status/search filters without changing tas
   assert.match(dashboard,/task.status !== TASK_STATES.DONE && task.status !== TASK_STATES.SUCCEEDED/);
   assert.match(dashboard,/filterTaskQueue\(taskQueue, activeTaskFilter\)/);
   assert.match(dashboard,/searchAndSortTaskQueue\(visibleTasks, taskSearchInput.value, taskSortSelect.value\)/);
-  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount.textContent = taskQueue.length \+ "\/30";\s+renderTaskInsights\(\);\s+renderUpcomingCalendar\(\)/);
-  assert.match(app,/activeCalendarDay = "";\s+taskSearchInput.value = "";\s+renderTaskQueue\(\)/);
+  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount.textContent = taskQueue.length \+ "\/30";\s+renderTaskInsights\(\);\s+renderDailyFocus\(\);\s+renderUpcomingCalendar\(\)/);
+  assert.match(app,/activeCalendarDay = "";\s+activeFocusTaskId = "";\s+taskSearchInput.value = "";\s+renderTaskQueue\(\)/);
   assert.match(app,/const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
   assert.match(app,/const MEMORY_KEY = "jomy_agent_personal_memory_v1"/);
 });
@@ -574,5 +574,57 @@ test("JOMY 3.3 upcoming calendar has tappable iPhone-size day buttons and no inp
   assert.match(css,/\.task-calendar-panel summary\{[^\n]*min-height:44px/);
   assert.match(css,/\.task-calendar-reset\{[^\n]*min-height:44px/);
   assert.match(css,/@media\(max-width:390px\)\{\.task-calendar-panel/);
+  assert.match(app,/document.addEventListener\("visibilitychange", \(\) => \{\s+if \(!document.hidden\) renderTaskQueue\(\);/);
+});
+
+
+test("JOMY 3.4 Smart Daily Planner is collapsed and accessible in Task Queue", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const queue=html.split('id="taskPanel"')[1]?.split('<section class="memory-panel"')[0] || "";
+  assert.match(queue,/<details class="task-focus-panel" id="taskFocusPanel">/);
+  assert.match(queue,/id="taskFocusSummary" role="status" aria-live="polite"/);
+  assert.match(queue,/id="taskFocusList" class="task-focus-list"/);
+  assert.match(queue,/id="taskFocusClear" disabled>SHOW ALL TASKS/);
+  assert.match(queue,/Suggestions do not execute tasks, send reminders or contact AI/);
+  assert.ok(queue.indexOf('id="taskFilterSummary"') < queue.indexOf('id="taskFocusPanel"'));
+  assert.ok(queue.indexOf('id="taskFocusPanel"') < queue.indexOf('id="taskCalendarPanel"'));
+});
+
+test("JOMY 3.4 focus controls safely filter existing queue without task mutation", () => {
+  const focus = app.split("  // JOMY 3.4: a read-only daily shortlist from local tasks. Nothing is executed.")[1]
+    ?.split("  // Local-calendar date view: no external requests, no storage writes and no timers.")[0] || "";
+  const dashboard=app.split("  function renderTaskDashboard() {")[1]
+    ?.split("  function renderTaskQueue() {")[0] || "";
+  assert.ok(focus && dashboard,"Missing focus/filter handlers");
+  assert.match(focus,/summarizeDailyFocusPlan\(taskQueue, new Date\(\), 5\)/);
+  assert.match(focus,/taskFocusList.replaceChildren\(\)/);
+  assert.match(focus,/view.setAttribute\("aria-pressed", String\(activeFocusTaskId === item.id\)\)/);
+  assert.match(focus,/activeFocusTaskId = activeFocusTaskId === item.id \? "" : item.id/);
+  assert.match(focus,/taskFocusClear.addEventListener\("click"/);
+  assert.match(focus,/view\.dataset\.focusTaskId = item\.id/);
+  assert.match(focus,/selectedCard\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(focus,/selectedCard\.scrollIntoView\(\{ behavior: "smooth", block: "center" \}\)/);
+  assert.match(focus,/restoredButton\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(app,/item\.dataset\.dailyFocus = "true"/);
+  assert.match(app,/item\.tabIndex = -1/);
+  const css = readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  assert.match(css,/\.task-item\[data-daily-focus="true"\]:focus\{/);
+  assert.match(focus,/heading.textContent = \(index \+ 1\) \+ "\. " \+ item.title/);
+  assert.doesNotMatch(focus,/fetch\(|planTask\(|sendMessage\(|localStorage\.|sessionStorage\.|Worker|setTimeout\(/);
+  assert.match(dashboard,/!activeFocusTaskId \|\| task.id === activeFocusTaskId/);
+  assert.match(dashboard,/getTaskSchedule\(task\).dueDate === activeCalendarDay/);
+  assert.match(dashboard,/searchAndSortTaskQueue\(visibleTasks, taskSearchInput.value, taskSortSelect.value\)/);
+  assert.match(app,/renderTaskInsights\(\);\s+renderDailyFocus\(\);\s+renderUpcomingCalendar\(\)/);
+  assert.match(app,/activeFocusTaskId = "";\s+taskSearchInput.value = "";\s+renderTaskQueue\(\)/);
+  assert.ok(app.includes('const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"'));
+  assert.ok(app.includes('const MEMORY_KEY = "jomy_agent_personal_memory_v1"'));
+});
+
+test("JOMY 3.4 focus cards are iPhone responsive with accessible 44px controls", () => {
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  assert.match(css,/\.task-focus-panel\{/);
+  assert.match(css,/\.task-focus-panel summary\{[^\n]*min-height:44px/);
+  assert.match(css,/\.task-focus-view,\.task-focus-reset\{[^\n]*min-height:44px/);
+  assert.match(css,/@media\(max-width:400px\)\{\.task-focus-panel/);
   assert.match(app,/document.addEventListener\("visibilitychange", \(\) => \{\s+if \(!document.hidden\) renderTaskQueue\(\);/);
 });
