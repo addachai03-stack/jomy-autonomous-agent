@@ -717,3 +717,46 @@ export function createTaskActivityCsv(queue, dayCount = 7, now = new Date()) {
   return "Date,Created,Manually Done\r\n" +
     report.rows.map(row => row.date + "," + row.created + "," + row.manuallyDone).join("\r\n") + "\r\n";
 }
+
+
+/**
+ * JOMY 3.2 — device-only weekly goal snapshot.
+ * Monday to Sunday using the device's local calendar. Only currently DONE
+ * tasks with an actual manualCompletedAt timestamp count toward the goal.
+ * Reopened/deleted/undated/legacy SUCCEEDED tasks are not historical wins.
+ */
+export function validateWeeklyTaskGoal(value) {
+  if (!Number.isInteger(value) || value < 1 || value > 30) {
+    throw new RangeError("Weekly goal must be a whole number from 1 to 30.");
+  }
+  return value;
+}
+
+export function summarizeWeeklyTaskGoal(queue, target = 5, now = new Date()) {
+  validateWeeklyTaskGoal(target);
+  const current = now instanceof Date ? new Date(now.getTime()) : new Date(now);
+  if (!Number.isFinite(current.getTime())) throw new TypeError("Invalid weekly goal date.");
+  const weekStart = new Date(current.getFullYear(), current.getMonth(), current.getDate(), 12);
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+  const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6, 12);
+  const start = localCalendarDate(weekStart);
+  const end = localCalendarDate(weekEnd);
+  let completed = 0;
+  for (const task of Array.isArray(queue) ? queue : []) {
+    if (task?.status !== TASK_STATES.DONE || typeof task.manualCompletedAt !== "string" ||
+        !task.manualCompletedAt.trim()) continue;
+    const completedAt = new Date(task.manualCompletedAt);
+    if (!Number.isFinite(completedAt.getTime())) continue;
+    const date = localCalendarDate(completedAt);
+    if (date >= start && date <= end) completed++;
+  }
+  return {
+    weekStart: start,
+    weekEnd: end,
+    target,
+    completed,
+    remaining: Math.max(0, target - completed),
+    percent: Math.min(100, Math.round(completed / target * 100)),
+    reached: completed >= target
+  };
+}
