@@ -901,3 +901,20 @@ export function summarizeDailyTaskProgress(queue, now = new Date()) {
   return { today, completedToday, unfinished, total,
     percent: total ? Math.round(completedToday / total * 100) : 0 };
 }
+
+
+/**
+ * JOMY storage safety: validate and persist a complete snapshot before any
+ * caller replaces its in-memory task queue. A blocked Safari write throws.
+ * Never trim old tasks or report success when persistence fails.
+ */
+export function persistTaskQueueSafely(nextQueue, storage, key) {
+  if (!Array.isArray(nextQueue) || nextQueue.length > 30) {
+    throw new RangeError("Task Queue exceeds 30 saved tasks. Existing tasks were not changed.");
+  }
+  if (!storage || typeof storage.setItem !== "function" || typeof key !== "string" || !key) {
+    throw new TypeError("Valid local task storage is required.");
+  }
+  storage.setItem(key, JSON.stringify(nextQueue));
+  return nextQueue;
+}
