@@ -760,3 +760,48 @@ export function summarizeWeeklyTaskGoal(queue, target = 5, now = new Date()) {
     reached: completed >= target
   };
 }
+
+
+/**
+ * JOMY 3.3: read-only seven-day deadline calendar based on today's local date.
+ * Includes unfinished tasks only. Never schedules, marks done or sends alerts.
+ */
+export function summarizeUpcomingCalendar(queue, now = new Date()) {
+  const current = now instanceof Date ? new Date(now.getTime()) : new Date(now);
+  if (!Number.isFinite(current.getTime())) throw new TypeError("Invalid calendar date.");
+  const start = new Date(current.getFullYear(), current.getMonth(), current.getDate(), 12);
+  const today = localCalendarDate(start);
+  const days = [];
+  const byDate = new Map();
+  for (let offset = 0; offset < 7; offset++) {
+    const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + offset, 12);
+    const day = localCalendarDate(date);
+    const entry = { date: day, label: date.toLocaleDateString("en-IN", {weekday:"short",day:"numeric",month:"short"}), tasks: [] };
+    days.push(entry);
+    byDate.set(day, entry);
+  }
+  let overdue = 0;
+  let unscheduled = 0;
+  let later = 0;
+  let open = 0;
+  const ranks = { high: 3, medium: 2, low: 1, none: 0 };
+  for (const task of Array.isArray(queue) ? queue : []) {
+    if (!task || typeof task.id !== "string" || typeof task.title !== "string" ||
+        typeof task.status !== "string" ||
+        task.status === TASK_STATES.DONE || task.status === TASK_STATES.SUCCEEDED) continue;
+    open++;
+    const schedule = getTaskSchedule(task);
+    const dueDate = schedule.dueDate;
+    if (!dueDate) { unscheduled++; continue; }
+    if (dueDate < today) { overdue++; continue; }
+    const entry = byDate.get(dueDate);
+    if (entry) {
+      entry.tasks.push({ id: task.id, title: task.title, priority: schedule.priority, status: task.status });
+    } else later++;
+  }
+  for (const day of days) {
+    day.tasks.sort((a,b) => ranks[b.priority] - ranks[a.priority]);
+  }
+  return { today, days, open, upcoming: days.reduce((sum,day) => sum + day.tasks.length, 0),
+    overdue, unscheduled, later };
+}
