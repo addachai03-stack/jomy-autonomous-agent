@@ -234,3 +234,24 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-calendar-reset{display:block;box-sizing:border-box;width:100%;min-height:44px;margin:10px 0 13px;border:1px solid #ddb97877;border-radius:9px;background:#2a2419;color:#f4d49b;font-size:11px;font-weight:800;cursor:pointer}
 .task-calendar-reset:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:390px){.task-calendar-panel{padding:0 9px}.task-calendar-days{grid-template-columns:minmax(0,1fr)}.task-calendar-panel summary{font-size:10px}.task-calendar-panel summary span{font-size:8px}.task-calendar-day{min-height:62px}}
+
+
+/* JOMY 3.4 — read-only daily focus with accessible iPhone task controls. */
+.task-focus-panel{box-sizing:border-box;margin:11px 0;padding:0 12px;border:1px solid #d6b77755;border-radius:11px;background:#0e1b2a;min-width:0}
+.task-focus-panel summary{display:flex;align-items:center;justify-content:space-between;gap:9px;min-height:44px;color:#f1d59d;font-size:11px;font-weight:800;letter-spacing:.035em;cursor:pointer}
+.task-focus-panel summary span{color:#aebbc9;font-size:9px;white-space:nowrap}
+.task-focus-panel>p{margin:7px 0 11px;color:#afbdcb;font-size:11px;line-height:1.6}
+.task-focus-summary{box-sizing:border-box;margin:9px 0 11px!important;padding:9px 10px;background:#142336;border-radius:8px;color:#e9cb96!important;font-size:11px!important;line-height:1.5;overflow-wrap:anywhere}
+.task-focus-list{display:flex;flex-direction:column;gap:7px;min-width:0}
+.task-focus-item{display:flex;justify-content:space-between;align-items:center;gap:9px;padding:10px;border:1px solid #dbb77946;border-radius:9px;background:#111e30;min-width:0}
+.task-focus-item-summary{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
+.task-focus-item-summary strong{font-size:12px;line-height:1.4;color:#edf0f6;overflow-wrap:anywhere}
+.task-focus-item-summary small{font-size:10px;line-height:1.45;color:#d4be97;overflow-wrap:anywhere}
+.task-focus-view,.task-focus-reset{box-sizing:border-box;min-height:44px;padding:10px;border:1px solid #d9b97d75;border-radius:9px;background:#2b241b;color:#efd19b;font-size:10px;font-weight:800;cursor:pointer}
+.task-focus-view{min-width:84px;flex-shrink:0}
+.task-focus-view[aria-pressed="true"]{border-color:#f4daaa;background:#49321c}
+.task-focus-view:focus-visible,.task-focus-reset:focus-visible{outline:2px solid #e8c788;outline-offset:2px}
+.task-focus-reset{display:block;width:100%;margin:10px 0 13px}
+.task-focus-reset:disabled{opacity:.45;cursor:not-allowed}
+.task-focus-empty{margin:5px 0 10px!important;color:#aab8c8}
+@media(max-width:400px){.task-focus-panel{padding:0 9px}.task-focus-panel summary{font-size:10px}.task-focus-panel summary span{font-size:8px}.task-focus-item{flex-direction:column;align-items:stretch}.task-focus-view{width:100%}}
