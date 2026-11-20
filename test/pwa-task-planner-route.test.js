@@ -488,3 +488,46 @@ test("JOMY 3.1 report uses iPhone-friendly 44px controls and does not disturb ta
   assert.match(css,/@media\(max-width:380px\)\{\.task-report/);
   assert.match(app,/for \(const button of taskDashboardButtons\)/);
 });
+
+
+test("JOMY 3.2 Weekly Goal is inside Productivity Insights and accessible", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const panel=html.split('id="taskPanel"')[1]?.split('<section class="memory-panel"')[0] || "";
+  for(const id of ["weeklyGoalPanel","weeklyGoalForm","weeklyGoalInput","weeklyGoalPeriod",
+    "weeklyGoalProgress","weeklyGoalPercentage","weeklyGoalBar","weeklyGoalFill","weeklyGoalStatus"]) {
+    assert.ok(panel.includes('id="' + id + '"'),id+" missing");
+  }
+  assert.match(panel,/type="number" min="1" max="30" step="1" required/);
+  assert.match(panel,/role="progressbar" id="weeklyGoalBar"/);
+  assert.match(panel,/role="status" aria-live="polite"/);
+  assert.ok(panel.indexOf('id="taskReport"') < panel.indexOf('id="weeklyGoalPanel"'));
+  assert.ok(panel.indexOf('id="weeklyGoalPanel"') < panel.indexOf('id="taskBackupPanel"'));
+  assert.match(panel,/No reminders or notifications/);
+});
+
+test("JOMY 3.2 weekly goal saves only dedicated key, after validation and before success", () => {
+  const handler=app.split("  // JOMY 3.2: read-only weekly progress from currently retained local tasks.")[1]
+    ?.split("  // JOMY 3.1: numeric daily counts only, computed in-browser from saved tasks.")[0] || "";
+  assert.ok(handler,"weekly goal handler missing");
+  assert.match(handler,/summarizeWeeklyTaskGoal\(taskQueue, weeklyGoalTarget \?\? 5, new Date\(\)\)/);
+  assert.match(handler,/weeklyGoalForm.addEventListener\("submit", event =>/);
+  assert.match(handler,/validateWeeklyTaskGoal\(Number\(weeklyGoalInput.value\)\)/);
+  assert.match(handler,/localStorage.setItem\(WEEKLY_GOAL_KEY, JSON.stringify\(\{ target \}\)\)/);
+  assert.match(handler,/weeklyGoalTarget = target/);
+  assert.ok(handler.indexOf('localStorage.setItem(WEEKLY_GOAL_KEY') < handler.indexOf('weeklyGoalTarget = target'));
+  assert.doesNotMatch(handler,/fetch\(|planTask\(|sendMessage\(|localStorage\.clear\(|removeItem\(|TASK_QUEUE_KEY|MEMORY_KEY/);
+  assert.match(app,/function renderTaskInsights\(\) \{\s+renderTaskReport\(\);\s+renderWeeklyGoal\(\);/);
+  assert.match(app,/const WEEKLY_GOAL_KEY = "jomy_agent_weekly_goal_v1"/);
+  assert.match(app,/const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
+  assert.match(app,/const MEMORY_KEY = "jomy_agent_personal_memory_v1"/);
+});
+
+test("JOMY 3.2 weekly goal progress responds to task updates and small iPhone widths", () => {
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  assert.match(css,/\.task-weekly-goal\{/);
+  assert.match(css,/\.task-weekly-form input,\.task-weekly-form button\{[^\n]*min-height:44px/);
+  assert.match(css,/@media\(max-width:370px\)\{\.task-weekly-goal/);
+  assert.match(css,/prefers-reduced-motion:reduce/);
+  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount.textContent = taskQueue.length \+ "\/30";\s+renderTaskInsights\(\)/);
+  assert.match(app,/document.addEventListener\("visibilitychange"/);
+});
