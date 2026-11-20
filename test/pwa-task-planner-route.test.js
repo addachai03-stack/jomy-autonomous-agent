@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v54 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v55 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=54"/);
-  assert.match(html, /src="\/app\.js\?v=54"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v54"/);
-  assert.match(worker, /"\/styles\.css\?v=54"/);
-  assert.match(worker, /"\/app\.js\?v=54"/);
+  assert.match(html, /href="\/styles\.css\?v=55"/);
+  assert.match(html, /src="\/app\.js\?v=55"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v55"/);
+  assert.match(worker, /"\/styles\.css\?v=55"/);
+  assert.match(worker, /"\/app\.js\?v=55"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -647,4 +647,22 @@ test("JOMY 3.5 progress is device-only, accessible and connected to manual task 
   assert.match(app,/renderDailyFocus\(\)/);
   assert.match(css,/\.task-focus-progress-track\{/);
   assert.doesNotMatch(render,/fetch\(|localStorage\.|sessionStorage\.|setTimeout\(/);
+});
+
+test("JOMY 3.5 shows non-destructive old-preview restore guidance only for an empty queue", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  const queue=html.split('id="taskPanel"')[1]?.split('<section class="memory-panel"')[0]||"";
+  assert.match(queue,/id="taskTransferPanel" aria-label="Restore tasks from older preview" hidden/);
+  assert.match(queue,/https:\/\/890aa584\.jomy-agent-pwa\.pages\.dev/);
+  assert.match(queue,/target="_blank" rel="noopener noreferrer"/);
+  assert.match(queue,/id="taskTransferChoose" type="button"/);
+  assert.match(queue,/Each Preview address has its own private iPhone browser storage/);
+  assert.match(app,/taskTransferPanel\.hidden = taskQueue\.length !== 0/);
+  assert.match(app,/taskBackupPanel\.open = true;\s+taskBackupFile\.click\(\)/);
+  assert.match(app,/mergeTaskQueueBackup\(taskQueue, pendingBackupTasks\)/);
+  assert.match(app,/window\.confirm\("Import "/);
+  assert.match(css,/\.task-transfer-panel\[hidden\]\{display:none!important\}/);
+  assert.match(css,/\.task-transfer-actions a,\.task-transfer-actions button\{[^\n]*min-height:44px/);
+  assert.doesNotMatch(queue,/localStorage\.|sessionStorage\.|password|secret/i);
 });
