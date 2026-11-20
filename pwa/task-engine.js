@@ -805,3 +805,51 @@ export function summarizeUpcomingCalendar(queue, now = new Date()) {
   return { today, days, open, upcoming: days.reduce((sum,day) => sum + day.tasks.length, 0),
     overdue, unscheduled, later };
 }
+
+
+/**
+ * JOMY 3.4: a transparent, read-only daily focus shortlist based on device-local
+ * due dates and owner-set priorities. A suggested task is NOT executed or done.
+ * Order: overdue, due today, high priority, upcoming within 7 days, backlog.
+ */
+export function summarizeDailyFocus(queue, now = new Date(), limit = 5) {
+  const current = now instanceof Date ? new Date(now.getTime()) : new Date(now);
+  if (!Number.isFinite(current.getTime())) throw new TypeError("Invalid daily focus date.");
+  if (!Number.isInteger(limit) || limit < 1 || limit > 10) {
+    throw new RangeError("Daily focus limit must be 1–10.");
+  }
+  const today = localCalendarDate(current);
+  const nextWeek = new Date(current.getFullYear(), current.getMonth(), current.getDate() + 6, 12);
+  const end = localCalendarDate(nextWeek);
+  const rank = { high: 3, medium: 2, low: 1, none: 0 };
+  const candidates = [];
+  const counts = { open: 0, overdue: 0, dueToday: 0, highPriority: 0 };
+  const source = Array.isArray(queue) ? queue : [];
+  for (let index = 0; index < source.length; index++) {
+    const task = source[index];
+    if (!task || typeof task.id !== "string" || typeof task.title !== "string" ||
+        typeof task.status !== "string" || task.status === TASK_STATES.DONE ||
+        task.status === TASK_STATES.SUCCEEDED) continue;
+    counts.open++;
+    const { priority, dueDate } = getTaskSchedule(task);
+    if (dueDate && dueDate < today) counts.overdue++;
+    if (dueDate === today) counts.dueToday++;
+    if (priority === "high") counts.highPriority++;
+    const kind = dueDate && dueDate < today ? "overdue" :
+      dueDate === today ? "today" :
+      priority === "high" ? "important" :
+      dueDate && dueDate <= end && dueDate > today ? "upcoming" : "backlog";
+    const kindRank = { overdue: 0, today: 1, important: 2, upcoming: 3, backlog: 4 };
+    candidates.push({
+      id: task.id, title: task.title, status: task.status, priority, dueDate, kind,
+      kindRank: kindRank[kind], priorityRank: rank[priority], index
+    });
+  }
+  const sorted = candidates.sort((a,b) => a.kindRank - b.kindRank
+    || b.priorityRank - a.priorityRank
+    || (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31")
+    || a.index - b.index);
+  const focus = sorted.slice(0,limit).map(({id,title,status,priority,dueDate,kind}) =>
+    ({id,title,status,priority,dueDate,kind}));
+  return { today, counts, focus, hidden: Math.max(0,sorted.length - focus.length) };
+}
