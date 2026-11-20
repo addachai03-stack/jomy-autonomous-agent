@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocus, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -42,6 +42,9 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const taskCount = $("taskCount");
   const taskDashboard = $("taskDashboard");
   const taskFilterSummary = $("taskFilterSummary");
+  const focusOverview = $("focusOverview");
+  const focusList = $("focusList");
+  const focusFootnote = $("focusFootnote");
   const calendarSummary = $("calendarSummary");
   const calendarDays = $("calendarDays");
   const calendarClear = $("calendarClear");
@@ -619,6 +622,58 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       + (analytics.undatedCompleted ? " " + analytics.undatedCompleted + " finished task(s) have no usable completion date." : "")
       + " No server analytics, reminders or external execution.";
   }
+  // Transparent local ranking only. Nothing is marked DONE or sent to a Worker.
+  function renderDailyFocus() {
+    const plan = summarizeDailyFocus(taskQueue, new Date(), 5);
+    focusOverview.textContent = plan.today + " · " + plan.counts.overdue + " overdue · "
+      + plan.counts.dueToday + " due today · " + plan.counts.highPriority
+      + " high priority · " + plan.counts.open + " unfinished";
+    focusList.replaceChildren();
+    if (!plan.focus.length) {
+      const empty = document.createElement("p");
+      empty.className = "task-focus-empty";
+      empty.textContent = "No unfinished tasks saved. Add a task or set a due date to build your daily focus.";
+      focusList.append(empty);
+    }
+    const labels = {overdue:"OVERDUE",today:"DUE TODAY",important:"HIGH PRIORITY",
+      upcoming:"UPCOMING",backlog:"BACKLOG"};
+    for (const task of plan.focus) {
+      const row = document.createElement("div");
+      row.className = "task-focus-item";
+      row.setAttribute("role", "listitem");
+      const text = document.createElement("div");
+      text.className = "task-focus-item-text";
+      const heading = document.createElement("strong");
+      heading.textContent = task.title;
+      const meta = document.createElement("small");
+      meta.className = "task-focus-kind is-" + task.kind;
+      meta.textContent = labels[task.kind] + (task.dueDate ? " · " + task.dueDate : "")
+        + (task.priority !== "none" ? " · " + task.priority.toUpperCase() : "");
+      text.append(heading, meta);
+      const open = document.createElement("button");
+      open.type = "button";
+      open.textContent = "VIEW TASK";
+      open.setAttribute("aria-label", "View saved task: " + task.title);
+      open.addEventListener("click", () => {
+        activeTaskFilter = "all";
+        activeDeadlineFilter = "all";
+        activeCalendarDay = "";
+        taskSearchInput.value = "";
+        renderTaskQueue();
+        const card = [...taskList.querySelectorAll(".task-item")]
+          .find(item => item.dataset.taskId === task.id);
+        if (card) {
+          card.scrollIntoView({block:"center",behavior:"auto"});
+          card.focus({preventScroll:true});
+        }
+      });
+      row.append(text, open);
+      focusList.append(row);
+    }
+    focusFootnote.textContent = "Showing " + plan.focus.length + " of " + plan.counts.open
+      + " unfinished tasks" + (plan.hidden ? " · " + plan.hidden + " not in the top five" : "")
+      + ". Suggested order: overdue, due today, high priority, upcoming, backlog. No automatic execution.";
+  }
   // Local-calendar date view: no external requests, no storage writes and no timers.
   function renderUpcomingCalendar() {
     const overview = summarizeUpcomingCalendar(taskQueue, new Date());
@@ -699,6 +754,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   function renderTaskQueue() {
     taskCount.textContent = taskQueue.length + "/30";
     renderTaskInsights();
+    renderDailyFocus();
     renderUpcomingCalendar();
     const visibleTasks = renderTaskDashboard();
     taskList.replaceChildren();
@@ -720,6 +776,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     for (const task of visibleTasks) {
       const item = document.createElement("article");
       item.className = "task-item";
+      item.dataset.taskId = task.id;
+      item.tabIndex = -1;
       const details = document.createElement("div");
       details.className = "task-details";
       const title = document.createElement("strong");
