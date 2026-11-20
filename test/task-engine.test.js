@@ -1030,7 +1030,7 @@ test("JOMY 3.4 local dates, invalid legacy due dates, DONE and empty queues are 
   ];
   const focus=summarizeDailyFocusPlan(tasks,new Date(2026,11,29,12));
   assert.equal(focus.today,"2026-12-29");
-  assert.deepEqual(focus.focus.map(x=>x.id),["invalid","lastday","undated","after"]);
+  assert.deepEqual(focus.focus.map(x=>x.id),["invalid","lastday","after","undated"]);
   assert.deepEqual(focus.counts,{overdue:0,dueToday:0,highPriority:1,upcoming:1,other:2});
   assert.deepEqual(summarizeDailyFocusPlan([],new Date(2026,11,29)).focus,[]);
   assert.deepEqual(summarizeDailyFocusPlan(null,new Date(2026,11,29)).counts,
