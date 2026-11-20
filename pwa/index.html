@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=53">
+  <link rel="stylesheet" href="/styles.css?v=54">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -60,6 +60,16 @@
           <summary>SMART DAILY PLANNER <span>TODAY'S FOCUS · DEVICE ONLY</span></summary>
           <p>Your suggested order: overdue, due today, high priority, then upcoming tasks. Suggestions do not execute tasks, send reminders or contact AI.</p>
           <p class="task-focus-summary" id="taskFocusSummary" role="status" aria-live="polite">Your daily focus will appear here.</p>
+          <section class="task-focus-progress" aria-label="Daily manual task progress">
+            <div class="task-focus-progress-head">
+              <strong>MANUAL PROGRESS TODAY</strong>
+              <span id="taskFocusProgressLabel" role="status" aria-live="polite">0 done today · 0 unfinished · 0%</span>
+            </div>
+            <div class="task-focus-progress-track" id="taskFocusProgress" role="progressbar" aria-label="Manual progress today" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="No saved tasks">
+              <span id="taskFocusProgressFill" class="task-focus-progress-fill"></span>
+            </div>
+            <p>Current saved-task snapshot, not a fixed daily goal. Reopening a task removes its manual completion count. No automatic actions.</p>
+          </section>
           <div id="taskFocusList" class="task-focus-list" aria-label="Suggested focus tasks"></div>
           <button type="button" class="task-focus-reset" id="taskFocusClear" disabled>SHOW ALL TASKS</button>
         </details>
@@ -338,6 +348,6 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=53"></script>
+  <script type="module" src="/app.js?v=54"></script>
 </body>
 </html>
