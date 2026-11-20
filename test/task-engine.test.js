@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
-  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan
+  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, summarizeDailyTaskProgress
 } from "../src/task-engine.js";
 
 test("creates bounded queued tasks", () => {
@@ -1051,4 +1051,55 @@ test("JOMY 3.4 updates focus suggestions when due date or manual status changes"
   const completed=transitionTask(withDue,TASK_STATES.DONE,{},now.getTime()+200);
   assert.equal(summarizeDailyFocusPlan([completed],now).focus.length,0);
   assert.equal(task.dueDate,undefined);
+});
+
+test("JOMY 3.5 daily progress uses only retained manual DONE timestamps from today", () => {
+  const now=new Date(2026,10,21,14);
+  const todayStamp=new Date(2026,10,21,9).toISOString();
+  const oldStamp=new Date(2026,10,20,9).toISOString();
+  const tasks=[
+    {id:"open",title:"Open",status:TASK_STATES.READY},
+    {id:"blocked",title:"Blocked",status:TASK_STATES.BLOCKED},
+    {id:"today",title:"Done today",status:TASK_STATES.DONE,manualCompletedAt:todayStamp},
+    {id:"old",title:"Done yesterday",status:TASK_STATES.DONE,manualCompletedAt:oldStamp},
+    {id:"undated",title:"Legacy manually done",status:TASK_STATES.DONE},
+    {id:"invalid",title:"Malformed timestamp",status:TASK_STATES.DONE,manualCompletedAt:"not-a-date"},
+    {id:"legacy",title:"Legacy success",status:TASK_STATES.SUCCEEDED},
+    null
+  ];
+  const snapshot=JSON.stringify(tasks);
+  assert.deepEqual(summarizeDailyTaskProgress(tasks,now),{
+    today:"2026-11-21",completedToday:1,unfinished:2,total:3,percent:33
+  });
+  assert.equal(JSON.stringify(tasks),snapshot,"Progress must never alter local tasks");
+});
+
+test("JOMY 3.5 daily progress responds to manual DONE and REOPEN, not execution", () => {
+  const now=new Date(2026,10,21,12);
+  const ready={...createTask("Sample",now.getTime()),status:TASK_STATES.READY};
+  const complete=transitionTask(ready,TASK_STATES.DONE,{},now.getTime()+100);
+  assert.deepEqual(
+    [summarizeDailyTaskProgress([ready],now).percent,summarizeDailyTaskProgress([complete],now).percent],
+    [0,100]
+  );
+  const reopened=transitionTask(complete,TASK_STATES.READY,{},now.getTime()+200);
+  assert.deepEqual(summarizeDailyTaskProgress([reopened],now),{
+    today:"2026-11-21",completedToday:0,unfinished:1,total:1,percent:0
+  });
+  assert.equal(ready.status,TASK_STATES.READY);
+});
+
+test("JOMY 3.5 daily progress handles empty queue, invalid inputs and year rollover", () => {
+  const jan=new Date(2027,0,1,14);
+  const decStamp=new Date(2026,11,31,23,50).toISOString();
+  const janStamp=new Date(2027,0,1,1).toISOString();
+  assert.deepEqual(summarizeDailyTaskProgress([],jan),{
+    today:"2027-01-01",completedToday:0,unfinished:0,total:0,percent:0
+  });
+  assert.equal(summarizeDailyTaskProgress(null,jan).percent,0);
+  assert.equal(summarizeDailyTaskProgress([
+    {id:"dec",title:"December completion",status:TASK_STATES.DONE,manualCompletedAt:decStamp},
+    {id:"jan",title:"January completion",status:TASK_STATES.DONE,manualCompletedAt:janStamp}
+  ],jan).completedToday,1);
+  assert.throws(()=>summarizeDailyTaskProgress([],"bad-date"),/Invalid daily progress date/);
 });
