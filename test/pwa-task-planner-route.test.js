@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v56 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v57 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=56"/);
-  assert.match(html, /src="\/app\.js\?v=56"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v56"/);
-  assert.match(worker, /"\/styles\.css\?v=56"/);
-  assert.match(worker, /"\/app\.js\?v=56"/);
+  assert.match(html, /href="\/styles\.css\?v=57"/);
+  assert.match(html, /src="\/app\.js\?v=57"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v57"/);
+  assert.match(worker, /"\/styles\.css\?v=57"/);
+  assert.match(worker, /"\/app\.js\?v=57"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -686,4 +686,28 @@ test("JOMY manual quick-add is no-token, non-destructive and iPhone accessible",
   assert.match(submit,/taskAddStatus.textContent = "Task not saved:/);
   assert.match(css,/\.task-form button\{[^\n]*min-height:44px/);
   assert.match(app,/const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
+});
+
+
+test("JOMY iPhone task updates, deletion and chat add persist before changing memory", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  const persist=app.split("  function persistTaskQueue(nextQueue) {")[1]?.split("  // Other Preview subdomains")[0] || "";
+  const update=app.split("  function updateTask(taskId, updater) {")[1]?.split("  // Explicit local-save only")[0] || "";
+  const render=app.split("  function renderTaskQueue() {")[1]?.split("  function wakeActivityBoard() {")[0] || "";
+  const chat=app.split("    const explicitTask = text.match(")[1]?.split("    // Chat must also avoid inventing")[0] || "";
+  assert.ok(persist && update && render && chat);
+  assert.match(persist,/persistTaskQueueSafely\(nextQueue, localStorage, TASK_QUEUE_KEY\)/);
+  assert.match(persist,/taskQueue = saved/);
+  assert.match(persist,/taskStorageStatus.hidden = false/);
+  assert.match(persist,/throw error/);
+  assert.match(update,/const nextQueue = taskQueue.map/);
+  assert.match(update,/persistTaskQueue\(nextQueue\);\s+renderTaskQueue\(\)/);
+  assert.doesNotMatch(update,/saveTaskQueue\(|taskQueue = taskQueue.map/);
+  assert.match(render,/persistTaskQueue\(taskQueue.filter\(entry => entry.id !== task.id\)\)/);
+  assert.match(chat,/taskQueue.length >= 30/);
+  assert.match(chat,/persistTaskQueue\(addTask\(taskQueue, task\)\)/);
+  assert.doesNotMatch(chat,/taskQueue = addTask/);
+  assert.match(html,/id="taskStorageStatus" role="alert" hidden/);
+  assert.match(css,/\.task-storage-status\[hidden\]\{display:none!important\}/);
 });
