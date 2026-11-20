@@ -662,6 +662,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       view.type = "button";
       view.className = "task-focus-view";
       view.textContent = "VIEW TASK";
+      view.dataset.focusTaskId = item.id;
       view.setAttribute("aria-pressed", String(activeFocusTaskId === item.id));
       view.setAttribute("aria-label", "Show focus task: " + item.title);
       view.addEventListener("click", () => {
@@ -671,6 +672,20 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         activeDeadlineFilter = "all";
         taskSearchInput.value = "";
         renderTaskQueue();
+        if (activeFocusTaskId) {
+          // iPhone: show the selected card instead of leaving the user above the list.
+          const selectedCard = taskList.querySelector('.task-item[data-daily-focus="true"]');
+          if (selectedCard) {
+            selectedCard.focus({ preventScroll: true });
+            selectedCard.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        } else {
+          // Toggling the same suggestion off rebuilds the focus list; restore
+          // keyboard/VoiceOver focus to its newly-rendered button.
+          const restoredButton = Array.from(taskFocusList.querySelectorAll(".task-focus-view"))
+            .find(button => button.dataset.focusTaskId === item.id);
+          restoredButton?.focus({ preventScroll: true });
+        }
       });
       row.append(summary, view);
       taskFocusList.append(row);
@@ -789,6 +804,10 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     for (const task of visibleTasks) {
       const item = document.createElement("article");
       item.className = "task-item";
+      if (activeFocusTaskId === task.id) {
+        item.tabIndex = -1;
+        item.dataset.dailyFocus = "true";
+      }
       const details = document.createElement("div");
       details.className = "task-details";
       const title = document.createElement("strong");
