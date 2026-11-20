@@ -576,3 +576,44 @@ test("JOMY 3.3 upcoming calendar has tappable iPhone-size day buttons and no inp
   assert.match(css,/@media\(max-width:390px\)\{\.task-calendar-panel/);
   assert.match(app,/document.addEventListener\("visibilitychange", \(\) => \{\s+if \(!document.hidden\) renderTaskQueue\(\);/);
 });
+
+
+test("JOMY 3.4 Smart Daily Planner is accessible and does not replace Task Queue", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const panel=html.split('id="taskPanel"')[1]?.split('<section class="memory-panel"')[0] || "";
+  assert.match(panel,/<details class="task-focus-panel" id="taskFocusPanel">/);
+  assert.match(panel,/id="focusOverview" role="status" aria-live="polite"/);
+  assert.match(panel,/id="focusList" class="task-focus-list" role="list"/);
+  assert.match(panel,/id="focusFootnote"/);
+  assert.match(panel,/no AI execution or reminders/i);
+  assert.ok(panel.indexOf("taskFocusPanel") < panel.indexOf("taskCalendarPanel"));
+  assert.ok(panel.indexOf("taskFocusPanel") > panel.indexOf("taskFilterSummary"));
+});
+
+test("JOMY 3.4 daily planner READS tasks and VIEW TASK only opens existing card", () => {
+  const handler = app.split("  // Transparent local ranking only. Nothing is marked DONE or sent to a Worker.")[1]
+    ?.split("  // Local-calendar date view: no external requests, no storage writes and no timers.")[0] || "";
+  assert.ok(handler,"Daily focus renderer missing");
+  assert.match(handler,/summarizeDailyFocus\(taskQueue, new Date\(\), 5\)/);
+  assert.match(handler,/focusList.replaceChildren\(\)/);
+  assert.match(handler,/heading.textContent = task.title/);
+  assert.match(handler,/open.textContent = "VIEW TASK"/);
+  assert.match(handler,/open.addEventListener\("click"/);
+  assert.match(handler,/taskList.querySelectorAll\("\.task-item"\)/);
+  assert.match(handler,/item.dataset.taskId === task.id/);
+  assert.match(handler,/activeCalendarDay = ""/);
+  assert.doesNotMatch(handler,/fetch\(|sendMessage\(|planTask\(|transitionTask\(|localStorage\.|sessionStorage\.|setInterval\(/);
+  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount.textContent = taskQueue.length \+ "\/30";\s+renderTaskInsights\(\);\s+renderDailyFocus\(\);\s+renderUpcomingCalendar\(\)/);
+  assert.match(app,/item.dataset.taskId = task.id;\s+item.tabIndex = -1/);
+  assert.match(app,/const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
+  assert.match(app,/const MEMORY_KEY = "jomy_agent_personal_memory_v1"/);
+});
+
+test("JOMY 3.4 daily focus keeps iPhone tap targets and readable narrow layout", () => {
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  assert.match(css,/\.task-focus-panel\{/);
+  assert.match(css,/\.task-focus-panel summary\{[^\n]*min-height:44px/);
+  assert.match(css,/\.task-focus-item button\{[^\n]*min-height:44px/);
+  assert.match(css,/@media\(max-width:390px\)\{\.task-focus-panel/);
+  assert.match(css,/\.task-focus-kind\.is-overdue/);
+});
