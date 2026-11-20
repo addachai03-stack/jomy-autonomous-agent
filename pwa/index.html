@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=54">
+  <link rel="stylesheet" href="/styles.css?v=55">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -56,6 +56,16 @@
           <button type="button" class="task-stat" data-task-filter="done" aria-pressed="false"><span class="task-stat-label">DONE</span><strong class="task-stat-number">0</strong></button>
         </div>
         <p class="task-dashboard-summary" id="taskFilterSummary" aria-live="polite">Showing all tasks saved on this device.</p>
+        <section class="task-transfer-panel" id="taskTransferPanel" aria-label="Restore tasks from older preview" hidden>
+          <strong>USED AN OLDER JOMY PREVIEW?</strong>
+          <p>0 tasks here does not mean your older tasks were deleted. Each Preview address has its own private iPhone browser storage. A different address cannot read it automatically.</p>
+          <p>On the same Safari browser, open your older Preview and use MY TASK QUEUE → BACKUP &amp; RESTORE TASKS → EXPORT JSON. Then return here and select that backup to review and import.</p>
+          <div class="task-transfer-actions">
+            <a href="https://890aa584.jomy-agent-pwa.pages.dev" target="_blank" rel="noopener noreferrer">1. OPEN OLDER PREVIEW</a>
+            <button id="taskTransferChoose" type="button">2. SELECT BACKUP FILE</button>
+          </div>
+          <p>Import requires your confirmation and never overwrites existing tasks. Keep the JSON file private. For future updates, use this Preview's stable branch link.</p>
+        </section>
         <details class="task-focus-panel" id="taskFocusPanel">
           <summary>SMART DAILY PLANNER <span>TODAY'S FOCUS · DEVICE ONLY</span></summary>
           <p>Your suggested order: overdue, due today, high priority, then upcoming tasks. Suggestions do not execute tasks, send reminders or contact AI.</p>
@@ -348,6 +358,6 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=54"></script>
+  <script type="module" src="/app.js?v=55"></script>
 </body>
 </html>
