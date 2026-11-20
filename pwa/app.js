@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, TASK_STATES } from "./task-engine.js";
+import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, summarizeDailyTaskProgress, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -43,6 +43,9 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const taskDashboard = $("taskDashboard");
   const taskFilterSummary = $("taskFilterSummary");
   const taskFocusSummary = $("taskFocusSummary");
+  const taskFocusProgress = $("taskFocusProgress");
+  const taskFocusProgressFill = $("taskFocusProgressFill");
+  const taskFocusProgressLabel = $("taskFocusProgressLabel");
   const taskFocusList = $("taskFocusList");
   const taskFocusClear = $("taskFocusClear");
   let activeFocusTaskId = "";
@@ -635,6 +638,14 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     taskFocusSummary.textContent = plan.focus.length + " suggested of " + plan.totalOpen
       + " unfinished · " + overdue + " overdue · " + dueToday
       + " due today · " + highPriority + " other high priority";
+    const progress = summarizeDailyTaskProgress(taskQueue, new Date());
+    taskFocusProgressLabel.textContent = progress.completedToday + " manually done today · "
+      + progress.unfinished + " unfinished · " + progress.percent + "%";
+    taskFocusProgress.setAttribute("aria-valuenow", String(progress.percent));
+    taskFocusProgress.setAttribute("aria-valuetext", progress.completedToday
+      + " tasks manually done today; " + progress.unfinished
+      + " unfinished saved tasks; " + progress.percent + " percent of current snapshot");
+    taskFocusProgressFill.style.width = progress.percent + "%";
     taskFocusList.replaceChildren();
     if (!plan.focus.length) {
       const empty = document.createElement("p");
