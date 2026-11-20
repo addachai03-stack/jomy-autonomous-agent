@@ -284,3 +284,8 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-form button:focus-visible{outline:2px solid #f2d79a;outline-offset:2px}
 .task-add-status{font-size:11px;line-height:1.5;color:#becbdc;margin:8px 0 13px;overflow-wrap:anywhere}
 @media(max-width:350px){.task-form button{font-size:9px;letter-spacing:0}}
+
+
+/* Local Safari persistence failures: visibly report, never hide the old tasks. */
+.task-storage-status{box-sizing:border-box;margin:10px 0;padding:11px 12px;border:1px solid #e59b70;background:#3a2320;border-radius:9px;color:#ffe2ca;font-size:12px;line-height:1.55;overflow-wrap:anywhere}
+.task-storage-status[hidden]{display:none!important}
