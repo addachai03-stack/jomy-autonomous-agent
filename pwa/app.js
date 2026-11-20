@@ -35,6 +35,9 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const taskBackupFile = $("taskBackupFile");
   const taskBackupImport = $("taskBackupImport");
   const taskBackupStatus = $("taskBackupStatus");
+  const taskBackupPanel = $("taskBackupPanel");
+  const taskTransferPanel = $("taskTransferPanel");
+  const taskTransferChoose = $("taskTransferChoose");
   let pendingBackupTasks = null;
   const memoryForm = $("memoryForm");
   const memoryInput = $("memoryInput");
@@ -256,6 +259,13 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     taskQueue = taskQueue.slice(-30);
     try { localStorage.setItem(TASK_QUEUE_KEY, JSON.stringify(taskQueue)); } catch (_) {}
   }
+  // Other Preview subdomains have isolated browser storage. Never attempt a
+  // cross-origin read or claim an automatic sync: use the existing validated,
+  // owner-confirmed JSON import instead.
+  taskTransferChoose.addEventListener("click", () => {
+    taskBackupPanel.open = true;
+    taskBackupFile.click();
+  });
   // Backup is entirely local; downloading JSON never sends task data to any API.
   taskBackupExport.addEventListener("click", () => {
     try {
@@ -790,6 +800,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   }
   function renderTaskQueue() {
     taskCount.textContent = taskQueue.length + "/30";
+    taskTransferPanel.hidden = taskQueue.length !== 0;
     renderTaskInsights();
     renderDailyFocus();
     renderUpcomingCalendar();
