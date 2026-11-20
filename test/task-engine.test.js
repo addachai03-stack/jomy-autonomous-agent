@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
-  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar
+  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocus
 } from "../src/task-engine.js";
 
 test("creates bounded queued tasks", () => {
@@ -978,4 +978,73 @@ test("JOMY 3.3 calendar reacts to manual due-date edit and completed status", ()
   r=summarizeUpcomingCalendar([done],now);
   assert.deepEqual([r.upcoming,r.overdue,r.unscheduled,r.open],[0,0,0,0]);
   assert.equal(task.dueDate,undefined);
+});
+
+
+test("JOMY 3.4 focus ranks overdue, due today, high priority, upcoming, backlog in that order", () => {
+  const tasks=[
+    {id:"back",title:"Backlog",status:TASK_STATES.READY},
+    {id:"tom",title:"Tomorrow",status:TASK_STATES.FAILED,priority:"medium",dueDate:"2026-11-21"},
+    {id:"high",title:"Important",status:TASK_STATES.READY,priority:"high"},
+    {id:"today",title:"Today",status:TASK_STATES.IN_PROGRESS,priority:"medium",dueDate:"2026-11-20"},
+    {id:"over",title:"Overdue",status:TASK_STATES.READY,priority:"low",dueDate:"2026-11-18"},
+    {id:"done",title:"Finished",status:TASK_STATES.DONE,priority:"high",dueDate:"2026-11-17"},
+    {id:"success",title:"Legacy success",status:TASK_STATES.SUCCEEDED,dueDate:"2026-11-20"}
+  ];
+  const snapshot=JSON.stringify(tasks);
+  const result=summarizeDailyFocus(tasks,new Date(2026,10,20,12));
+  assert.deepEqual(result.focus.map(x=>x.id),["over","today","high","tom","back"]);
+  assert.deepEqual(result.focus.map(x=>x.kind),["overdue","today","important","upcoming","backlog"]);
+  assert.deepEqual(result.counts,{open:5,overdue:1,dueToday:1,highPriority:1});
+  assert.equal(result.hidden,0);
+  assert.equal(JSON.stringify(tasks),snapshot);
+});
+
+test("JOMY 3.4 focus is limited to five and sorts by priority within each bucket", () => {
+  const tasks=[
+    {id:"late",title:"Much later",status:TASK_STATES.READY,dueDate:"2026-11-27"},
+    {id:"old",title:"Overdue medium",status:TASK_STATES.READY,dueDate:"2026-11-18",priority:"medium"},
+    {id:"high",title:"Overdue high",status:TASK_STATES.BLOCKED,dueDate:"2026-11-19",priority:"high"},
+    {id:"today1",title:"Today low",status:TASK_STATES.READY,dueDate:"2026-11-20",priority:"low"},
+    {id:"today2",title:"Today high",status:TASK_STATES.READY,dueDate:"2026-11-20",priority:"high"},
+    {id:"future",title:"Upcoming",status:TASK_STATES.READY,dueDate:"2026-11-26"},
+    {id:"unset",title:"Unscheduled",status:TASK_STATES.READY}
+  ];
+  const r=summarizeDailyFocus(tasks,new Date(2026,10,20,12));
+  assert.deepEqual(r.focus.map(t=>t.id),["high","old","today2","today1","future"]);
+  assert.deepEqual(r.counts,{open:7,overdue:2,dueToday:2,highPriority:2});
+  assert.equal(r.hidden,2);
+  assert.equal(summarizeDailyFocus(tasks,new Date(2026,10,20,12),2).focus.length,2);
+  assert.equal(summarizeDailyFocus(tasks,new Date(2026,10,20,12),10).hidden,0);
+  assert.deepEqual(summarizeDailyFocus([],new Date(2026,10,20,12)).focus,[]);
+});
+
+test("JOMY 3.4 handles New Year, invalid due dates and invalid limits safely", () => {
+  const tasks=[
+    {id:"bad",title:"Bad legacy date",status:TASK_STATES.READY,dueDate:"2026-02-30"},
+    {id:"new",title:"New year",status:TASK_STATES.READY,dueDate:"2027-01-02",priority:"medium"},
+    {id:"late",title:"Late",status:TASK_STATES.FAILED,dueDate:"2026-12-29"},
+    {id:"done",title:"DONE",status:TASK_STATES.DONE,dueDate:"2026-12-28"}
+  ];
+  const r=summarizeDailyFocus(tasks,new Date(2026,11,30,12));
+  assert.deepEqual(r.focus.map(t=>t.id),["late","new","bad"]);
+  assert.equal(r.focus[1].kind,"upcoming");
+  assert.equal(r.focus[2].kind,"backlog");
+  assert.deepEqual(r.counts,{open:3,overdue:1,dueToday:0,highPriority:0});
+  for(const limit of [0,11,-1,2.5,"5",null])
+    assert.throws(()=>summarizeDailyFocus([],new Date(),limit),/Daily focus limit/);
+  assert.throws(()=>summarizeDailyFocus([],"bad"),/Invalid daily focus date/);
+});
+
+test("JOMY 3.4 suggestions update after manual due-date and DONE changes", () => {
+  const now=new Date(2026,10,20,12), time=now.getTime();
+  const input={...createTask("Manual",time),status:TASK_STATES.READY};
+  assert.equal(summarizeDailyFocus([input],now).focus[0].kind,"backlog");
+  const dated=setTaskSchedule(input,{priority:"high",dueDate:"2026-11-20"},time+100);
+  assert.equal(summarizeDailyFocus([dated],now).focus[0].kind,"today");
+  const done=transitionTask(dated,TASK_STATES.DONE,{},time+200);
+  const r=summarizeDailyFocus([done],now);
+  assert.equal(r.counts.open,0);
+  assert.deepEqual(r.focus,[]);
+  assert.equal(input.status,TASK_STATES.READY);
 });
