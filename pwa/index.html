@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=67">
+  <link rel="stylesheet" href="/styles.css?v=68">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -51,6 +51,11 @@
           <div><span>Speech recognition result</span><strong id="voiceQa-recognition">NOT TESTED</strong></div>
           <div><span>Spoken reply completed</span><strong id="voiceQa-playback">NOT TESTED</strong></div>
           <div><span>Hands-free wake phrase</span><strong id="voiceQa-wake">NOT TESTED</strong></div>
+        </div>
+        <div class="voice-qa-guide" aria-live="polite">
+          <strong>NEXT MANUAL TEST</strong>
+          <p id="voiceQaGuide">Check Microphone Permission, then try Tap to speak, Hindi voice, and Hands-free.</p>
+          <button type="button" id="voiceQaNext">Locate next test control</button>
         </div>
         <div class="voice-qa-actions">
           <button type="button" id="voiceQaCopy">Copy voice results</button>
@@ -423,9 +428,9 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=67"></script>
-  <script type="module" src="/unified-console.js?v=67"></script>
-  <script type="module" src="/mic-check-ui.js?v=67"></script>
-  <script type="module" src="/voice-qa-panel.js?v=67"></script>
+  <script type="module" src="/app.js?v=68"></script>
+  <script type="module" src="/unified-console.js?v=68"></script>
+  <script type="module" src="/mic-check-ui.js?v=68"></script>
+  <script type="module" src="/voice-qa-panel.js?v=68"></script>
 </body>
 </html>
