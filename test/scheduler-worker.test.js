@@ -101,7 +101,11 @@ test("owner-only bounded run history and safe render controls",async()=>{
  const page=await worker.fetch(new Request("https://test.example/"),env);
  const html=await page.text();
  assert.match(html,/id="history"/);
- assert.match(html,/detail.textContent=j.result/);
+ assert.match(html,/showResult\(detail,j.result\)/);
+ assert.match(html,/Full technical JSON/);
+ assert.match(html,/Open CSP fix draft PR #24 \(not deployed\)/);
+ assert.match(html,/noopener noreferrer/);
+ assert.doesNotMatch(html,/detail.innerHTML=j.result/);
 });
 
 test("recurring successful run records DONE while keeping next occurrence QUEUED",async()=>{
