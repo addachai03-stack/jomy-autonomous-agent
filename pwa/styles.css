@@ -334,3 +334,11 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .hub-draft-button{width:100%;min-height:44px;border:1px dashed #ddbd7d;background:#253044;color:#ffe0a3;padding:9px;border-radius:9px;font-weight:750;font-size:12px;cursor:pointer;margin:8px 0}
 .hub-tile-action:focus-visible,.hub-draft-button:focus-visible{outline:3px solid #ffe0a3;outline-offset:2px}
 #hubSchedulerStatus{font-size:11px;min-height:0;line-height:1.45}
+
+/* Manual approval handoff and permission diagnostics; no automatic operations */
+.hub-export-row{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}
+#hubApprovalExport,.hub-handoff-button{min-height:44px;padding:10px 12px;border:1px solid #caaa75;border-radius:10px;background:#1c2b3d;color:#efd8a5;font-size:11px;font-weight:700;cursor:pointer}
+.hub-handoff-button{width:100%;margin-top:9px}.hub-handoff-text{margin-top:9px;width:100%;min-height:180px;background:#07111e;color:#f4e8d2;font-size:12px;line-height:1.5;border:1px solid #40526f;border-radius:9px;padding:10px;resize:vertical}
+#hubApprovalExport:focus-visible,.hub-handoff-button:focus-visible,#micPermissionCheck:focus-visible{outline:3px solid #ffe1a8;outline-offset:2px}
+#micPermissionStatus[data-result="granted"]{color:#9fe6b8}
+#micPermissionStatus[data-result="denied"]{color:#f1ab90}
