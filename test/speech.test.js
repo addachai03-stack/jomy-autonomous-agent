@@ -60,7 +60,7 @@ test("production PWA routes every spoken reply through the sanitizer", () => {
 
 test("production service worker precaches the speech sanitizer with a new cache version", () => {
   const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(source, /jomy-agent-shell-v59/);
+  assert.match(source, /jomy-agent-shell-v60/);
   assert.match(source, /"\/speech-text\.js"/);
   assert.match(source, /"\/speech-voice\.js"/);
 });
@@ -100,7 +100,7 @@ test("endpoint settings save and disconnect handlers are bound directly in the m
 
 test("service worker cache is bumped after consolidating endpoint settings", () => {
   const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(source, /jomy-agent-shell-v59/);
+  assert.match(source, /jomy-agent-shell-v60/);
   assert.doesNotMatch(source, /endpoint-settings\.js/);
 });
 
@@ -153,4 +153,16 @@ test("connection diagnostic is explicitly user initiated in settings", () => {
   assert.match(source,/await testAgentConnection\(endpoint, ownerToken\)/);
   assert.match(source,/revision !== connectionRevision/);
   assert.match(source,/enteredEndpoint !== endpoint/);
+});
+
+
+test("voice starts only after an explicit gesture and stops safely when hidden", () => {
+  const source=readFileSync(new URL("../pwa/app.js",import.meta.url),"utf8");
+  assert.match(source,/let handsFree = false;/);
+  assert.match(source,/if \(handsFree\) \{\s+stopHandsFree\(\);\s+return;/);
+  assert.match(source,/discardVoiceResults = discardVoiceResults \|\| Boolean\(recognition && \(listening \|\| recognitionStarting\)\)/);
+  assert.match(source,/recognition.abort\(\)/);
+  assert.match(source,/if \(discardVoiceResults \|\| document.hidden \|\| busy \|\| speakingReply\) return/);
+  assert.match(source,/if \(document.hidden && \(handsFree \|\| listening \|\| recognitionStarting \|\| voiceSendTimer !== null\)\) \{\s+stopHandsFree\(\)/);
+  assert.match(source,/handsFreeButton.textContent = recognition \? "Hands-free: Off" : "Voice unavailable"/);
 });
