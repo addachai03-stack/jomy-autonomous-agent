@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=57">
+  <link rel="stylesheet" href="/styles.css?v=58">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -171,6 +171,10 @@
           <button type="button" class="task-deadline-filter" data-deadline-filter="overdue" aria-pressed="false">OVERDUE <strong class="task-deadline-count">0</strong></button>
         </div>
         <div id="taskList" class="task-list" aria-live="polite"></div>
+        <section id="taskDeleteRecovery" class="task-delete-recovery" aria-label="Undo last task removal" hidden>
+          <p id="taskUndoSummary" role="status" aria-live="polite">Last removed task can be restored until refresh or another deletion.</p>
+          <button type="button" id="taskUndoDelete">UNDO DELETE</button>
+        </section>
         <p class="task-note">Saved on this iPhone only. Say “Task: …” to JOMY or add one here. Planning never executes external actions.</p>
         <section class="memory-panel" aria-label="Personal memory">
           <div class="task-heading"><span>PERSONAL MEMORY</span><span>DEVICE ONLY · 15 MAX</span></div>
@@ -360,6 +364,6 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=57"></script>
+  <script type="module" src="/app.js?v=58"></script>
 </body>
 </html>
