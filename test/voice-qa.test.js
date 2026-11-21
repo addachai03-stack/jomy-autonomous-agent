@@ -46,7 +46,7 @@ test("UI is accessible, session-only, and does not start or upload microphone au
  assert.match(app,/reportVoiceQa\("playback","failed"\)/);
  assert.match(app,/CustomEvent\("jomy:connection-status"/);
  assert.match(unified,/window\.addEventListener\("jomy:connection-status",refreshCards\)/);
- assert.match(sw,/jomy-agent-shell-v67/);
- assert.match(sw,/voice-qa-panel\.js\?v=67/);
+ assert.match(sw,/jomy-agent-shell-v68/);
+ assert.match(sw,/voice-qa-panel\.js\?v=68/);
  assert.match(sw,/voice-qa\.js/);
 });
