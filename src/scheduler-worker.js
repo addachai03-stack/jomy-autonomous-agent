@@ -174,7 +174,18 @@ export default {
   async fetch(req,env){
     const url=new URL(req.url);
     if(req.method==="GET"&&url.pathname==="/")return new Response(PAGE,{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","content-security-policy":"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'","referrer-policy":"no-referrer","x-content-type-options":"nosniff"}});
-    if(req.method==="GET"&&url.pathname==="/health")return json({service:"JOMY Scheduler Preview",schedulerEnabled:env.SCHEDULER_ENABLED==="true",databaseConfigured:!!env.JOBS_DB,ownerAuthConfigured:typeof env.SCHEDULER_OWNER_TOKEN==="string"&&env.SCHEDULER_OWNER_TOKEN.length>=32,intervalMinutes:5,aiReviewEnabled:env.AI_REVIEW_ENABLED==="true"&&!!env.AI?.run});
+    if(req.method==="GET"&&url.pathname==="/health"){
+      const response=json({service:"JOMY Scheduler Preview",schedulerEnabled:env.SCHEDULER_ENABLED==="true",databaseConfigured:!!env.JOBS_DB,ownerAuthConfigured:typeof env.SCHEDULER_OWNER_TOKEN==="string"&&env.SCHEDULER_OWNER_TOKEN.length>=32,intervalMinutes:5,aiReviewEnabled:env.AI_REVIEW_ENABLED==="true"&&!!env.AI?.run});
+      // Public readiness flags only; no tokens, jobs or owner history. CORS scoped to JOMY PWA only.
+      const origin=req.headers.get("Origin")||"";
+      if(origin==="https://feature-jomy-daily-progress.jomy-agent-pwa.pages.dev"||origin==="https://jomy-agent-pwa.pages.dev"){
+        const headers=new Headers(response.headers);
+        headers.set("Access-Control-Allow-Origin",origin);
+        headers.set("Vary","Origin");
+        return new Response(response.body,{status:response.status,headers});
+      }
+      return response;
+    }
     if(!authorized(req,env))return json({error:"Scheduler owner authentication required."},401);
     if(!env.JOBS_DB)return json({error:"Scheduler database not configured."},503);
     try{
