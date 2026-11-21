@@ -144,6 +144,8 @@ import {APPROVAL_STORAGE_KEY, APPROVAL_KINDS, MAX_APPROVAL_ITEMS, normalizeAppro
   $("hubTaskLink")?.addEventListener("click",()=>{if($("activityToggle")?.getAttribute("aria-expanded")!=="true") $("activityToggle")?.click();$("taskPanel")?.scrollIntoView({behavior:"smooth",block:"start"});});
   window.addEventListener("storage",event=>{if(!event.key||event.key===APPROVAL_STORAGE_KEY){try{items=normalizeApprovals(JSON.parse(localStorage.getItem(APPROVAL_STORAGE_KEY)||"[]"));render();}catch(_){}}refreshCards();});
   window.addEventListener("focus",refreshCards);
+  // Actual authenticated reply triggers setConnection in app.js. No token is copied here.
+  window.addEventListener("jomy:connection-status",refreshCards);
   render();refreshCards();
   // Task counts are read on user interaction only: no background polling.
   root.addEventListener("click",refreshCards);
