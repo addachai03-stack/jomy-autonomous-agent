@@ -47,3 +47,41 @@ export function normalizeAgentEndpoint(value) {
   }
   return url.toString();
 }
+
+
+// A deliberate, single-request diagnostic: never sends saved chat or memory.
+export async function testAgentConnection(endpoint, token, request = globalThis.fetch) {
+  if (!token || !String(token).trim()) return {ok:false, message:"Owner token needed. Save your private token in Settings."};
+  let url;
+  try { url = normalizeAgentEndpoint(endpoint); }
+  catch (_) { return {ok:false, message:"Invalid API URL. Check the saved HTTPS chat endpoint."}; }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const response = await request(url, {
+      method:"POST", redirect:"error", cache:"no-store", signal:controller.signal,
+      headers:{ "Content-Type":"application/json", "Authorization":"Bearer " + token },
+      body:JSON.stringify({message:"Reply briefly with OK to confirm this connection test.",history:[],locale:"hi-IN",client:"jomy-connection-test"})
+    });
+    if (response.status === 401 || response.status === 403) return {ok:false,message:"Owner authentication rejected. Check your saved token and API permissions."};
+    if (response.status === 404) return {ok:false,message:"AI chat route not found. Check your API URL."};
+    if (response.status === 429) return {ok:false,message:"AI request limit reached. Try again later."};
+    if (response.status === 503) return {ok:false,message:"AI service unavailable or not configured."};
+    let data;
+    try { data = await response.json(); } catch (_) {}
+    if (!response.ok) {
+      const messages = {
+        AI_RATE_LIMITED:"AI provider request limit reached.",
+        AI_ALLOCATION_OR_BILLING:"Workers AI allocation or billing limit reached.",
+        AI_TIMEOUT:"AI provider timed out. Try again.",
+        AI_AUTH_OR_PERMISSION:"AI provider permission rejected."
+      };
+      return {ok:false,message:Object.hasOwn(messages,data?.code) ? messages[data.code] : "AI test failed (HTTP " + response.status + ")."};
+    }
+    const reply = typeof data?.reply === "string" ? data.reply : typeof data?.message === "string" ? data.message : "";
+    if (!reply.trim()) return {ok:false,message:"Server responded, but no readable AI reply was returned."};
+    return {ok:true,message:"AI connection verified. Authenticated chat returned a reply."};
+  } catch (error) {
+    return {ok:false,message:controller.signal.aborted ? "Connection test timed out. Try again." : "Cannot reach AI API. Check network, HTTPS and browser origin permissions."};
+  } finally { clearTimeout(timer); }
+}
