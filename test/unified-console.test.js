@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-import {createApproval,decideApproval,approvalSummary,normalizeApprovals,MAX_APPROVAL_ITEMS} from "../pwa/approval-utils.js";
+import {createApproval,decideApproval,approvalSummary,normalizeApprovals,MAX_APPROVAL_ITEMS,buildApprovedHandoff,exportApprovalSnapshot} from "../pwa/approval-utils.js";
 const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
 const controller=readFileSync(new URL("../pwa/unified-console.js",import.meta.url),"utf8");
 const sw=readFileSync(new URL("../pwa/sw.js",import.meta.url),"utf8");
@@ -33,4 +33,24 @@ test("approval decisions record only permission; never execute actions",()=>{
  assert.equal(normalizeApprovals([{id:"bad",title:"bad",kind:"admin",status:"approved"}]).length,0);
  let full=[];for(let i=0;i<MAX_APPROVAL_ITEMS;i++)full=createApproval(full,{title:"Review action "+i,kind:"code"},i,"synthetic-approval-id-"+String(i).padStart(5,"0"));
  assert.throws(()=>createApproval(full,{title:"Extra action",kind:"code"},999,"synthetic-approval-id-99999"),/Inbox full/);
+});
+
+test("manual handoff requires prior owner review and never claims execution",()=>{
+ const id="synthetic-handoff-id-00001";
+ let items=createApproval([],{kind:"deploy",title:"Review safe preview only",note:"No production changes"},1000,id);
+ assert.throws(()=>buildApprovedHandoff(items,id),/Only owner-reviewed/);
+ items=decideApproval(items,id,"approved",2000);
+ const handoff=buildApprovedHandoff(items,id);
+ assert.match(handoff,/MANUAL HANDOFF ONLY/);
+ assert.match(handoff,/No production changes/);
+ assert.match(handoff,/did NOT execute/);
+ assert.throws(()=>buildApprovedHandoff(items,"missing"),/not found/);
+ const exported=JSON.parse(exportApprovalSnapshot(items,"2026-11-21T21:00:00.000Z"));
+ assert.equal(exported.execution,false);
+ assert.equal(exported.items.length,1);
+ assert.equal(exported.items[0].status,"approved");
+ assert.equal(exported.format,"jomy-owner-approvals");
+ assert.match(controller,/navigator\.clipboard\.writeText\(brief\)/);
+ assert.match(controller,/URL\.createObjectURL\(file\)/);
+ assert.doesNotMatch(controller,/fetch\(.*\/api\/execute/);
 });
