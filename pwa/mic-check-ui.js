@@ -14,6 +14,7 @@ if(button&&output){
       const result=await checkMicrophonePermission();
       output.textContent=result.message;
       output.dataset.result=result.code;
+      window.dispatchEvent(new CustomEvent("jomy:voice-qa",{detail:{step:"permission",status:result.ok?"passed":result.code==="unsupported"?"unsupported":"failed"}}));
     }finally{checking=false;button.disabled=false;}
   });
 }
