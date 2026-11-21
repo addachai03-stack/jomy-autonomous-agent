@@ -1,4 +1,4 @@
-import {APPROVAL_STORAGE_KEY, APPROVAL_KINDS, MAX_APPROVAL_ITEMS, normalizeApprovals, createApproval, decideApproval, approvalSummary} from "./approval-utils.js";
+import {APPROVAL_STORAGE_KEY, APPROVAL_KINDS, MAX_APPROVAL_ITEMS, normalizeApprovals, createApproval, decideApproval, approvalSummary, buildApprovedHandoff, exportApprovalSnapshot} from "./approval-utils.js";
 
 // The dashboard reads local task counts only. Chat remains in the existing app; the
 // cloud scheduler remains a separate owner-authenticated site. No cross-site token sharing.
@@ -40,6 +40,36 @@ import {APPROVAL_STORAGE_KEY, APPROVAL_KINDS, MAX_APPROVAL_ITEMS, normalizeAppro
         }
         card.append(buttons);
       }
+      if(request.status==="approved"){
+        const prepare=document.createElement("button");
+        prepare.type="button";
+        prepare.className="hub-handoff-button";
+        prepare.textContent="Prepare manual handoff (no execution)";
+        prepare.addEventListener("click",()=>{
+          try{
+            const brief=buildApprovedHandoff(items,request.id);
+            if(card.querySelector(".hub-handoff-text"))return;
+            const input=document.createElement("textarea");
+            input.className="hub-handoff-text";
+            input.readOnly=true;input.rows=9;
+            input.setAttribute("aria-label","Approved plan review handoff; not execution authorization");
+            input.value=brief;
+            const copy=document.createElement("button");
+            copy.type="button";copy.className="hub-handoff-button";
+            copy.textContent="Copy review brief";
+            copy.addEventListener("click",async()=>{
+              try{
+                if(!navigator.clipboard?.writeText)throw Error("Clipboard unsupported");
+                await navigator.clipboard.writeText(brief);
+                renderStatus("Review brief copied. No external action was performed. Separate explicit approval is still required.");
+              }catch(_){input.focus();input.select();renderStatus("Select and copy the brief manually on this device. No external action performed.");}
+            });
+            card.append(input,copy);
+            renderStatus("Prepared a local review brief only. Nothing was executed or externally authorized.");
+          }catch(e){renderStatus("Could not prepare brief: "+(e?.message||"Unknown error"));}
+        });
+        card.append(prepare);
+      }
       list.append(card);
     }
     const maxed=items.length>=MAX_APPROVAL_ITEMS;$("hubRequestSubmit").disabled=maxed;
@@ -53,6 +83,19 @@ import {APPROVAL_STORAGE_KEY, APPROVAL_KINDS, MAX_APPROVAL_ITEMS, normalizeAppro
       taskStatus.textContent=Array.isArray(tasks)?tasks.length+" tasks on this device":"Local task status unavailable";
     }catch(_){taskStatus.textContent="Local task status unavailable";}
   }
+  $("hubApprovalExport")?.addEventListener("click",()=>{
+    // Local download only. Do not send approvals, tokens or tasks to cloud.
+    try{
+      const backup=exportApprovalSnapshot(items);
+      const file=new Blob([backup],{type:"application/json;charset=utf-8"});
+      const url=URL.createObjectURL(file);
+      const link=document.createElement("a");
+      link.href=url;link.download="jomy-owner-approval-review.json";
+      document.body.append(link);link.click();link.remove();
+      window.setTimeout(()=>URL.revokeObjectURL(url),10000);
+      renderStatus("Local JSON review log prepared for download. No cloud upload or action execution.");
+    }catch(e){renderStatus("Export unavailable: "+(e?.message||"Browser download blocked"));}
+  });
   $("hubRequestForm")?.addEventListener("submit",event=>{
     event.preventDefault();
     try{
