@@ -1,0 +1,31 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {createApproval,decideApproval,approvalSummary,normalizeApprovals,MAX_APPROVAL_ITEMS} from "../pwa/approval-utils.js";
+const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+const controller=readFileSync(new URL("../pwa/unified-console.js",import.meta.url),"utf8");
+const sw=readFileSync(new URL("../pwa/sw.js",import.meta.url),"utf8");
+test("unified dashboard provides separate, no-token-sharing navigation",()=>{
+ assert.match(html,/id="unifiedDashboard"/);
+ assert.match(html,/id="hubChatLink"/);assert.match(html,/id="hubTaskLink"/);
+ assert.match(html,/jomy-cloud-scheduler-preview\.addachai03\.workers\.dev/);
+ assert.match(html,/id="hubRequestForm"/);assert.match(html,/id="hubApprovalList"/);
+ assert.match(controller,/localStorage\.setItem\(APPROVAL_STORAGE_KEY/);
+ assert.doesNotMatch(controller,/fetch\(/);
+ assert.doesNotMatch(controller,/AGENT_OWNER_TOKEN|SCHEDULER_OWNER_TOKEN/);
+ assert.match(sw,/unified-console\.js\?v=64/);
+ assert.match(sw,/approval-utils\.js/);
+});
+test("approval decisions record only permission; never execute actions",()=>{
+ let records=createApproval([],{title:"Review sample deployment",kind:"deploy",note:"No publishing before review"},1000,"synthetic-approval-id-00001");
+ assert.equal(approvalSummary(records).pending,1);
+ records=decideApproval(records,records[0].id,"approved",2000);
+ assert.equal(approvalSummary(records).approved,1);
+ assert.equal(records[0].decidedAt,2000);
+ assert.throws(()=>decideApproval(records,records[0].id,"approved",2001),/already reviewed/);
+ assert.throws(()=>createApproval([],{title:"password: MySecret123456",kind:"code"},1,"synthetic-approval-id-00002"),/passwords/);
+ assert.throws(()=>createApproval([],{title:"Send message",kind:"message",note:"Bearer abcdef"},1,"synthetic-approval-id-00003"),/passwords/);
+ assert.equal(normalizeApprovals([{id:"bad",title:"bad",kind:"admin",status:"approved"}]).length,0);
+ let full=[];for(let i=0;i<MAX_APPROVAL_ITEMS;i++)full=createApproval(full,{title:"Review action "+i,kind:"code"},i,"synthetic-approval-id-"+String(i).padStart(5,"0"));
+ assert.throws(()=>createApproval(full,{title:"Extra action",kind:"code"},999,"synthetic-approval-id-99999"),/Inbox full/);
+});
