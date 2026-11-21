@@ -1187,6 +1187,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   }
   function speak(text) {
     if (!soundOn || !("speechSynthesis" in window)) {
+      if (!("speechSynthesis" in window)) reportVoiceQa("playback","unsupported");
       speakingReply = false;
       if (handsFree) startRecognition();
       return;
@@ -1378,7 +1379,10 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       recognitionStarting = false;
       listening = false;
       const fatalVoiceErrors = ["not-allowed", "service-not-allowed", "audio-capture", "language-not-supported", "network"];
-      if (fatalVoiceErrors.includes(event.error)) recognitionBlocked = true;
+      if (fatalVoiceErrors.includes(event.error)) {
+        recognitionBlocked = true;
+        reportVoiceQa("recognition","failed");
+      }
       micLabel.textContent = handsFree ? "Hands-free paused" : "Tap to speak";
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
         micLabel.textContent = "Tap anywhere to retry";
