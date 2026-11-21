@@ -366,3 +366,14 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .voice-qa-guide p{font-size:12px;line-height:1.6;color:#d5e1ef;margin:7px 0 10px}
 .voice-qa-guide button{width:100%;min-height:44px;padding:10px;background:#30415b;border:1px solid #e2c181;border-radius:9px;color:#f5e3b8;font-weight:750;font-size:12px;cursor:pointer}
 .voice-qa-guide button:focus-visible{outline:3px solid #fce3ae;outline-offset:2px}
+
+/* AI Agent Engine V1 · no background, payment, publish, mutation or remote secrets. */
+.agent-engine-card{margin:18px 0 12px;padding:16px;border:1px solid #cda96677;border-radius:15px;background:linear-gradient(145deg,#202133,#101c30)}
+.agent-engine-card h3{color:#f5d99c;font-size:16px;letter-spacing:.02em;margin:0}
+.agent-engine-card .hub-request-form{margin-top:10px}
+.agent-engine-result{margin:11px 0 0;padding-left:21px;color:#d6e2f2;overflow-wrap:anywhere;font-size:12px;line-height:1.6}
+.agent-engine-result li{margin-bottom:7px}
+.agent-engine-card #agentEngineStatus{color:#f4d5a4;font-size:12px;line-height:1.5}
+.agent-engine-card #agentEngineReview[hidden]{display:none}
+.agent-engine-card #agentEngineRun:disabled{opacity:.65;cursor:wait}
+@media(max-width:400px){.agent-engine-card{padding:12px}}
