@@ -2,7 +2,7 @@ import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } 
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, createManualTask, addTask, persistTaskQueueSafely, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, summarizeDailyTaskProgress, TASK_STATES } from "./task-engine.js";
+import { createTask, createManualTask, addTask, persistTaskQueueSafely, restoreDeletedTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, summarizeDailyTaskProgress, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -25,6 +25,10 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const taskForm = $("taskForm");
   const taskAddStatus = $("taskAddStatus");
   const taskStorageStatus = $("taskStorageStatus");
+  const taskDeleteRecovery = $("taskDeleteRecovery");
+  const taskUndoDelete = $("taskUndoDelete");
+  const taskUndoSummary = $("taskUndoSummary");
+  let pendingDeletedTask = null;
   const taskInput = $("taskInput");
   const taskSearchInput = $("taskSearchInput");
   const taskSortSelect = $("taskSortSelect");
@@ -272,6 +276,24 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       throw error;
     }
   }
+  // One-step, on-page undo is intentionally ephemeral: the deleted record is
+  // held only in memory and is never leaked to a network or separate origin.
+  taskUndoDelete.addEventListener("click", () => {
+    if (!pendingDeletedTask) return;
+    try {
+      const restored = restoreDeletedTask(
+        taskQueue, pendingDeletedTask.task, pendingDeletedTask.index
+      );
+      persistTaskQueue(restored);
+      pendingDeletedTask = null;
+      taskDeleteRecovery.hidden = true;
+      renderTaskQueue();
+      taskAddStatus.textContent = "Deleted task restored on this iPhone.";
+    } catch (error) {
+      taskUndoSummary.textContent = "Could not restore yet: " + error.message
+        + " Your other saved tasks are unchanged.";
+    }
+  });
   // Other Preview subdomains have isolated browser storage. Never attempt a
   // cross-origin read or claim an automatic sync: use the existing validated,
   // owner-confirmed JSON import instead.
@@ -1102,8 +1124,18 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       remove.setAttribute("aria-label", "Remove task");
       remove.addEventListener("click", () => {
         try {
-          persistTaskQueue(taskQueue.filter(entry => entry.id !== task.id));
+          const index = taskQueue.findIndex(entry => entry.id === task.id);
+          if (index < 0) return;
+          const deleted = taskQueue[index];
+          // Save the reduced queue first; do not offer undo for an unsaved delete.
+          persistTaskQueue(taskQueue.filter(entry => entry.id !== deleted.id));
+          pendingDeletedTask = {task: deleted, index};
+          taskUndoSummary.textContent = "Removed: " + deleted.title
+            + ". UNDO is available until refresh or the next deletion.";
+          taskDeleteRecovery.hidden = false;
           renderTaskQueue();
+          taskUndoDelete.focus({preventScroll:true});
+          taskDeleteRecovery.scrollIntoView({behavior:"smooth",block:"nearest"});
         } catch (error) {
           console.warn("JOMY_TASK_REMOVE_NOT_SAVED", error?.name || "Error");
         }
