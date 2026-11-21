@@ -918,3 +918,27 @@ export function persistTaskQueueSafely(nextQueue, storage, key) {
   storage.setItem(key, JSON.stringify(nextQueue));
   return nextQueue;
 }
+
+/**
+ * Restore exactly one removed local task at its former position. The caller
+ * must persist the returned snapshot before making it visible to the user.
+ * No eviction, duplication, fabricated completion or hidden side effects.
+ */
+export function restoreDeletedTask(queue, task, originalIndex) {
+  if (!Array.isArray(queue)) throw new TypeError("Invalid task queue.");
+  if (!task || typeof task.id !== "string" || !task.id ||
+      typeof task.title !== "string" || typeof task.status !== "string") {
+    throw new TypeError("Invalid deleted task.");
+  }
+  if (!Number.isInteger(originalIndex) || originalIndex < 0) {
+    throw new RangeError("Invalid deleted task position.");
+  }
+  if (queue.some(saved => saved?.id === task.id)) {
+    throw new Error("This task is already saved; nothing was overwritten.");
+  }
+  if (queue.length >= 30) {
+    throw new RangeError("Task Queue full (30/30). Remove another task before restoring.");
+  }
+  const position = Math.min(originalIndex, queue.length);
+  return [...queue.slice(0, position), task, ...queue.slice(position)];
+}
