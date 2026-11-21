@@ -60,7 +60,7 @@ test("production PWA routes every spoken reply through the sanitizer", () => {
 
 test("production service worker precaches the speech sanitizer with a new cache version", () => {
   const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(source, /jomy-agent-shell-v61/);
+  assert.match(source, /jomy-agent-shell-v62/);
   assert.match(source, /"\/speech-text\.js"/);
   assert.match(source, /"\/speech-voice\.js"/);
 });
@@ -100,7 +100,7 @@ test("endpoint settings save and disconnect handlers are bound directly in the m
 
 test("service worker cache is bumped after consolidating endpoint settings", () => {
   const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(source, /jomy-agent-shell-v61/);
+  assert.match(source, /jomy-agent-shell-v62/);
   assert.doesNotMatch(source, /endpoint-settings\.js/);
 });
 
@@ -195,4 +195,17 @@ test("invalid JSON replies fail and non-JSON HTTP errors retain status",async()=
   const x=await requestAgentJson("https://example.test",{},async()=>new Response("bad",{status:502}),200);
   assert.equal(x.response.status,502);
   assert.deepEqual(x.data,{});
+});
+
+
+test("voice reply waits for recognition onend before a new hands-free session", () => {
+  const source=readFileSync(new URL("../pwa/app.js",import.meta.url),"utf8");
+  const handler=source.split("function endRecognitionForReply() {")[1]?.split("function speak(text) {")[0]||"";
+  assert.match(handler,/discardVoiceResults = true;\s+listening = false;\s+try \{ recognition.stop\(\); \}/);
+  assert.match(source,/waitingForCommand = true;\s+endRecognitionForReply\(\);/);
+  assert.match(source,/endRecognitionForReply\(\);\s+sendMessage\(command\)/);
+  const start=source.split("function startRecognition() {")[1]?.split("function stopHandsFree() {")[0]||"";
+  assert.match(start,/discardVoiceResults\) return/);
+  const end=source.split("recognition.onend = () => {")[1]?.split("async function sendMessage")[0]||"";
+  assert.match(end,/if \(discardVoiceResults\) \{\s+discardVoiceResults = false;/);
 });
