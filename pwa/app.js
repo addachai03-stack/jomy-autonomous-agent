@@ -1,8 +1,9 @@
-import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } from "./voice-utils.js";
+import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint, testAgentConnection, requestAgentJson } from "./voice-utils.js";
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
+import { VOICE_LANGUAGE_KEY, normalizeVoiceLanguage, voiceAvailabilityMessage } from "./voice-language.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
-import { createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, TASK_STATES } from "./task-engine.js";
+import { createTask, createManualTask, addTask, persistTaskQueueSafely, restoreDeletedTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, summarizeDailyTaskProgress, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
 
 (() => {
@@ -14,6 +15,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const micLabel = $("micLabel");
   const soundButton = $("soundButton");
   const handsFreeButton = $("handsFreeButton");
+  const voiceLanguageSelect = $("voiceLanguageSelect");
+  const voiceCapabilityStatus = $("voiceCapabilityStatus");
   const messageInput = $("messageInput");
   const chatForm = $("chatForm");
   const messages = $("messages");
@@ -23,6 +26,12 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const activityBoard = document.querySelector(".activity");
   const taskPanel = $("taskPanel");
   const taskForm = $("taskForm");
+  const taskAddStatus = $("taskAddStatus");
+  const taskStorageStatus = $("taskStorageStatus");
+  const taskDeleteRecovery = $("taskDeleteRecovery");
+  const taskUndoDelete = $("taskUndoDelete");
+  const taskUndoSummary = $("taskUndoSummary");
+  let pendingDeletedTask = null;
   const taskInput = $("taskInput");
   const taskSearchInput = $("taskSearchInput");
   const taskSortSelect = $("taskSortSelect");
@@ -35,6 +44,9 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const taskBackupFile = $("taskBackupFile");
   const taskBackupImport = $("taskBackupImport");
   const taskBackupStatus = $("taskBackupStatus");
+  const taskBackupPanel = $("taskBackupPanel");
+  const taskTransferPanel = $("taskTransferPanel");
+  const taskTransferChoose = $("taskTransferChoose");
   let pendingBackupTasks = null;
   const memoryForm = $("memoryForm");
   const memoryInput = $("memoryInput");
@@ -43,6 +55,9 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const taskDashboard = $("taskDashboard");
   const taskFilterSummary = $("taskFilterSummary");
   const taskFocusSummary = $("taskFocusSummary");
+  const taskFocusProgress = $("taskFocusProgress");
+  const taskFocusProgressFill = $("taskFocusProgressFill");
+  const taskFocusProgressLabel = $("taskFocusProgressLabel");
   const taskFocusList = $("taskFocusList");
   const taskFocusClear = $("taskFocusClear");
   let activeFocusTaskId = "";
@@ -148,12 +163,15 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   sessionStorage.removeItem(STORAGE_TOKEN);
   sessionStorage.removeItem("jomy_mcp_client_token_v1");
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
+  let voiceLanguage = normalizeVoiceLanguage(localStorage.getItem(VOICE_LANGUAGE_KEY));
+  voiceLanguageSelect.value = voiceLanguage;
   let recognition = null;
   let listening = false;
   let recognitionBlocked = false;
   let recognitionStarting = false;
   let speakingReply = false;
-  let handsFree = localStorage.getItem(STORAGE_HANDSFREE) === "true";
+  // A new page never starts the microphone without a fresh owner gesture.
+  let handsFree = false;
   let waitingForCommand = false;
   let busy = false;
   let voiceSubmissionPending = false;
@@ -224,9 +242,14 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     orbCaption.textContent = label;
     statusText.textContent = detail;
   }
+  function reportVoiceQa(step,status) {
+    // Only coarse-grained status events. Never emit transcript/audio/token.
+    try { window.dispatchEvent(new CustomEvent("jomy:voice-qa",{detail:{step,status}})); } catch (_) {}
+  }
   function setConnection(online, label) {
     connection.classList.toggle("online", online);
     connection.querySelector("span").textContent = label;
+    try { window.dispatchEvent(new CustomEvent("jomy:connection-status",{detail:{online,label}})); } catch (_) {}
   }
   function addMessage(role, text) {
     conversationHistory.push({ role: role === "user" ? "user" : "assistant", content: String(text).slice(0, 2000) });
@@ -249,10 +272,46 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       $("activityChevron").textContent = "−";
     }
   }
-  function saveTaskQueue() {
-    taskQueue = taskQueue.slice(-30);
-    try { localStorage.setItem(TASK_QUEUE_KEY, JSON.stringify(taskQueue)); } catch (_) {}
+  function persistTaskQueue(nextQueue) {
+    try {
+      // Commit first. Never modify the visible queue if Safari storage rejects the write.
+      const saved = persistTaskQueueSafely(nextQueue, localStorage, TASK_QUEUE_KEY);
+      taskQueue = saved;
+      taskStorageStatus.hidden = true;
+      taskStorageStatus.textContent = "";
+      return true;
+    } catch (error) {
+      taskStorageStatus.hidden = false;
+      taskStorageStatus.textContent = "Changes NOT saved on this iPhone. Your previous tasks are unchanged. Check Safari storage, then retry or EXPORT JSON. "
+        + (error?.name === "QuotaExceededError" ? "Storage is full." : "Storage write failed.");
+      throw error;
+    }
   }
+  // One-step, on-page undo is intentionally ephemeral: the deleted record is
+  // held only in memory and is never leaked to a network or separate origin.
+  taskUndoDelete.addEventListener("click", () => {
+    if (!pendingDeletedTask) return;
+    try {
+      const restored = restoreDeletedTask(
+        taskQueue, pendingDeletedTask.task, pendingDeletedTask.index
+      );
+      persistTaskQueue(restored);
+      pendingDeletedTask = null;
+      taskDeleteRecovery.hidden = true;
+      renderTaskQueue();
+      taskAddStatus.textContent = "Deleted task restored on this iPhone.";
+    } catch (error) {
+      taskUndoSummary.textContent = "Could not restore yet: " + error.message
+        + " Your other saved tasks are unchanged.";
+    }
+  });
+  // Other Preview subdomains have isolated browser storage. Never attempt a
+  // cross-origin read or claim an automatic sync: use the existing validated,
+  // owner-confirmed JSON import instead.
+  taskTransferChoose.addEventListener("click", () => {
+    taskBackupPanel.open = true;
+    taskBackupFile.click();
+  });
   // Backup is entirely local; downloading JSON never sends task data to any API.
   taskBackupExport.addEventListener("click", () => {
     try {
@@ -412,8 +471,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     }
   }
   function updateTask(taskId, updater) {
-    taskQueue = taskQueue.map(task => task.id === taskId ? updater(task) : task);
-    saveTaskQueue();
+    const nextQueue = taskQueue.map(task => task.id === taskId ? updater(task) : task);
+    persistTaskQueue(nextQueue);
     renderTaskQueue();
   }
   // Explicit local-save only; task notes never enter AI planning or network calls.
@@ -484,14 +543,13 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       if (!endpoint || !ownerToken) throw new Error("Settings mein Agent API URL aur Owner token save karo.");
       // Use the dedicated, authenticated planning endpoint. Chat responses are
       // free-form prose and must not be parsed as task plans.
-      const planEndpoint = new URL(endpoint);
+      const planEndpoint = new URL(normalizeAgentEndpoint(endpoint));
       planEndpoint.pathname = "/api/agent/plan";
-      const response = await fetch(planEndpoint.toString(), {
+      const {response, data} = await requestAgentJson(planEndpoint.toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ownerToken },
         body: JSON.stringify({ task: planningText })
       });
-      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         // The authenticated route sometimes returns malformed model output.
         // If that *specific* failure occurs, retain the supplied task names
@@ -524,7 +582,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       const current = taskQueue.find(item => item.id === taskId);
       if (current && current.status === TASK_STATES.PLANNING) {
         const failed = transitionTask(current, TASK_STATES.FAILED, { error: error.message });
-        updateTask(taskId, () => failed);
+        try { updateTask(taskId, () => failed); } catch (_) { /* Storage warning already visible. */ }
       }
     }
   }
@@ -635,6 +693,14 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     taskFocusSummary.textContent = plan.focus.length + " suggested of " + plan.totalOpen
       + " unfinished · " + overdue + " overdue · " + dueToday
       + " due today · " + highPriority + " other high priority";
+    const progress = summarizeDailyTaskProgress(taskQueue, new Date());
+    taskFocusProgressLabel.textContent = progress.completedToday + " manually done today · "
+      + progress.unfinished + " unfinished · " + progress.percent + "%";
+    taskFocusProgress.setAttribute("aria-valuenow", String(progress.percent));
+    taskFocusProgress.setAttribute("aria-valuetext", progress.completedToday
+      + " tasks manually done today; " + progress.unfinished
+      + " unfinished saved tasks; " + progress.percent + " percent of current snapshot");
+    taskFocusProgressFill.style.width = progress.percent + "%";
     taskFocusList.replaceChildren();
     if (!plan.focus.length) {
       const empty = document.createElement("p");
@@ -779,6 +845,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   }
   function renderTaskQueue() {
     taskCount.textContent = taskQueue.length + "/30";
+    taskTransferPanel.hidden = taskQueue.length !== 0;
     renderTaskInsights();
     renderDailyFocus();
     renderUpcomingCalendar();
@@ -1066,9 +1133,22 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       remove.textContent = "×";
       remove.setAttribute("aria-label", "Remove task");
       remove.addEventListener("click", () => {
-        taskQueue = taskQueue.filter(entry => entry.id !== task.id);
-        saveTaskQueue();
-        renderTaskQueue();
+        try {
+          const index = taskQueue.findIndex(entry => entry.id === task.id);
+          if (index < 0) return;
+          const deleted = taskQueue[index];
+          // Save the reduced queue first; do not offer undo for an unsaved delete.
+          persistTaskQueue(taskQueue.filter(entry => entry.id !== deleted.id));
+          pendingDeletedTask = {task: deleted, index};
+          taskUndoSummary.textContent = "Removed: " + deleted.title
+            + ". UNDO is available until refresh or the next deletion.";
+          taskDeleteRecovery.hidden = false;
+          renderTaskQueue();
+          taskUndoDelete.focus({preventScroll:true});
+          taskDeleteRecovery.scrollIntoView({behavior:"smooth",block:"nearest"});
+        } catch (error) {
+          console.warn("JOMY_TASK_REMOVE_NOT_SAVED", error?.name || "Error");
+        }
       });
       actions.append(remove);
       item.append(details, actions);
@@ -1093,8 +1173,21 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       window.speechSynthesis.resume();
     } catch (_) {}
   }
+  // Wait for the previous recognition session's onend before restarting.
+  // In particular, muted replies can otherwise start a new session immediately.
+  function endRecognitionForReply() {
+    if (!recognition || !listening) return;
+    discardVoiceResults = true;
+    listening = false;
+    try { recognition.stop(); }
+    catch (_) {
+      discardVoiceResults = false;
+      recognitionBlocked = true;
+    }
+  }
   function speak(text) {
     if (!soundOn || !("speechSynthesis" in window)) {
+      if (!("speechSynthesis" in window)) reportVoiceQa("playback","unsupported");
       speakingReply = false;
       if (handsFree) startRecognition();
       return;
@@ -1105,32 +1198,33 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       if (handsFree) startRecognition();
       return;
     }
-    if (recognition && listening) {
-      try { recognition.stop(); } catch (_) {}
-      listening = false;
-    }
+    endRecognitionForReply();
     const synth = window.speechSynthesis;
     synth.cancel();
     speakingReply = true;
     const utterance = new SpeechSynthesisUtterance(speechText);
-    utterance.lang = "hi-IN";
+    utterance.lang = voiceLanguage;
     utterance.rate = 0.9;
     utterance.pitch = 1.04;
     utterance.volume = 1;
     // Prefer a warm-sounding Indian Hindi female voice when the device exposes one.
     // iOS does not expose a reliable voice-gender property, so name hints are best-effort.
-    const selectedVoice = selectHindiFemaleVoice(synth.getVoices());
+    const selectedVoice = voiceLanguage === "hi-IN"
+      ? selectHindiFemaleVoice(synth.getVoices())
+      : Array.from(synth.getVoices() || []).find(v => /^en[-_]IN$/i.test(v.lang)) || Array.from(synth.getVoices() || []).find(v => /^en([-_]|$)/i.test(v.lang));
     if (selectedVoice) {
       utterance.voice = selectedVoice;
       utterance.lang = selectedVoice.lang;
     }
     utterance.onstart = () => setState("speaking", "SPEAKING", "JOMY is replying.");
     utterance.onend = () => {
+      reportVoiceQa("playback","passed");
       speakingReply = false;
       setState("idle", handsFree ? "HANDS-FREE ACTIVE" : "READY", handsFree ? "Say JOMY, then give your command." : "Your command center. Speak or type to begin.");
       if (handsFree) startRecognition();
     };
     utterance.onerror = (event) => {
+      reportVoiceQa("playback","failed");
       speakingReply = false;
       voiceHint.textContent = "Reply text is ready, but iPhone audio playback failed (" + (event.error || "unknown") + "). Tap Sound once, then try again.";
       setState("idle", "AUDIO PAUSED", "Tap Sound to re-enable voice replies.");
@@ -1140,7 +1234,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     synth.speak(utterance);
   }
   function startRecognition() {
-    if (!recognition || !handsFree || document.hidden || busy || listening || recognitionStarting || recognitionBlocked || speakingReply) return;
+    if (!recognition || !handsFree || document.hidden || busy || listening || recognitionStarting || recognitionBlocked || speakingReply || discardVoiceResults) return;
     try {
       recognitionStarting = true;
       recognition.start();
@@ -1155,20 +1249,20 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   }
   function stopHandsFree() {
     handsFree = false;
-    localStorage.setItem(STORAGE_HANDSFREE, "false");
+    try { localStorage.setItem(STORAGE_HANDSFREE, "false"); } catch (_) {}
     waitingForCommand = false;
     const pendingTranscript = voiceFinalTranscript;
     const discardedCapture = discardPendingVoiceCapture({ transcript: voiceFinalTranscript, timer: voiceSendTimer });
     voiceFinalTranscript = discardedCapture.transcript;
     voiceSendTimer = discardedCapture.timer;
-    discardVoiceResults = Boolean(recognition && listening);
+    discardVoiceResults = discardVoiceResults || Boolean(recognition && (listening || recognitionStarting));
     if (pendingTranscript && messageInput.value === pendingTranscript) messageInput.value = "";
-    if (recognition && listening) {
-      try { recognition.stop(); } catch (_) {}
+    if (recognition && (listening || recognitionStarting)) {
+      try { recognition.abort(); } catch (_) {}
     }
     listening = false;
     recognitionStarting = false;
-    handsFreeButton.textContent = "Hands-free: Off";
+    handsFreeButton.textContent = recognition ? "Hands-free: Off" : "Voice unavailable";
     handsFreeButton.setAttribute("aria-pressed", "false");
     micLabel.textContent = "Tap to speak";
     setState("idle", "READY", "Hands-free is off. Tap the mic to speak.");
@@ -1182,7 +1276,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   }
   function submitVoiceTranscript() {
     const transcript = voiceFinalTranscript.trim();
-    if (!transcript || busy || voiceSubmissionPending) return;
+    if (!transcript || busy || voiceSubmissionPending || document.hidden || discardVoiceResults) return;
     clearTimeout(voiceSendTimer);
     voiceSendTimer = null;
     voiceFinalTranscript = "";
@@ -1195,6 +1289,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   function setupRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
+      reportVoiceQa("recognition","unsupported");
       micButton.disabled = true;
       handsFreeButton.disabled = true;
       handsFreeButton.textContent = "Voice unavailable";
@@ -1205,6 +1300,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     try {
       recognition = new SpeechRecognition();
     } catch (_) {
+      reportVoiceQa("recognition","unsupported");
       // Some iOS web views expose SpeechRecognition but cannot construct it.
       micButton.disabled = true;
       handsFreeButton.disabled = true;
@@ -1213,11 +1309,15 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       voiceHint.textContent = "Voice recognition is unavailable here; text chat and keyboard dictation can still work.";
       return;
     }
-    recognition.lang = "hi-IN";
+    recognition.lang = voiceLanguage;
     recognition.maxAlternatives = 3;
     recognition.interimResults = true;
     recognition.continuous = true;
     recognition.onstart = () => {
+      if (discardVoiceResults || document.hidden) {
+        try { recognition.abort(); } catch (_) {}
+        return;
+      }
       recognitionStarting = false;
       recognitionBlocked = false;
       listening = true;
@@ -1226,7 +1326,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       setState("listening", handsFree ? "HANDS-FREE" : "LISTENING", handsFree ? "Say JOMY to wake me, then speak your command." : "I'm listening. Say your command.");
     };
     recognition.onresult = (event) => {
-      if (discardVoiceResults) return;
+      if (discardVoiceResults || document.hidden || busy || speakingReply) return;
       let finalText = "";
       let interimText = "";
       const finalCandidates = [];
@@ -1240,6 +1340,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
           interimText += event.results[i][0].transcript;
         }
       }
+      // Observe only finalized recognition, never store/transmit the transcript in QA.
+      if (finalText.trim()) reportVoiceQa("recognition","passed");
       if (!handsFree) {
         if (finalText) {
           voiceFinalTranscript = [voiceFinalTranscript, finalText].filter(Boolean).join(" ").trim();
@@ -1254,13 +1356,14 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         return;
       }
       if (!finalText) return;
+      const wasWaitingForCommand = waitingForCommand;
       const command = parseWakeCommand(finalText, finalCandidates, waitingForCommand);
       if (command === null) return;
+      if (!wasWaitingForCommand) reportVoiceQa("wake","passed");
       if (!command) {
         wakeActivityBoard();
         waitingForCommand = true;
-        try { recognition.stop(); } catch (_) {}
-        listening = false;
+        endRecognitionForReply();
         speak("हाँ, बोलिए।");
         return;
       }
@@ -1269,15 +1372,17 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         stopHandsFree();
         return;
       }
-      try { recognition.stop(); } catch (_) {}
-      listening = false;
+      endRecognitionForReply();
       sendMessage(command);
     };
     recognition.onerror = (event) => {
       recognitionStarting = false;
       listening = false;
       const fatalVoiceErrors = ["not-allowed", "service-not-allowed", "audio-capture", "language-not-supported", "network"];
-      if (fatalVoiceErrors.includes(event.error)) recognitionBlocked = true;
+      if (fatalVoiceErrors.includes(event.error)) {
+        recognitionBlocked = true;
+        reportVoiceQa("recognition","failed");
+      }
       micLabel.textContent = handsFree ? "Hands-free paused" : "Tap to speak";
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
         micLabel.textContent = "Tap anywhere to retry";
@@ -1323,9 +1428,9 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     const explicitTask = text.match(/^(?:task|kaam)\s*:\s*([\s\S]+)$/i);
     if (explicitTask && explicitTask[1].trim()) {
       try {
+        if (taskQueue.length >= 30) throw new RangeError("Task Queue full (30/30). Export or remove a task first.");
         const task = createTask(explicitTask[1].trim());
-        taskQueue = addTask(taskQueue, task);
-        saveTaskQueue();
+        persistTaskQueue(addTask(taskQueue, task));
         activeTaskFilter = "all"; // Newly added task should always be visible.
         activeDeadlineFilter = "all";
         activeCalendarDay = "";
@@ -1359,6 +1464,13 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       speak(notice);
       return;
     }
+    if (!ownerToken) {
+      const notice = "Owner token needed. Settings mein apna private token save karo aur TEST AI CONNECTION dabao. Token chat mein mat bhejo.";
+      addMessage("agent", notice);
+      speak(notice);
+      setConnection(false, "Owner token needed · this browser");
+      return;
+    }
     busy = true;
     $("sendButton").disabled = true;
     setState("thinking", "THINKING", "Working on your request…");
@@ -1373,23 +1485,20 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         if (requestHistory.length <= firstChatIndex) break;
         requestHistory.splice(firstChatIndex, 1);
       }
-      const response = await fetch(endpoint, {
+      const {response, data} = await requestAgentJson(normalizeAgentEndpoint(endpoint), {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(ownerToken ? { "Authorization": "Bearer " + ownerToken } : {}) },
         body: JSON.stringify({ message: text, history: requestHistory, sessionId, locale: "hi-IN", client: "jomy-autonomous-agent" })
       });
       if (!response.ok) {
         let detail = "Agent endpoint returned HTTP " + response.status;
-        try {
-          const errorData = await response.json();
-          if (typeof errorData.error === "string") detail = errorData.error;
-        } catch (_) {}
+        if (typeof data.error === "string") detail = data.error;
+        if (response.status === 401 || response.status === 403) detail = "Owner authentication rejected. Check Settings and TEST AI CONNECTION.";
         if (response.status === 404) detail = "Agent API route not found. Settings mein poora URL /api/agent/chat par end hona chahiye.";
         throw new Error(detail);
       }
-      const data = await response.json();
       const reply = typeof data.reply === "string" ? data.reply : typeof data.message === "string" ? data.message : "";
-      if (!reply) throw new Error("The agent response did not include a reply string.");
+      if (!reply.trim()) throw new Error("The agent response did not include a reply string.");
       addMessage("agent", reply);
       speak(reply);
       setConnection(true, "Connected");
@@ -1429,12 +1538,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   renderTaskQueue();
   setupRecognition();
   setConnection(false, endpoint ? (ownerToken ? "Endpoint ready · not tested" : "Owner token needed · this browser") : "Not connected");
-  handsFreeButton.textContent = handsFree ? "Hands-free: On" : "Hands-free: Off";
-  handsFreeButton.setAttribute("aria-pressed", String(handsFree));
-  if (handsFree) {
-    voiceHint.textContent = "Tap Hands-free once to start. Say “JOMY”, wait for “हाँ, बोलिए”, then speak your command. Keep this page open; iPhone may pause listening in the background or when locked.";
-    startRecognition();
-  }
+  handsFreeButton.textContent = recognition ? "Hands-free: Off" : "Voice unavailable";
+  handsFreeButton.setAttribute("aria-pressed", "false");
   soundButton.setAttribute("aria-pressed", String(soundOn));
   soundButton.textContent = soundOn ? "◖))" : "◖×";
   micButton.addEventListener("click", () => {
@@ -1442,27 +1547,43 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     if (!recognition) return;
     if (handsFree) stopHandsFree();
     else if (listening) stopListening();
-    else {
+    else if (!recognitionStarting && !discardVoiceResults && !document.hidden && !busy && !speakingReply) {
       recognitionBlocked = false;
       recognitionStarting = true;
       try { recognition.start(); } catch (_) { recognitionStarting = false; setState("idle", "MIC PAUSED", "Wait a moment, then tap to retry."); }
     }
   });
+  voiceLanguageSelect.addEventListener("change", () => {
+    const selected = normalizeVoiceLanguage(voiceLanguageSelect.value);
+    if (selected === voiceLanguage) return;
+    // A language switch is a deliberate stop; never restart a microphone silently.
+    if (handsFree || listening || recognitionStarting) stopHandsFree();
+    voiceLanguage = selected;
+    try { localStorage.setItem(VOICE_LANGUAGE_KEY, voiceLanguage); }
+    catch (_) { voiceCapabilityStatus.textContent = "Voice language changed only for this session. Browser storage unavailable."; }
+    if (recognition) recognition.lang = voiceLanguage;
+    voiceCapabilityStatus.textContent = voiceAvailabilityMessage({
+      speechRecognition: Boolean(recognition),
+      speechSynthesis: "speechSynthesis" in window,
+      lang: voiceLanguage
+    }) + " Tap mic or Hands-free to start again.";
+  });
+  voiceCapabilityStatus.textContent = voiceAvailabilityMessage({
+    speechRecognition: Boolean(recognition),
+    speechSynthesis: "speechSynthesis" in window,
+    lang: voiceLanguage
+  });
   handsFreeButton.addEventListener("click", () => {
     unlockSpeech();
     if (!recognition) return;
-    if (handsFree && listening) {
+    if (handsFree) {
       stopHandsFree();
       return;
     }
-    if (handsFree && !listening) {
-      recognitionBlocked = false;
-      startRecognition();
-      return;
-    }
+    if (recognitionStarting || listening || discardVoiceResults || document.hidden || busy || speakingReply) return;
     handsFree = true;
     recognitionBlocked = false;
-    localStorage.setItem(STORAGE_HANDSFREE, "true");
+    try { localStorage.setItem(STORAGE_HANDSFREE, "true"); } catch (_) {}
     waitingForCommand = false;
     handsFreeButton.textContent = "Hands-free: On";
     handsFreeButton.setAttribute("aria-pressed", "true");
@@ -1498,10 +1619,18 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     event.preventDefault();
     const title = taskInput.value.trim();
     if (!title) return;
+    // Explicit button choice: manual READY never calls the owner-token API.
+    const manual = event.submitter?.value === "manual";
     try {
-      const task = createTask(title);
-      taskQueue = addTask(taskQueue, task);
-      saveTaskQueue();
+      // addTask() trims old tasks when over limit; never silently lose an
+      // existing task through the UI in either manual or AI-plan mode.
+      if (taskQueue.length >= 30) throw new RangeError("Task Queue full (30/30). Export or remove a task first.");
+      const task = manual ? createManualTask(title) : createTask(title);
+      const nextQueue = addTask(taskQueue, task);
+      // Persist BEFORE mutating the in-memory queue; failed Safari storage
+      // must not claim success or drop previously saved tasks.
+      localStorage.setItem(TASK_QUEUE_KEY, JSON.stringify(nextQueue));
+      taskQueue = nextQueue;
       activeTaskFilter = "all"; // Newly added task should always be visible.
       activeDeadlineFilter = "all";
       activeCalendarDay = "";
@@ -1509,11 +1638,15 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       taskSearchInput.value = "";
       renderTaskQueue();
       taskInput.value = "";
-      wakeActivityBoard();
-      planTask(task.id);
+      taskAddStatus.textContent = manual
+        ? "Manual READY task saved on this iPhone. Use MARK DONE / REOPEN to update daily progress."
+        : "Task saved. JOMY is preparing a plan; no external task has been executed.";
+      if (!manual) {
+        wakeActivityBoard();
+        planTask(task.id);
+      }
     } catch (error) {
-      addMessage("agent", "Task add nahi hua: " + error.message);
-      wakeActivityBoard();
+      taskAddStatus.textContent = "Task not saved: " + error.message;
     }
   });
   chatForm.addEventListener("submit", (event) => {
@@ -1542,6 +1675,37 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const settingsNote = $("settingsNote");
   const saveEndpointButton = $("saveEndpoint");
   const clearEndpointButton = $("clearEndpoint");
+  const testConnectionButton = $("testConnection");
+  const testConnectionStatus = $("testConnectionStatus");
+  testConnectionButton.disabled = false;
+  let connectionRevision = 0;
+  function resetConnectionTest() {
+    connectionRevision++;
+    testConnectionStatus.textContent = "";
+  }
+  testConnectionButton.addEventListener("click", async () => {
+    if (!ownerToken || !endpoint) {
+      testConnectionStatus.textContent = "Save your API URL and Owner Token first. Do not share tokens in chat.";
+      return;
+    }
+    let enteredEndpoint;
+    try { enteredEndpoint = normalizeAgentEndpoint(endpointInput.value); } catch (_) {}
+    if (enteredEndpoint !== endpoint || agentTokenInput.value.trim() !== ownerToken) {
+      testConnectionStatus.textContent = "Save changed connection settings before testing.";
+      return;
+    }
+    const revision = ++connectionRevision;
+    testConnectionButton.disabled = true;
+    testConnectionStatus.textContent = "Testing saved AI connection…";
+    try {
+      const result = await testAgentConnection(endpoint, ownerToken);
+      if (revision !== connectionRevision) return;
+      testConnectionStatus.textContent = result.message;
+      setConnection(result.ok, result.ok ? "AI connection verified" : "AI test failed");
+    } finally {
+      testConnectionButton.disabled = false;
+    }
+  });
   $("settingsButton").addEventListener("click", () => {
     endpointInput.value = endpoint || DEFAULT_ENDPOINT;
     agentTokenInput.value = ownerToken;
@@ -1561,7 +1725,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       endpoint = normalized;
       ownerToken = enteredToken || localStorage.getItem(STORAGE_TOKEN) || "";
       sessionStorage.removeItem(STORAGE_TOKEN);
-      settingsNote.textContent = "Saved on this iPhone. Endpoint abhi test nahi hua; chat mein ek message bhej kar check karo.";
+      resetConnectionTest();
+      settingsNote.textContent = "Saved on this iPhone. Tap TEST AI CONNECTION to verify.";
       saveEndpointButton.textContent = "Saved ✓";
       setConnection(false, endpoint ? (ownerToken ? "Endpoint saved · not tested" : "Owner token needed · this browser") : "Not connected");
     } catch (error) {
@@ -1569,8 +1734,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       saveEndpointButton.textContent = "Save endpoint";
     }
   });
-  endpointInput.addEventListener("input", () => { saveEndpointButton.textContent = "Save endpoint"; });
-  agentTokenInput.addEventListener("input", () => { saveEndpointButton.textContent = "Save endpoint"; });
+  endpointInput.addEventListener("input", () => { saveEndpointButton.textContent = "Save endpoint"; resetConnectionTest(); });
+  agentTokenInput.addEventListener("input", () => { saveEndpointButton.textContent = "Save endpoint"; resetConnectionTest(); });
   clearEndpointButton.addEventListener("click", () => {
     try {
       localStorage.removeItem(STORAGE_ENDPOINT);
@@ -1580,6 +1745,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       ownerToken = "";
       endpointInput.value = "";
       agentTokenInput.value = "";
+      resetConnectionTest();
       settingsNote.textContent = "Disconnected on this iPhone.";
       saveEndpointButton.textContent = "Save endpoint";
       setConnection(false, "Not connected");
@@ -1591,19 +1757,9 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   // iOS Safari may suspend recognition when this PWA is backgrounded.
   // Stop cleanly while hidden and resume only after the page is visible again.
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      if (recognition && listening) {
-        try { recognition.stop(); } catch (_) {}
-      }
-      recognitionStarting = false;
-      if (handsFree) {
-        voiceHint.textContent = "Safari ne listening pause ki hai. JOMY ko foreground mein lao; mic permission active ho to listening resume hogi.";
-        setState("idle", "VOICE PAUSED", "JOMY ko foreground mein rakho for hands-free voice.");
-      }
-      return;
-    }
-    if (handsFree && !busy && !speakingReply && !recognitionBlocked) {
-      startRecognition();
+    if (document.hidden && (handsFree || listening || recognitionStarting || voiceSendTimer !== null)) {
+      stopHandsFree();
+      voiceHint.textContent = "Voice stopped while JOMY was in the background. Tap Hands-free or the microphone again to resume.";
     }
   });
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {

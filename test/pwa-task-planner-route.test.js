@@ -8,9 +8,9 @@ const planner = app.split("  async function planTask(taskId) {")[1]?.split("  fu
 
 test("task planner uses the deployed authenticated plan route, not chat", () => {
   assert.ok(planner, "Missing task planner handler");
-  assert.match(planner, /const planEndpoint = new URL\(endpoint\)/);
+  assert.match(planner, /const planEndpoint = new URL\(normalizeAgentEndpoint\(endpoint\)\)/);
   assert.match(planner, /planEndpoint\.pathname = "\/api\/agent\/plan"/);
-  assert.match(planner, /fetch\(planEndpoint\.toString\(\)/);
+  assert.match(planner, /requestAgentJson\(planEndpoint\.toString\(\)/);
   assert.match(planner, /"Authorization": "Bearer " \+ ownerToken/);
   assert.match(planner, /body: JSON\.stringify\(\{ task: planningText \}\)/);
   assert.doesNotMatch(planner, /plannerPrompt|client: "jomy-task-planner"/);
@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v53 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v69 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=53"/);
-  assert.match(html, /src="\/app\.js\?v=53"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v53"/);
-  assert.match(worker, /"\/styles\.css\?v=53"/);
-  assert.match(worker, /"\/app\.js\?v=53"/);
+  assert.match(html, /href="\/styles\.css\?v=69"/);
+  assert.match(html, /src="\/app\.js\?v=69"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v69"/);
+  assert.match(worker, /"\/styles\.css\?v=69"/);
+  assert.match(worker, /"\/app\.js\?v=69"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -431,7 +431,7 @@ test("JOMY 3.0 analytics only reads in-memory tasks with no remote calls or stor
   assert.match(render,/insightsBars\.replaceChildren\(\)/);
   assert.match(render,/Only tasks still saved on this device count/);
   assert.doesNotMatch(render,/fetch\(|sendMessage\(|planTask\(|localStorage\.|sessionStorage\.|Worker|JSON\.stringify\(taskQueue\)/);
-  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount\.textContent = taskQueue\.length \+ "\/30";\s+renderTaskInsights\(\)/);
+  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount\.textContent = taskQueue\.length \+ "\/30";\s+taskTransferPanel\.hidden = taskQueue\.length !== 0;\s+renderTaskInsights\(\)/);
   assert.match(app,/document\.addEventListener\("visibilitychange", \(\) => \{\s+if \(!document\.hidden\) renderTaskQueue\(\);/);
   assert.match(app,/const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
   assert.match(app,/const MEMORY_KEY = "jomy_agent_personal_memory_v1"/);
@@ -528,7 +528,7 @@ test("JOMY 3.2 weekly goal progress responds to task updates and small iPhone wi
   assert.match(css,/\.task-weekly-form input,\.task-weekly-form button\{[^\n]*min-height:44px/);
   assert.match(css,/@media\(max-width:370px\)\{\.task-weekly-goal/);
   assert.match(css,/prefers-reduced-motion:reduce/);
-  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount.textContent = taskQueue.length \+ "\/30";\s+renderTaskInsights\(\)/);
+  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount.textContent = taskQueue.length \+ "\/30";\s+taskTransferPanel\.hidden = taskQueue\.length !== 0;\s+renderTaskInsights\(\)/);
   assert.match(app,/document.addEventListener\("visibilitychange"/);
 });
 
@@ -562,7 +562,7 @@ test("JOMY 3.3 calendar composes with status/search filters without changing tas
   assert.match(dashboard,/task.status !== TASK_STATES.DONE && task.status !== TASK_STATES.SUCCEEDED/);
   assert.match(dashboard,/filterTaskQueue\(taskQueue, activeTaskFilter\)/);
   assert.match(dashboard,/searchAndSortTaskQueue\(visibleTasks, taskSearchInput.value, taskSortSelect.value\)/);
-  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount.textContent = taskQueue.length \+ "\/30";\s+renderTaskInsights\(\);\s+renderDailyFocus\(\);\s+renderUpcomingCalendar\(\)/);
+  assert.match(app,/function renderTaskQueue\(\) \{\s+taskCount.textContent = taskQueue.length \+ "\/30";\s+taskTransferPanel\.hidden = taskQueue\.length !== 0;\s+renderTaskInsights\(\);\s+renderDailyFocus\(\);\s+renderUpcomingCalendar\(\)/);
   assert.match(app,/activeCalendarDay = "";\s+activeFocusTaskId = "";\s+taskSearchInput.value = "";\s+renderTaskQueue\(\)/);
   assert.match(app,/const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
   assert.match(app,/const MEMORY_KEY = "jomy_agent_personal_memory_v1"/);
@@ -627,4 +627,119 @@ test("JOMY 3.4 focus cards are iPhone responsive with accessible 44px controls",
   assert.match(css,/\.task-focus-view,\.task-focus-reset\{[^\n]*min-height:44px/);
   assert.match(css,/@media\(max-width:400px\)\{\.task-focus-panel/);
   assert.match(app,/document.addEventListener\("visibilitychange", \(\) => \{\s+if \(!document.hidden\) renderTaskQueue\(\);/);
+});
+
+test("JOMY 3.5 progress is device-only, accessible and connected to manual task changes", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  const queue=html.split('id="taskPanel"')[1]?.split('<section class="memory-panel"')[0]||"";
+  const render=app.split("  function renderDailyFocus() {")[1]
+    ?.split("  // Local-calendar date view: no external requests, no storage writes and no timers.")[0]||"";
+  assert.ok(queue && render);
+  assert.match(queue,/id="taskFocusProgress" role="progressbar" aria-label="Manual progress today"/);
+  assert.match(queue,/id="taskFocusProgressLabel" role="status" aria-live="polite"/);
+  assert.match(queue,/id="taskFocusProgressFill" class="task-focus-progress-fill"/);
+  assert.match(queue,/not a fixed daily goal/);
+  assert.match(render,/summarizeDailyTaskProgress\(taskQueue, new Date\(\)\)/);
+  assert.match(render,/taskFocusProgress\.setAttribute\("aria-valuenow", String\(progress.percent\)\)/);
+  assert.match(render,/taskFocusProgressFill\.style\.width = progress.percent \+ "%"/);
+  assert.match(app,/function setManualTaskProgress\(taskId, nextStatus\)/);
+  assert.match(app,/renderDailyFocus\(\)/);
+  assert.match(css,/\.task-focus-progress-track\{/);
+  assert.doesNotMatch(render,/fetch\(|localStorage\.|sessionStorage\.|setTimeout\(/);
+});
+
+test("JOMY 3.5 shows non-destructive old-preview restore guidance only for an empty queue", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  const queue=html.split('id="taskPanel"')[1]?.split('<section class="memory-panel"')[0]||"";
+  assert.match(queue,/id="taskTransferPanel" aria-label="Restore tasks from older preview" hidden/);
+  assert.match(queue,/https:\/\/890aa584\.jomy-agent-pwa\.pages\.dev/);
+  assert.match(queue,/target="_blank" rel="noopener noreferrer"/);
+  assert.match(queue,/id="taskTransferChoose" type="button"/);
+  assert.match(queue,/Each Preview address has its own private iPhone browser storage/);
+  assert.match(app,/taskTransferPanel\.hidden = taskQueue\.length !== 0/);
+  assert.match(app,/taskBackupPanel\.open = true;\s+taskBackupFile\.click\(\)/);
+  assert.match(app,/mergeTaskQueueBackup\(taskQueue, pendingBackupTasks\)/);
+  assert.match(app,/window\.confirm\("Import "/);
+  assert.match(css,/\.task-transfer-panel\[hidden\]\{display:none!important\}/);
+  assert.match(css,/\.task-transfer-actions a,\.task-transfer-actions button\{[^\n]*min-height:44px/);
+  assert.doesNotMatch(queue,/localStorage\.|sessionStorage\.|password|secret/i);
+});
+
+test("JOMY manual quick-add is no-token, non-destructive and iPhone accessible", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  const form=html.split('<form class="task-form" id="taskForm">')[1]
+    ?.split("</form>")[0]||"";
+  const submit=app.split('  taskForm.addEventListener("submit", (event) => {')[1]
+    ?.split('  chatForm.addEventListener("submit"',1)[0]||"";
+  assert.ok(form && submit);
+  assert.match(form,/type="submit" name="taskMode" value="manual">SAVE MANUAL/);
+  assert.match(form,/type="submit" name="taskMode" value="plan">ADD &amp; PLAN/);
+  assert.match(html,/id="taskAddStatus" role="status" aria-live="polite"/);
+  assert.match(submit,/event.submitter\?\.value === "manual"/);
+  assert.match(submit,/taskQueue.length >= 30/);
+  assert.match(submit,/const task = manual \? createManualTask\(title\) : createTask\(title\)/);
+  assert.match(submit,/localStorage.setItem\(TASK_QUEUE_KEY, JSON.stringify\(nextQueue\)\);\s+taskQueue = nextQueue/);
+  assert.match(submit,/if \(!manual\) \{\s+wakeActivityBoard\(\);\s+planTask\(task.id\)/);
+  assert.match(submit,/taskAddStatus.textContent = "Task not saved:/);
+  assert.match(css,/\.task-form button\{[^\n]*min-height:44px/);
+  assert.match(app,/const TASK_QUEUE_KEY = "jomy_agent_task_queue_v1"/);
+});
+
+
+test("JOMY iPhone task updates, deletion and chat add persist before changing memory", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  const persist=app.split("  function persistTaskQueue(nextQueue) {")[1]?.split("  // Other Preview subdomains")[0] || "";
+  const update=app.split("  function updateTask(taskId, updater) {")[1]?.split("  // Explicit local-save only")[0] || "";
+  const render=app.split("  function renderTaskQueue() {")[1]?.split("  function wakeActivityBoard() {")[0] || "";
+  const chat=app.split("    const explicitTask = text.match(")[1]?.split("    // Chat must also avoid inventing")[0] || "";
+  assert.ok(persist && update && render && chat);
+  assert.match(persist,/persistTaskQueueSafely\(nextQueue, localStorage, TASK_QUEUE_KEY\)/);
+  assert.match(persist,/taskQueue = saved/);
+  assert.match(persist,/taskStorageStatus.hidden = false/);
+  assert.match(persist,/throw error/);
+  assert.match(update,/const nextQueue = taskQueue.map/);
+  assert.match(update,/persistTaskQueue\(nextQueue\);\s+renderTaskQueue\(\)/);
+  assert.doesNotMatch(update,/saveTaskQueue\(|taskQueue = taskQueue.map/);
+  assert.match(render,/persistTaskQueue\(taskQueue.filter\(entry => entry.id !== deleted.id\)\)/);
+  assert.match(chat,/taskQueue.length >= 30/);
+  assert.match(chat,/persistTaskQueue\(addTask\(taskQueue, task\)\)/);
+  assert.doesNotMatch(chat,/taskQueue = addTask/);
+  assert.match(html,/id="taskStorageStatus" role="alert" hidden/);
+  assert.match(css,/\.task-storage-status\[hidden\]\{display:none!important\}/);
+});
+
+test("JOMY undo delete is ephemeral, accessible and preserves saved task records", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  const deletion=app.split('remove.setAttribute("aria-label", "Remove task");')[1]
+    ?.split("      actions.append(remove);")[0]||"";
+  const undo=app.split('  taskUndoDelete.addEventListener("click", () => {')[1]
+    ?.split("  // Other Preview subdomains")[0]||"";
+  assert.ok(deletion && undo);
+  assert.match(html,/id="taskDeleteRecovery" class="task-delete-recovery" aria-label="Undo last task removal" hidden/);
+  assert.match(html,/id="taskUndoSummary" role="status" aria-live="polite"/);
+  assert.match(html,/id="taskUndoDelete">UNDO DELETE/);
+  assert.match(app,/let pendingDeletedTask = null/);
+  assert.match(deletion,/const index = taskQueue.findIndex\(entry => entry.id === task.id\)/);
+  assert.match(deletion,/persistTaskQueue\(taskQueue.filter\(entry => entry.id !== deleted.id\)\);\s+pendingDeletedTask = \{task: deleted, index\}/);
+  assert.match(deletion,/taskDeleteRecovery.hidden = false/);
+  assert.match(deletion,/taskUndoDelete.focus\(\{preventScroll:true\}\)/);
+  assert.match(undo,/restoreDeletedTask\(\s*taskQueue, pendingDeletedTask.task, pendingDeletedTask.index/);
+  assert.match(undo,/persistTaskQueue\(restored\);\s+pendingDeletedTask = null/);
+  assert.match(undo,/taskDeleteRecovery.hidden = true/);
+  assert.match(undo,/catch \(error\)/);
+  assert.doesNotMatch(undo,/fetch\(|planTask\(|sendMessage\(|localStorage\.clear\(/);
+  assert.match(css,/\.task-delete-recovery\[hidden\]\{display:none!important\}/);
+  assert.match(css,/\.task-delete-recovery button\{[^\n]*min-height:44px/);
+});
+
+
+test("Cloud Automation opens only the isolated scheduler preview without transferring local tasks", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  assert.match(html,/id="cloudAutomationLink" href="https:\/\/jomy-cloud-scheduler-preview\.addachai03\.workers\.dev\/" target="_blank" rel="noopener noreferrer"/);
+  assert.match(html,/Local tasks are not uploaded automatically/);
 });

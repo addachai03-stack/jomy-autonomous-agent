@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  TASK_STATES, createTask, addTask, transitionTask, retryTask, recoverInterruptedTasks,
-  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan
+  TASK_STATES, createTask, createManualTask, addTask, persistTaskQueueSafely, restoreDeletedTask, transitionTask, retryTask, recoverInterruptedTasks,
+  actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, summarizeDailyTaskProgress
 } from "../src/task-engine.js";
 
 test("creates bounded queued tasks", () => {
@@ -1051,4 +1051,142 @@ test("JOMY 3.4 updates focus suggestions when due date or manual status changes"
   const completed=transitionTask(withDue,TASK_STATES.DONE,{},now.getTime()+200);
   assert.equal(summarizeDailyFocusPlan([completed],now).focus.length,0);
   assert.equal(task.dueDate,undefined);
+});
+
+test("JOMY 3.5 daily progress uses only retained manual DONE timestamps from today", () => {
+  const now=new Date(2026,10,21,14);
+  const todayStamp=new Date(2026,10,21,9).toISOString();
+  const oldStamp=new Date(2026,10,20,9).toISOString();
+  const tasks=[
+    {id:"open",title:"Open",status:TASK_STATES.READY},
+    {id:"blocked",title:"Blocked",status:TASK_STATES.BLOCKED},
+    {id:"today",title:"Done today",status:TASK_STATES.DONE,manualCompletedAt:todayStamp},
+    {id:"old",title:"Done yesterday",status:TASK_STATES.DONE,manualCompletedAt:oldStamp},
+    {id:"undated",title:"Legacy manually done",status:TASK_STATES.DONE},
+    {id:"invalid",title:"Malformed timestamp",status:TASK_STATES.DONE,manualCompletedAt:"not-a-date"},
+    {id:"legacy",title:"Legacy success",status:TASK_STATES.SUCCEEDED},
+    null
+  ];
+  const snapshot=JSON.stringify(tasks);
+  assert.deepEqual(summarizeDailyTaskProgress(tasks,now),{
+    today:"2026-11-21",completedToday:1,unfinished:2,total:3,percent:33
+  });
+  assert.equal(JSON.stringify(tasks),snapshot,"Progress must never alter local tasks");
+});
+
+test("JOMY 3.5 daily progress responds to manual DONE and REOPEN, not execution", () => {
+  const now=new Date(2026,10,21,12);
+  const ready={...createTask("Sample",now.getTime()),status:TASK_STATES.READY};
+  const complete=transitionTask(ready,TASK_STATES.DONE,{},now.getTime()+100);
+  assert.deepEqual(
+    [summarizeDailyTaskProgress([ready],now).percent,summarizeDailyTaskProgress([complete],now).percent],
+    [0,100]
+  );
+  const reopened=transitionTask(complete,TASK_STATES.READY,{},now.getTime()+200);
+  assert.deepEqual(summarizeDailyTaskProgress([reopened],now),{
+    today:"2026-11-21",completedToday:0,unfinished:1,total:1,percent:0
+  });
+  assert.equal(ready.status,TASK_STATES.READY);
+});
+
+test("JOMY 3.5 daily progress handles empty queue, invalid inputs and year rollover", () => {
+  const jan=new Date(2027,0,1,14);
+  const decStamp=new Date(2026,11,31,23,50).toISOString();
+  const janStamp=new Date(2027,0,1,1).toISOString();
+  assert.deepEqual(summarizeDailyTaskProgress([],jan),{
+    today:"2027-01-01",completedToday:0,unfinished:0,total:0,percent:0
+  });
+  assert.equal(summarizeDailyTaskProgress(null,jan).percent,0);
+  assert.equal(summarizeDailyTaskProgress([
+    {id:"dec",title:"December completion",status:TASK_STATES.DONE,manualCompletedAt:decStamp},
+    {id:"jan",title:"January completion",status:TASK_STATES.DONE,manualCompletedAt:janStamp}
+  ],jan).completedToday,1);
+  assert.throws(()=>summarizeDailyTaskProgress([],"bad-date"),/Invalid daily progress date/);
+});
+
+test("JOMY manual quick-add creates device-only READY tasks without planning", () => {
+  const task=createManualTask("  My real task  ",new Date(2026,10,21,12).getTime());
+  assert.equal(task.title,"My real task");
+  assert.equal(task.status,TASK_STATES.READY);
+  assert.deepEqual(task.steps,[]);
+  assert.equal(task.plan.source,"local");
+  assert.match(task.plan.summary,/No AI planning or external action ran/);
+  assert.equal(task.attempts,0);
+  assert.equal(task.manualCompletedAt,undefined);
+  assert.throws(()=>createManualTask(" "),/1–4000/);
+  assert.throws(()=>createManualTask("x".repeat(4001)),/1–4000/);
+  const completed=transitionTask(task,TASK_STATES.DONE,{},new Date(2026,10,21,13).getTime());
+  assert.equal(summarizeDailyTaskProgress([completed],new Date(2026,10,21,14)).percent,100);
+  assert.equal(task.status,TASK_STATES.READY,"original record stays unchanged");
+});
+
+
+test("JOMY Safari storage safety writes before exposing a new task snapshot", () => {
+  const current=[{id:"old",title:"Existing task",status:TASK_STATES.READY}];
+  const next=[...current,{id:"new",title:"New task",status:TASK_STATES.READY}];
+  const writes=[];
+  const storage={setItem:(key,data)=>writes.push({key,data})};
+  const result=persistTaskQueueSafely(next,storage,"jomy_agent_task_queue_v1");
+  assert.equal(result,next);
+  assert.deepEqual(writes,[{key:"jomy_agent_task_queue_v1",data:JSON.stringify(next)}]);
+  assert.equal(current.length,1);
+  assert.equal(next.length,2);
+});
+
+test("JOMY storage safety preserves existing queue when Safari rejects the write", () => {
+  const current=[{id:"saved",title:"Keep me",status:TASK_STATES.READY}];
+  const snapshot=JSON.stringify(current);
+  let calls=0;
+  const blocked={setItem:()=>{calls++;const err=new Error("Quota exceeded");err.name="QuotaExceededError";throw err;}};
+  const next=current.map(task=>({...task,status:TASK_STATES.DONE}));
+  assert.throws(()=>persistTaskQueueSafely(next,blocked,"jomy_agent_task_queue_v1"),/Quota exceeded/);
+  assert.equal(calls,1);
+  assert.equal(JSON.stringify(current),snapshot,"Original task state remains untouched");
+  assert.equal(current[0].status,TASK_STATES.READY);
+});
+
+test("JOMY storage safety never silently evicts old tasks on a full queue", () => {
+  const queue=Array.from({length:31},(_,i)=>({id:String(i),title:"Task "+i,status:TASK_STATES.READY}));
+  let wrote=false;
+  const fake={setItem:()=>{wrote=true;}};
+  assert.throws(()=>persistTaskQueueSafely(queue,fake,"jomy_agent_task_queue_v1"),/exceeds 30/);
+  assert.equal(wrote,false);
+  assert.throws(()=>persistTaskQueueSafely([],null,"jomy_agent_task_queue_v1"),/Valid local task storage/);
+});
+
+test("JOMY task delete recovery restores exact record at original position", () => {
+  const keepA={id:"a",title:"A",status:TASK_STATES.READY};
+  const deleted={id:"b",title:"B",status:TASK_STATES.DONE,manualCompletedAt:"2026-11-20T09:00:00.000Z",steps:[{title:"Check"}],note:"private"};
+  const keepC={id:"c",title:"C",status:TASK_STATES.READY};
+  const current=[keepA,keepC];
+  const before=JSON.stringify(current);
+  const restored=restoreDeletedTask(current,deleted,1);
+  assert.deepEqual(restored,[keepA,deleted,keepC]);
+  assert.equal(restored[1],deleted,"original task metadata and dates remain intact");
+  assert.equal(JSON.stringify(current),before,"input queue is never mutated");
+  assert.equal(restoreDeletedTask(current,deleted,99)[2].id,"b","old index beyond queue appends");
+});
+
+test("JOMY task delete recovery rejects duplicates and full queue without losing records", () => {
+  const saved={id:"saved",title:"Saved",status:TASK_STATES.READY};
+  assert.throws(()=>restoreDeletedTask([saved],saved,0),/already saved/);
+  const full=Array.from({length:30},(_,i)=>({id:String(i),title:String(i),status:TASK_STATES.READY}));
+  const before=JSON.stringify(full);
+  assert.throws(()=>restoreDeletedTask(full,saved,2),/full/);
+  assert.equal(JSON.stringify(full),before);
+  assert.throws(()=>restoreDeletedTask([],null,0),/Invalid deleted task/);
+  assert.throws(()=>restoreDeletedTask([],{id:"ok",title:"Task",status:TASK_STATES.READY},-1),/Invalid deleted task position/);
+});
+
+test("JOMY delete/undo commits snapshot before UI updates, retains undo on storage errors", () => {
+  const deleted={id:"deleted",title:"Safe",status:TASK_STATES.READY};
+  const queue=[deleted];
+  const gone=queue.filter(t=>t.id!==deleted.id);
+  const storage={setItem:()=>{throw new Error("Safari quota blocked");}};
+  assert.throws(()=>persistTaskQueueSafely(gone,storage,"tasks"),/Safari quota blocked/);
+  assert.deepEqual(queue,[deleted]);
+  const restored=restoreDeletedTask(gone,deleted,0);
+  assert.throws(()=>persistTaskQueueSafely(restored,storage,"tasks"),/Safari quota blocked/);
+  assert.deepEqual(gone,[]);
+  assert.deepEqual(restored,[deleted]);
 });

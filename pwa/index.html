@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=53">
+  <link rel="stylesheet" href="/styles.css?v=69">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -37,12 +37,95 @@
         <button class="handsfree-button" id="handsFreeButton" type="button" aria-pressed="false">Hands-free: Off</button>
         <button class="sound-button" id="soundButton" aria-pressed="true" aria-label="Toggle spoken replies">◖))</button>
       </div>
+      <div class="voice-lang-row"><label for="voiceLanguageSelect">Conversation language</label><select id="voiceLanguageSelect" aria-label="Voice recognition language"><option value="hi-IN">Hindi / Hinglish</option><option value="en-IN">English (India)</option></select></div>
+      <p class="voice-hint" id="voiceCapabilityStatus" role="status" aria-live="polite">Checking microphone support…</p>
       <p class="voice-hint" id="voiceHint">Tap Hands-free once to start. Say “JOMY” and then give your command. Keep this page open while using voice.</p>
       <button class="voice-test-button" id="testVoiceButton" type="button">🔊 Test Hindi voice</button>
+      <button class="voice-test-button" id="micPermissionCheck" type="button">🎙 Check Microphone Permission</button>
+      <p class="voice-hint" id="micPermissionStatus" role="status" aria-live="polite">Optional test. Microphone is released immediately; no audio is saved or uploaded.</p>
+      <section class="voice-qa-panel" id="voiceQaPanel" aria-labelledby="voiceQaTitle">
+        <h2 id="voiceQaTitle">iPhone Voice Check · This session</h2>
+        <p>These indicators update only when the browser reports an event. Nothing is automatically marked passed; no transcripts, audio or tokens are stored in this panel.</p>
+        <div class="voice-qa-rows">
+          <div><span>Microphone permission</span><strong id="voiceQa-permission">NOT TESTED</strong></div>
+          <div><span>Speech recognition result</span><strong id="voiceQa-recognition">NOT TESTED</strong></div>
+          <div><span>Spoken reply completed</span><strong id="voiceQa-playback">NOT TESTED</strong></div>
+          <div><span>Hands-free wake phrase</span><strong id="voiceQa-wake">NOT TESTED</strong></div>
+        </div>
+        <div class="voice-qa-guide" aria-live="polite">
+          <strong>NEXT MANUAL TEST</strong>
+          <p id="voiceQaGuide">Check Microphone Permission, then try Tap to speak, Hindi voice, and Hands-free.</p>
+          <button type="button" id="voiceQaNext">Locate next test control</button>
+        </div>
+        <div class="voice-qa-actions">
+          <button type="button" id="voiceQaCopy">Copy voice results</button>
+          <button type="button" id="voiceQaReset">Reset session checks</button>
+        </div>
+        <textarea id="voiceQaFallback" rows="6" readonly hidden aria-label="Voice test results, manually copy"></textarea>
+        <p id="voiceQaStatus" role="status" aria-live="polite">For actual voice testing use the microphone, Test Hindi voice, and Hands-free buttons above. iPhone must stay unlocked in foreground.</p>
+      </section>
     </section>
     <section class="composer" aria-label="Message the agent">
       <form id="chatForm"><label class="sr-only" for="messageInput">Your command</label><textarea id="messageInput" rows="1" maxlength="4000" placeholder="Tell JOMY what you need…" enterkeyhint="send"></textarea><button class="send-button" id="sendButton" type="submit" aria-label="Send message">↑</button></form>
       <div class="composer-foot"><span>PRIVATE SESSION</span><span>Enter to send · Shift + Enter for new line</span></div>
+      <div style="padding:12px 0 4px">
+        <a id="cloudAutomationLink" href="https://jomy-cloud-scheduler-preview.addachai03.workers.dev/" target="_blank" rel="noopener noreferrer" style="display:flex;min-height:44px;align-items:center;justify-content:center;border:1px solid #d8ad5966;border-radius:10px;color:#e5c479;text-decoration:none;font-size:12px;font-weight:700">CLOUD AUTOMATION · OPEN SCHEDULER ↗</a>
+        <p class="voice-hint" style="margin-top:6px">Separate owner-protected cloud preview. Scheduled checklist and text-report jobs only. Local tasks are not uploaded automatically.</p>
+      </div>
+    </section>
+    <section class="unified-dashboard" id="unifiedDashboard" aria-label="JOMY unified command dashboard">
+      <div class="hub-head"><div><p class="eyebrow">JOMY COMMAND CENTER</p><h2>One dashboard. Owner in control.</h2></div><span class="hub-pill">PREVIEW · CONTROLLED TOOLS</span></div>
+      <div class="hub-grid">
+        <article class="hub-tile"><span>01 / AI CHAT</span><strong>Ask JOMY</strong><small id="hubAiStatus">Open Settings to connect Chat</small><a id="hubChatLink" href="#chatForm">Open Chat</a></article>
+        <article class="hub-tile"><span>02 / CLOUD</span><strong>Automation</strong><small>Daily APPLIQ monitoring · owner login separate</small><button type="button" id="hubSchedulerCheck" class="hub-tile-action">Check Cloud Health</button><small id="hubSchedulerStatus" aria-live="polite">Health check not run yet. No owner token shared.</small><a href="https://jomy-cloud-scheduler-preview.addachai03.workers.dev/" target="_blank" rel="noopener noreferrer">Open Scheduler</a></article>
+        <article class="hub-tile"><span>03 / TASKS</span><strong>Local Planner</strong><small id="hubTaskStatus">Tasks on this device</small><a id="hubTaskLink" href="#taskPanel">Open Tasks</a></article>
+        <article class="hub-tile"><span>04 / SYSTEM</span><strong>API Health</strong><small>Configuration readiness only. This is not a successful AI reply test.</small><a href="https://jomy-autonomous-agent-api.addachai03.workers.dev/health" target="_blank" rel="noopener noreferrer">Inspect API Health</a></article>
+      </div>
+      <section class="agent-engine-card" id="agentEnginePanel" aria-labelledby="agentEngineTitle">
+        <div class="hub-approval-top"><h3 id="agentEngineTitle">05 / AI AGENT ENGINE · V1</h3><span>SAFE READ-ONLY TOOLS</span></div>
+        <p class="hub-hint">Owner-triggered goal → safety gate → bounded tools or optional AI plan. No continuous autonomous background execution, code edits, payment, deployment or secret sharing.</p>
+        <form id="agentEngineForm" class="hub-request-form">
+          <label for="agentEngineGoal">Goal / command</label>
+          <textarea id="agentEngineGoal" minlength="4" maxlength="400" rows="2" required placeholder="e.g. Check cloud scheduler and local tasks"></textarea>
+          <label for="agentEngineTool">Agent mode</label>
+          <select id="agentEngineTool" required>
+            <option value="auto">Auto-select allowlisted safe checks</option>
+            <option value="system_overview">System overview · 2 read-only tools</option>
+            <option value="github_ci">GitHub CI · current preview branch</option>
+            <option value="scheduler_readiness">Cloud scheduler readiness</option>
+            <option value="local_task_summary">Count local tasks (no titles)</option>
+            <option value="ai_plan">AI-generated task plan · 1 model call</option>
+          </select>
+          <button type="submit" id="agentEngineRun">RUN AGENT (MANUAL START)</button>
+        </form>
+        <p><a href="https://jomy-autopilot-x-preview.addachai03.workers.dev/app" target="_blank" rel="noopener noreferrer">Open coding agent · owner sign-in ↗</a></p>
+        <p id="agentEngineStatus" class="hub-status" role="status" aria-live="polite">Idle · no goal run yet</p>
+        <ol id="agentEngineResult" class="agent-engine-result" aria-label="Agent execution evidence"></ol>
+        <button type="button" id="agentEngineReview" class="hub-draft-button" hidden>Prepare separate owner approval draft</button>
+      </section>
+      <section class="hub-approvals" aria-labelledby="hubApprovalHeading">
+        <div class="hub-approval-top"><h3 id="hubApprovalHeading">Owner Approval Inbox</h3><span id="hubApprovalCount">0 pending</span></div>
+        <button type="button" class="hub-draft-button" id="hubDraftFromChat">Use latest chat as review draft (no auto-save)</button>
+        <p class="hub-hint">Review requests for code, deployment, messages or sensitive actions. Approving a plan records a decision <strong>only on this device</strong>; it never triggers external actions.</p>
+        <form id="hubRequestForm" class="hub-request-form">
+          <label for="hubRequestKind">Action category</label>
+          <select id="hubRequestKind" required>
+            <option value="code">Code change / pull request</option>
+            <option value="deploy">Deploy / publish</option>
+            <option value="message">External message</option>
+            <option value="payment">Payment / money</option>
+            <option value="delete">Delete / destructive action</option>
+          </select>
+          <label for="hubRequestTitle">Proposed action</label>
+          <input id="hubRequestTitle" maxlength="140" minlength="4" required placeholder="e.g. Review APPLIQ CSP PR #24">
+          <label for="hubRequestNote">Reason / scope (optional; no passwords, tokens or OTPs)</label>
+          <textarea id="hubRequestNote" maxlength="400" rows="2" placeholder="What to review before proceeding"></textarea>
+          <button type="submit" id="hubRequestSubmit">SAVE FOR OWNER REVIEW</button>
+        </form>
+        <div class="hub-export-row"><p id="hubRequestLimit" class="hub-hint">0/20 requests</p><button type="button" id="hubApprovalExport">Export review log (JSON)</button></div>
+        <p id="hubApprovalStatus" role="status" aria-live="polite" class="hub-status">Draft-only inbox. No external actions or billing.</p>
+        <div id="hubApprovalList" class="hub-approval-list" aria-live="polite"></div>
+      </section>
     </section>
     <section class="activity" aria-label="Recent conversation">
       <button class="activity-toggle" id="activityToggle" aria-expanded="false"><span><i class="activity-dot"></i> RECENT ACTIVITY</span><span id="activityCount">0 messages</span><b id="activityChevron">＋</b></button>
@@ -56,10 +139,31 @@
           <button type="button" class="task-stat" data-task-filter="done" aria-pressed="false"><span class="task-stat-label">DONE</span><strong class="task-stat-number">0</strong></button>
         </div>
         <p class="task-dashboard-summary" id="taskFilterSummary" aria-live="polite">Showing all tasks saved on this device.</p>
+        <p class="task-storage-status" id="taskStorageStatus" role="alert" hidden></p>
+        <section class="task-transfer-panel" id="taskTransferPanel" aria-label="Restore tasks from older preview" hidden>
+          <strong>USED AN OLDER JOMY PREVIEW?</strong>
+          <p>0 tasks here does not mean your older tasks were deleted. Each Preview address has its own private iPhone browser storage. A different address cannot read it automatically.</p>
+          <p>On the same Safari browser, open your older Preview and use MY TASK QUEUE → BACKUP &amp; RESTORE TASKS → EXPORT JSON. Then return here and select that backup to review and import.</p>
+          <div class="task-transfer-actions">
+            <a href="https://890aa584.jomy-agent-pwa.pages.dev" target="_blank" rel="noopener noreferrer">1. OPEN OLDER PREVIEW</a>
+            <button id="taskTransferChoose" type="button">2. SELECT BACKUP FILE</button>
+          </div>
+          <p>Import requires your confirmation and never overwrites existing tasks. Keep the JSON file private. For future updates, use this Preview's stable branch link.</p>
+        </section>
         <details class="task-focus-panel" id="taskFocusPanel">
           <summary>SMART DAILY PLANNER <span>TODAY'S FOCUS · DEVICE ONLY</span></summary>
           <p>Your suggested order: overdue, due today, high priority, then upcoming tasks. Suggestions do not execute tasks, send reminders or contact AI.</p>
           <p class="task-focus-summary" id="taskFocusSummary" role="status" aria-live="polite">Your daily focus will appear here.</p>
+          <section class="task-focus-progress" aria-label="Daily manual task progress">
+            <div class="task-focus-progress-head">
+              <strong>MANUAL PROGRESS TODAY</strong>
+              <span id="taskFocusProgressLabel" role="status" aria-live="polite">0 done today · 0 unfinished · 0%</span>
+            </div>
+            <div class="task-focus-progress-track" id="taskFocusProgress" role="progressbar" aria-label="Manual progress today" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="No saved tasks">
+              <span id="taskFocusProgressFill" class="task-focus-progress-fill"></span>
+            </div>
+            <p>Current saved-task snapshot, not a fixed daily goal. Reopening a task removes its manual completion count. No automatic actions.</p>
+          </section>
           <div id="taskFocusList" class="task-focus-list" aria-label="Suggested focus tasks"></div>
           <button type="button" class="task-focus-reset" id="taskFocusClear" disabled>SHOW ALL TASKS</button>
         </details>
@@ -132,7 +236,8 @@
           <div id="taskTemplateList" class="task-template-list" aria-live="polite"></div>
           <p id="taskTemplateStatus" class="task-template-status" role="status" aria-live="polite">Templates are saved only in this browser. Using one does not contact the AI or execute work.</p>
         </details>
-        <form class="task-form" id="taskForm"><label class="sr-only" for="taskInput">Add a task</label><input id="taskInput" maxlength="4000" placeholder="Add a task for JOMY to organize…" autocomplete="off"><button type="submit">ADD</button></form>
+        <form class="task-form" id="taskForm"><label class="sr-only" for="taskInput">Add a task</label><input id="taskInput" maxlength="4000" placeholder="Apna task likho…" autocomplete="off" required><button type="submit" name="taskMode" value="manual">SAVE MANUAL</button><button type="submit" name="taskMode" value="plan">ADD &amp; PLAN (AI)</button></form>
+        <p class="task-add-status" id="taskAddStatus" role="status" aria-live="polite">SAVE MANUAL works without AI token. ADD &amp; PLAN needs the owner API token; neither mode executes outside actions.</p>
         <div class="task-browse-controls" role="group" aria-label="Find and sort saved tasks">
           <label class="sr-only" for="taskSearchInput">Search tasks by name or details</label>
           <input id="taskSearchInput" type="search" inputmode="search" maxlength="120" placeholder="Search saved tasks…" autocomplete="off" aria-controls="taskList">
@@ -149,6 +254,10 @@
           <button type="button" class="task-deadline-filter" data-deadline-filter="overdue" aria-pressed="false">OVERDUE <strong class="task-deadline-count">0</strong></button>
         </div>
         <div id="taskList" class="task-list" aria-live="polite"></div>
+        <section id="taskDeleteRecovery" class="task-delete-recovery" aria-label="Undo last task removal" hidden>
+          <p id="taskUndoSummary" role="status" aria-live="polite">Last removed task can be restored until refresh or another deletion.</p>
+          <button type="button" id="taskUndoDelete">UNDO DELETE</button>
+        </section>
         <p class="task-note">Saved on this iPhone only. Say “Task: …” to JOMY or add one here. Planning never executes external actions.</p>
         <section class="memory-panel" aria-label="Personal memory">
           <div class="task-heading"><span>PERSONAL MEMORY</span><span>DEVICE ONLY · 15 MAX</span></div>
@@ -172,6 +281,9 @@
       <p>Use your secure HTTPS Agent API URL. The URL and private Agent access token are saved in this browser on this device. Do not use shared devices. No MCP or external messaging integration is connected.</p>
       <div class="dialog-actions"><button class="quiet-button" id="clearEndpoint" type="button">Disconnect</button><button class="primary-button" id="saveEndpoint" type="button">Save endpoint</button></div>
       <p class="settings-note" id="settingsNote" role="status"></p>
+      <button class="quiet-button" id="testConnection" type="button" style="width:100%;min-height:44px" disabled>TEST AI CONNECTION</button>
+      <p>One short authenticated AI request. Uses your saved API URL and token; no chat history or personal memory is sent. Uses a small amount of AI quota.</p>
+      <p id="testConnectionStatus" class="settings-note" role="status" aria-live="polite"></p>
     </div>
   </dialog>
   <script>
@@ -327,8 +439,8 @@
           utterance.rate = 0.9;
           utterance.pitch = 1.04;
           utterance.onstart = () => { hint.textContent = "Hindi voice test playing… iPhone ka media volume check karo."; };
-          utterance.onend = () => { hint.textContent = "Voice test complete. JOMY reply ko bhi awaaz mein sunne ke liye Sound on rakho."; };
-          utterance.onerror = (event) => { hint.textContent = "Voice playback failed (" + (event.error || "unknown") + "). iPhone volume aur voice settings check karo."; };
+          utterance.onend = () => { window.dispatchEvent(new CustomEvent("jomy:voice-qa",{detail:{step:"playback",status:"passed"}})); hint.textContent = "Voice test complete. JOMY reply ko bhi awaaz mein sunne ke liye Sound on rakho."; };
+          utterance.onerror = (event) => { window.dispatchEvent(new CustomEvent("jomy:voice-qa",{detail:{step:"playback",status:"failed"}})); hint.textContent = "Voice playback failed (" + (event.error || "unknown") + "). iPhone volume aur voice settings check karo."; };
           synth.speak(utterance);
           synth.resume();
           hint.textContent = "Trying Hindi voice… iPhone ka media volume check karo.";
@@ -338,6 +450,10 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=53"></script>
+  <script type="module" src="/app.js?v=69"></script>
+  <script type="module" src="/unified-console.js?v=69"></script>
+  <script type="module" src="/mic-check-ui.js?v=69"></script>
+  <script type="module" src="/voice-qa-panel.js?v=69"></script>
+  <script type="module" src="/agent-engine-ui.js?v=69"></script>
 </body>
 </html>

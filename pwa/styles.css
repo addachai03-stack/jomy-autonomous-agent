@@ -242,6 +242,12 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-focus-panel summary span{color:#aebbc9;font-size:9px;white-space:nowrap}
 .task-focus-panel>p{margin:7px 0 11px;color:#afbdcb;font-size:11px;line-height:1.6}
 .task-focus-summary{box-sizing:border-box;margin:9px 0 11px!important;padding:9px 10px;background:#142336;border-radius:8px;color:#e9cb96!important;font-size:11px!important;line-height:1.5;overflow-wrap:anywhere}
+.task-focus-progress{margin:0 0 12px;padding:10px;background:#121e2e;border:1px solid #d9b7793d;border-radius:9px}
+.task-focus-progress-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:5px;font-size:10px;line-height:1.5;color:#f1d59d}
+.task-focus-progress-head span{color:#c1ccdc;overflow-wrap:anywhere}
+.task-focus-progress-track{width:100%;height:10px;margin:9px 0 7px;border-radius:999px;background:#2b3544;overflow:hidden}
+.task-focus-progress-fill{display:block;width:0;height:100%;border-radius:999px;background:linear-gradient(90deg,#b98739,#f1d18a);transition:width .15s ease}
+.task-focus-progress p{margin:5px 0 0!important;font-size:10px!important;line-height:1.5;color:#aab9ca!important}
 .task-focus-list{display:flex;flex-direction:column;gap:7px;min-width:0}
 .task-focus-item{display:flex;justify-content:space-between;align-items:center;gap:9px;padding:10px;border:1px solid #dbb77946;border-radius:9px;background:#111e30;min-width:0}
 .task-focus-item-summary{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
@@ -257,3 +263,117 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-focus-reset:disabled{opacity:.45;cursor:not-allowed}
 .task-focus-empty{margin:5px 0 10px!important;color:#aab8c8}
 @media(max-width:400px){.task-focus-panel{padding:0 9px}.task-focus-panel summary{font-size:10px}.task-focus-panel summary span{font-size:8px}.task-focus-item{flex-direction:column;align-items:stretch}.task-focus-view{width:100%}}
+
+
+/* Preview migration notice: no cross-origin access, user-confirmed JSON import only. */
+.task-transfer-panel{box-sizing:border-box;margin:11px 0;padding:12px;border:1px solid #d9ba7e7d;border-radius:11px;background:#172335;color:#ead3a7}
+.task-transfer-panel[hidden]{display:none!important}
+.task-transfer-panel>strong{display:block;font-size:11px;letter-spacing:.06em}
+.task-transfer-panel p{font-size:11px;line-height:1.6;color:#c5d0de;margin:8px 0 10px}
+.task-transfer-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.task-transfer-actions a,.task-transfer-actions button{display:flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:44px;padding:9px;text-align:center;background:#30251b;border:1px solid #d9bb81;border-radius:9px;color:#f1d39a;font:800 11px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-decoration:none;cursor:pointer}
+.task-transfer-actions a:focus-visible,.task-transfer-actions button:focus-visible{outline:2px solid #f2d99a;outline-offset:3px}
+@media(max-width:400px){.task-transfer-actions{grid-template-columns:minmax(0,1fr)}}
+
+
+/* Local manual quick-add: clear mode choice and 44px iPhone touch targets. */
+.task-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.task-form input{grid-column:1/-1;min-height:44px}
+.task-form button{box-sizing:border-box;min-height:44px;padding:9px 7px;line-height:1.4;letter-spacing:.025em}
+.task-form button[value="manual"]{background:#243349;color:#f3d59b;border:1px solid #e2c08288}
+.task-form button:focus-visible{outline:2px solid #f2d79a;outline-offset:2px}
+.task-add-status{font-size:11px;line-height:1.5;color:#becbdc;margin:8px 0 13px;overflow-wrap:anywhere}
+@media(max-width:350px){.task-form button{font-size:9px;letter-spacing:0}}
+
+
+/* Local Safari persistence failures: visibly report, never hide the old tasks. */
+.task-storage-status{box-sizing:border-box;margin:10px 0;padding:11px 12px;border:1px solid #e59b70;background:#3a2320;border-radius:9px;color:#ffe2ca;font-size:12px;line-height:1.55;overflow-wrap:anywhere}
+.task-storage-status[hidden]{display:none!important}
+
+
+/* One-step task removal recovery. Never hide a failed localStorage save. */
+.task-delete-recovery{box-sizing:border-box;margin:10px 0;padding:11px;border:1px solid #e1bf7c70;border-radius:10px;background:#182539;color:#f1daaa}
+.task-delete-recovery[hidden]{display:none!important}
+.task-delete-recovery p{margin:0 0 9px;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+.task-delete-recovery button{width:100%;min-height:44px;border:1px solid #ddba7b;border-radius:9px;background:#32271d;color:#f2d9a8;font-size:11px;font-weight:800;cursor:pointer}
+.task-delete-recovery button:focus-visible{outline:2px solid #f2d9a8;outline-offset:2px}
+
+/* JOMY Unified Command Center · preview-only enhancement, phone-first */
+.unified-dashboard{margin:22px 0 18px;padding:19px;border:1px solid #d8ad5966;border-radius:20px;background:linear-gradient(145deg,#151d2d,#0a111c);box-shadow:0 18px 40px #0004}
+.hub-head{display:flex;align-items:flex-start;justify-content:space-between;gap:13px;flex-wrap:wrap;margin-bottom:13px}
+.hub-head h2{font-size:20px;line-height:1.3;margin:3px 0;color:#f6e9ce}
+.hub-pill{font-size:9px;border:1px solid #dab97677;padding:7px 10px;border-radius:30px;color:#ebcf94;letter-spacing:1px}
+.hub-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.hub-tile{display:flex;flex-direction:column;align-items:flex-start;gap:9px;min-width:0;padding:14px;border:1px solid #2c3d58;border-radius:13px;background:#101827}
+.hub-tile>span{font-size:10px;letter-spacing:1px;color:#c6a26b}.hub-tile strong{font-size:16px;color:#fff}.hub-tile small{font-size:11px;color:#afbdd1;line-height:1.55;overflow-wrap:anywhere;min-height:34px}
+.hub-tile a{display:flex;align-items:center;justify-content:center;min-height:44px;width:100%;border:1px solid #ccab70;border-radius:9px;text-decoration:none;font-size:12px;font-weight:750;color:#f2d39c;background:#2b261d}
+.hub-tile a:focus-visible,.approval-actions button:focus-visible,.hub-request-form button:focus-visible{outline:3px solid #ffe0a3;outline-offset:2px}
+.hub-approvals{margin-top:18px;padding-top:17px;border-top:1px solid #34465d}
+.hub-approval-top{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.hub-approval-top h3{font-size:16px;margin:0;color:#f2dbab}.hub-approval-top span{font-size:11px;color:#e9c78c}
+.hub-hint{font-size:12px;line-height:1.6;color:#acb9c9}
+.hub-request-form{display:grid;grid-template-columns:1fr;gap:6px;margin-top:13px}.hub-request-form label{font-size:11px;color:#d6dfec}
+.hub-request-form :is(input,select,textarea){display:block;width:100%;border:1px solid #44546d;border-radius:9px;background:#111d2d;padding:11px;color:#f6ead6;font-size:16px;min-height:43px}
+.hub-request-form textarea{resize:vertical}.hub-request-form button{min-height:44px;border-radius:9px;border:1px solid #e0b96e;background:#d9ad59;color:#121318;font-weight:800;font-size:11px;cursor:pointer}
+.hub-request-form button:disabled{opacity:.5;cursor:not-allowed}
+.hub-status{font-size:12px;min-height:20px;line-height:1.55;color:#f1dba4;overflow-wrap:anywhere}
+.hub-approval-list{display:grid;gap:10px}.approval-card{padding:13px;border-radius:12px;border:1px solid #3b4d67;background:#0d1522;overflow-wrap:anywhere}
+.approval-card strong{display:block;font-size:13px;color:#f6e9d2}.approval-card p{font-size:12px;color:#bdc7d3;line-height:1.6}
+.approval-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}.approval-actions button{min-height:44px;border-radius:9px;border:1px solid #bfa46d;background:#172337;color:#f3d69e;font-size:11px;cursor:pointer}
+@media(max-width:380px){.unified-dashboard{padding:13px}.hub-grid{grid-template-columns:1fr}.hub-tile small{min-height:0}}
+
+/* Explicit voice locale selection for iPhone Safari, without implicit microphone start. */
+.voice-lang-row{display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap}
+.voice-lang-row label{font-size:11px;color:#c7cddb;min-width:110px}
+.voice-lang-row select{min-height:44px;min-width:170px;max-width:100%;font-size:16px;background:#111c2d;border:1px solid #cea965;border-radius:10px;color:#f4ddaa;padding:7px 10px}
+.voice-lang-row select:focus-visible{outline:3px solid #ffe1a8;outline-offset:2px}
+#voiceCapabilityStatus{max-width:100%;color:#d4bb83;margin-top:8px}
+
+/* Safe bridge: public readiness check and optional chat-to-review draft. */
+.hub-tile-action{min-height:44px;width:100%;background:#1b3040;border:1px solid #86aac9;border-radius:9px;color:#cfe5ff;font:700 12px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.hub-tile-action:disabled{opacity:.6;cursor:wait}
+.hub-draft-button{width:100%;min-height:44px;border:1px dashed #ddbd7d;background:#253044;color:#ffe0a3;padding:9px;border-radius:9px;font-weight:750;font-size:12px;cursor:pointer;margin:8px 0}
+.hub-tile-action:focus-visible,.hub-draft-button:focus-visible{outline:3px solid #ffe0a3;outline-offset:2px}
+#hubSchedulerStatus{font-size:11px;min-height:0;line-height:1.45}
+
+/* Manual approval handoff and permission diagnostics; no automatic operations */
+.hub-export-row{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}
+#hubApprovalExport,.hub-handoff-button{min-height:44px;padding:10px 12px;border:1px solid #caaa75;border-radius:10px;background:#1c2b3d;color:#efd8a5;font-size:11px;font-weight:700;cursor:pointer}
+.hub-handoff-button{width:100%;margin-top:9px}.hub-handoff-text{margin-top:9px;width:100%;min-height:180px;background:#07111e;color:#f4e8d2;font-size:12px;line-height:1.5;border:1px solid #40526f;border-radius:9px;padding:10px;resize:vertical}
+#hubApprovalExport:focus-visible,.hub-handoff-button:focus-visible,#micPermissionCheck:focus-visible{outline:3px solid #ffe1a8;outline-offset:2px}
+#micPermissionStatus[data-result="granted"]{color:#9fe6b8}
+#micPermissionStatus[data-result="denied"]{color:#f1ab90}
+
+/* Session-only voice QA, opt-in status; never a recording workflow. */
+.voice-qa-panel{margin:14px 0 2px;padding:13px;border:1px solid #3f5b74;background:#0e1829;border-radius:13px;color:#f5e5c8}
+.voice-qa-panel h2{font-size:15px;line-height:1.4;margin:0 0 5px}
+.voice-qa-panel>p{font-size:11px;line-height:1.5;color:#bdc6d5;margin:7px 0}
+.voice-qa-rows{display:grid;gap:8px;margin:13px 0}
+.voice-qa-rows>div{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #26384c;padding:7px 0}
+.voice-qa-rows span{font-size:12px;line-height:1.4;text-align:left}
+.voice-qa-rows strong{font-size:10px;line-height:1.4;text-align:right;max-width:52%;color:#b5bdcc}
+.voice-qa-rows strong[data-status="passed"]{color:#b0e6c5}
+.voice-qa-rows strong[data-status="failed"]{color:#ffb4a5}
+.voice-qa-rows strong[data-status="unsupported"]{color:#f6c882}
+.voice-qa-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.voice-qa-actions button{font-size:11px;font-weight:700;min-height:44px;border:1px solid #c8a978;border-radius:10px;background:#253048;color:#f6dda4;cursor:pointer}
+.voice-qa-actions button:focus-visible{outline:3px solid #ffe3b0;outline-offset:2px}
+#voiceQaFallback{width:100%;margin-top:10px;background:#07101d;color:#fff0d2;border:1px solid #4c627e;border-radius:8px;padding:9px;font-size:12px}
+#voiceQaFallback[hidden]{display:none}
+
+/* Guided voice QA: never activates a microphone via automatic navigation. */
+.voice-qa-guide{margin:13px 0 15px;padding:12px;background:#152238;border:1px solid #566b84;border-radius:11px}
+.voice-qa-guide strong{display:block;font-size:10px;letter-spacing:.09em;color:#e6c68e}
+.voice-qa-guide p{font-size:12px;line-height:1.6;color:#d5e1ef;margin:7px 0 10px}
+.voice-qa-guide button{width:100%;min-height:44px;padding:10px;background:#30415b;border:1px solid #e2c181;border-radius:9px;color:#f5e3b8;font-weight:750;font-size:12px;cursor:pointer}
+.voice-qa-guide button:focus-visible{outline:3px solid #fce3ae;outline-offset:2px}
+
+/* AI Agent Engine V1 · no background, payment, publish, mutation or remote secrets. */
+.agent-engine-card{margin:18px 0 12px;padding:16px;border:1px solid #cda96677;border-radius:15px;background:linear-gradient(145deg,#202133,#101c30)}
+.agent-engine-card h3{color:#f5d99c;font-size:16px;letter-spacing:.02em;margin:0}
+.agent-engine-card .hub-request-form{margin-top:10px}
+.agent-engine-result{margin:11px 0 0;padding-left:21px;color:#d6e2f2;overflow-wrap:anywhere;font-size:12px;line-height:1.6}
+.agent-engine-result li{margin-bottom:7px}
+.agent-engine-card #agentEngineStatus{color:#f4d5a4;font-size:12px;line-height:1.5}
+.agent-engine-card #agentEngineReview[hidden]{display:none}
+.agent-engine-card #agentEngineRun:disabled{opacity:.65;cursor:wait}
+@media(max-width:400px){.agent-engine-card{padding:12px}}

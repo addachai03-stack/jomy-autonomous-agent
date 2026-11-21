@@ -52,6 +52,22 @@ export function createTask(input, now = Date.now()) {
   };
 }
 
+/**
+ * A local-only READY task: no plan request, no claims of external execution.
+ * Uses the same task fields and storage key as existing manual template tasks.
+ */
+export function createManualTask(input, now = Date.now()) {
+  const task = createTask(input, now);
+  return {
+    ...task,
+    status: TASK_STATES.READY,
+    plan: {
+      source: "local",
+      summary: "Created manually on this device. No AI planning or external action ran."
+    }
+  };
+}
+
 export function addTask(queue, task) {
   if (!Array.isArray(queue)) throw new TypeError("Task queue must be an array.");
   if (queue.some(item => item?.id === task?.id)) return queue.slice();
@@ -854,4 +870,75 @@ export function summarizeDailyFocusPlan(queue, now = new Date(), limit = 5) {
     a.originalIndex - b.originalIndex);
   const focus = candidates.slice(0, limit).map(({categoryRank,originalIndex,...entry}) => entry);
   return { today, focus, totalOpen: candidates.length, counts };
+}
+
+/**
+ * JOMY 3.5 — snapshot-only manual daily progress for retained local tasks.
+ * Numerator: currently DONE tasks with an actual valid manual completion date today.
+ * Denominator: those completions + all currently unfinished saved tasks.
+ * This deliberately is NOT a fixed daily target or a history of work executed.
+ */
+export function summarizeDailyTaskProgress(queue, now = new Date()) {
+  const current = now instanceof Date ? new Date(now.getTime()) : new Date(now);
+  if (!Number.isFinite(current.getTime())) throw new TypeError("Invalid daily progress date.");
+  const today = localCalendarDate(current);
+  let completedToday = 0;
+  let unfinished = 0;
+  for (const task of (Array.isArray(queue) ? queue : [])) {
+    if (!task || typeof task.id !== "string" || typeof task.title !== "string" ||
+        typeof task.status !== "string") continue;
+    if (task.status === TASK_STATES.DONE) {
+      if (typeof task.manualCompletedAt !== "string" || !task.manualCompletedAt.trim()) continue;
+      const completedAt = new Date(task.manualCompletedAt);
+      if (Number.isFinite(completedAt.getTime()) && localCalendarDate(completedAt) === today) {
+        completedToday++;
+      }
+    } else if (task.status !== TASK_STATES.SUCCEEDED) {
+      unfinished++;
+    }
+  }
+  const total = completedToday + unfinished;
+  return { today, completedToday, unfinished, total,
+    percent: total ? Math.round(completedToday / total * 100) : 0 };
+}
+
+
+/**
+ * JOMY storage safety: validate and persist a complete snapshot before any
+ * caller replaces its in-memory task queue. A blocked Safari write throws.
+ * Never trim old tasks or report success when persistence fails.
+ */
+export function persistTaskQueueSafely(nextQueue, storage, key) {
+  if (!Array.isArray(nextQueue) || nextQueue.length > 30) {
+    throw new RangeError("Task Queue exceeds 30 saved tasks. Existing tasks were not changed.");
+  }
+  if (!storage || typeof storage.setItem !== "function" || typeof key !== "string" || !key) {
+    throw new TypeError("Valid local task storage is required.");
+  }
+  storage.setItem(key, JSON.stringify(nextQueue));
+  return nextQueue;
+}
+
+/**
+ * Restore exactly one removed local task at its former position. The caller
+ * must persist the returned snapshot before making it visible to the user.
+ * No eviction, duplication, fabricated completion or hidden side effects.
+ */
+export function restoreDeletedTask(queue, task, originalIndex) {
+  if (!Array.isArray(queue)) throw new TypeError("Invalid task queue.");
+  if (!task || typeof task.id !== "string" || !task.id ||
+      typeof task.title !== "string" || typeof task.status !== "string") {
+    throw new TypeError("Invalid deleted task.");
+  }
+  if (!Number.isInteger(originalIndex) || originalIndex < 0) {
+    throw new RangeError("Invalid deleted task position.");
+  }
+  if (queue.some(saved => saved?.id === task.id)) {
+    throw new Error("This task is already saved; nothing was overwritten.");
+  }
+  if (queue.length >= 30) {
+    throw new RangeError("Task Queue full (30/30). Remove another task before restoring.");
+  }
+  const position = Math.min(originalIndex, queue.length);
+  return [...queue.slice(0, position), task, ...queue.slice(position)];
 }

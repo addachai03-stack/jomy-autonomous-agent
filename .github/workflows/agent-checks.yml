@@ -28,6 +28,8 @@ jobs:
         run: node --check pwa/app.js && node --check pwa/memory-utils.js
       - name: Validate voice and task utility module syntax
         run: node --check pwa/voice-utils.js && node --check pwa/task-engine.js && node --check pwa/task-planner.js && node --check src/task-planner.js
+      - name: Validate AI Agent Engine client JavaScript syntax
+        run: node --check pwa/agent-engine-core.js && node --check pwa/agent-engine-ui.js
       - name: Validate Agent Worker JavaScript syntax
         run: node --check src/worker.js
       - name: Validate PWA manifest JSON

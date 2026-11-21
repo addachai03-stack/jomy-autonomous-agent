@@ -1,0 +1,20 @@
+name = "jomy-cloud-scheduler-preview"
+main = "src/scheduler-worker.js"
+compatibility_date = "2026-11-13"
+workers_dev = true
+preview_urls = false
+
+[vars]
+SCHEDULER_ENABLED = "true"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[d1_databases]]
+binding = "JOBS_DB"
+database_name = "jomy-cloud-scheduler-preview"
+database_id = "e31409f6-16db-4651-8382-3d1c02268b36"
+migrations_dir = "migrations/scheduler"
+
+# Set SCHEDULER_OWNER_TOKEN as a private Worker secret, not in this file.
+# This configuration is for the existing isolated preview only.
