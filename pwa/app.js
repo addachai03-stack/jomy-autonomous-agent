@@ -1,6 +1,7 @@
 import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint, testAgentConnection, requestAgentJson } from "./voice-utils.js";
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
+import { VOICE_LANGUAGE_KEY, normalizeVoiceLanguage, voiceAvailabilityMessage } from "./voice-language.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
 import { createTask, createManualTask, addTask, persistTaskQueueSafely, restoreDeletedTask, transitionTask, retryTask, recoverInterruptedTasks, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, summarizeDailyTaskProgress, TASK_STATES } from "./task-engine.js";
 import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-planner.js";
@@ -14,6 +15,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const micLabel = $("micLabel");
   const soundButton = $("soundButton");
   const handsFreeButton = $("handsFreeButton");
+  const voiceLanguageSelect = $("voiceLanguageSelect");
+  const voiceCapabilityStatus = $("voiceCapabilityStatus");
   const messageInput = $("messageInput");
   const chatForm = $("chatForm");
   const messages = $("messages");
@@ -160,6 +163,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   sessionStorage.removeItem(STORAGE_TOKEN);
   sessionStorage.removeItem("jomy_mcp_client_token_v1");
   let soundOn = localStorage.getItem(STORAGE_SOUND) !== "false";
+  let voiceLanguage = normalizeVoiceLanguage(localStorage.getItem(VOICE_LANGUAGE_KEY));
+  voiceLanguageSelect.value = voiceLanguage;
   let recognition = null;
   let listening = false;
   let recognitionBlocked = false;
@@ -1192,13 +1197,15 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     synth.cancel();
     speakingReply = true;
     const utterance = new SpeechSynthesisUtterance(speechText);
-    utterance.lang = "hi-IN";
+    utterance.lang = voiceLanguage;
     utterance.rate = 0.9;
     utterance.pitch = 1.04;
     utterance.volume = 1;
     // Prefer a warm-sounding Indian Hindi female voice when the device exposes one.
     // iOS does not expose a reliable voice-gender property, so name hints are best-effort.
-    const selectedVoice = selectHindiFemaleVoice(synth.getVoices());
+    const selectedVoice = voiceLanguage === "hi-IN"
+      ? selectHindiFemaleVoice(synth.getVoices())
+      : Array.from(synth.getVoices() || []).find(v => /^en[-_]IN$/i.test(v.lang)) || Array.from(synth.getVoices() || []).find(v => /^en([-_]|$)/i.test(v.lang));
     if (selectedVoice) {
       utterance.voice = selectedVoice;
       utterance.lang = selectedVoice.lang;
@@ -1292,7 +1299,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       voiceHint.textContent = "Voice recognition is unavailable here; text chat and keyboard dictation can still work.";
       return;
     }
-    recognition.lang = "hi-IN";
+    recognition.lang = voiceLanguage;
     recognition.maxAlternatives = 3;
     recognition.interimResults = true;
     recognition.continuous = true;
@@ -1528,6 +1535,26 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       recognitionStarting = true;
       try { recognition.start(); } catch (_) { recognitionStarting = false; setState("idle", "MIC PAUSED", "Wait a moment, then tap to retry."); }
     }
+  });
+  voiceLanguageSelect.addEventListener("change", () => {
+    const selected = normalizeVoiceLanguage(voiceLanguageSelect.value);
+    if (selected === voiceLanguage) return;
+    // A language switch is a deliberate stop; never restart a microphone silently.
+    if (handsFree || listening || recognitionStarting) stopHandsFree();
+    voiceLanguage = selected;
+    try { localStorage.setItem(VOICE_LANGUAGE_KEY, voiceLanguage); }
+    catch (_) { voiceCapabilityStatus.textContent = "Voice language changed only for this session. Browser storage unavailable."; }
+    if (recognition) recognition.lang = voiceLanguage;
+    voiceCapabilityStatus.textContent = voiceAvailabilityMessage({
+      speechRecognition: Boolean(recognition),
+      speechSynthesis: "speechSynthesis" in window,
+      lang: voiceLanguage
+    }) + " Tap mic or Hands-free to start again.";
+  });
+  voiceCapabilityStatus.textContent = voiceAvailabilityMessage({
+    speechRecognition: Boolean(recognition),
+    speechSynthesis: "speechSynthesis" in window,
+    lang: voiceLanguage
   });
   handsFreeButton.addEventListener("click", () => {
     unlockSpeech();
