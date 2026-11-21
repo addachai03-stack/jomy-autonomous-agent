@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=66">
+  <link rel="stylesheet" href="/styles.css?v=67">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -43,6 +43,22 @@
       <button class="voice-test-button" id="testVoiceButton" type="button">🔊 Test Hindi voice</button>
       <button class="voice-test-button" id="micPermissionCheck" type="button">🎙 Check Microphone Permission</button>
       <p class="voice-hint" id="micPermissionStatus" role="status" aria-live="polite">Optional test. Microphone is released immediately; no audio is saved or uploaded.</p>
+      <section class="voice-qa-panel" id="voiceQaPanel" aria-labelledby="voiceQaTitle">
+        <h2 id="voiceQaTitle">iPhone Voice Check · This session</h2>
+        <p>These indicators update only when the browser reports an event. Nothing is automatically marked passed; no transcripts, audio or tokens are stored in this panel.</p>
+        <div class="voice-qa-rows">
+          <div><span>Microphone permission</span><strong id="voiceQa-permission">NOT TESTED</strong></div>
+          <div><span>Speech recognition result</span><strong id="voiceQa-recognition">NOT TESTED</strong></div>
+          <div><span>Spoken reply completed</span><strong id="voiceQa-playback">NOT TESTED</strong></div>
+          <div><span>Hands-free wake phrase</span><strong id="voiceQa-wake">NOT TESTED</strong></div>
+        </div>
+        <div class="voice-qa-actions">
+          <button type="button" id="voiceQaCopy">Copy voice results</button>
+          <button type="button" id="voiceQaReset">Reset session checks</button>
+        </div>
+        <textarea id="voiceQaFallback" rows="6" readonly hidden aria-label="Voice test results, manually copy"></textarea>
+        <p id="voiceQaStatus" role="status" aria-live="polite">For actual voice testing use the microphone, Test Hindi voice, and Hands-free buttons above. iPhone must stay unlocked in foreground.</p>
+      </section>
     </section>
     <section class="composer" aria-label="Message the agent">
       <form id="chatForm"><label class="sr-only" for="messageInput">Your command</label><textarea id="messageInput" rows="1" maxlength="4000" placeholder="Tell JOMY what you need…" enterkeyhint="send"></textarea><button class="send-button" id="sendButton" type="submit" aria-label="Send message">↑</button></form>
@@ -396,8 +412,8 @@
           utterance.rate = 0.9;
           utterance.pitch = 1.04;
           utterance.onstart = () => { hint.textContent = "Hindi voice test playing… iPhone ka media volume check karo."; };
-          utterance.onend = () => { hint.textContent = "Voice test complete. JOMY reply ko bhi awaaz mein sunne ke liye Sound on rakho."; };
-          utterance.onerror = (event) => { hint.textContent = "Voice playback failed (" + (event.error || "unknown") + "). iPhone volume aur voice settings check karo."; };
+          utterance.onend = () => { window.dispatchEvent(new CustomEvent("jomy:voice-qa",{detail:{step:"playback",status:"passed"}})); hint.textContent = "Voice test complete. JOMY reply ko bhi awaaz mein sunne ke liye Sound on rakho."; };
+          utterance.onerror = (event) => { window.dispatchEvent(new CustomEvent("jomy:voice-qa",{detail:{step:"playback",status:"failed"}})); hint.textContent = "Voice playback failed (" + (event.error || "unknown") + "). iPhone volume aur voice settings check karo."; };
           synth.speak(utterance);
           synth.resume();
           hint.textContent = "Trying Hindi voice… iPhone ka media volume check karo.";
@@ -407,8 +423,9 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=66"></script>
-  <script type="module" src="/unified-console.js?v=66"></script>
-  <script type="module" src="/mic-check-ui.js?v=66"></script>
+  <script type="module" src="/app.js?v=67"></script>
+  <script type="module" src="/unified-console.js?v=67"></script>
+  <script type="module" src="/mic-check-ui.js?v=67"></script>
+  <script type="module" src="/voice-qa-panel.js?v=67"></script>
 </body>
 </html>
