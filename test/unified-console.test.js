@@ -18,7 +18,7 @@ test("unified dashboard provides separate, no-token-sharing navigation",()=>{
  assert.match(html,/id="hubSchedulerCheck"/);
  assert.match(html,/id="hubDraftFromChat"/);
  assert.doesNotMatch(controller,/AGENT_OWNER_TOKEN|SCHEDULER_OWNER_TOKEN/);
- assert.match(sw,/unified-console\.js\?v=65/);
+ assert.match(sw,/unified-console\.js\?v=66/);
  assert.match(sw,/approval-utils\.js/);
 });
 test("approval decisions record only permission; never execute actions",()=>{
