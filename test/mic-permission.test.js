@@ -11,7 +11,7 @@ test("tap-only mic check returns supported status and never saves audio",async()
   assert.match(html,/id="micPermissionStatus"/);
   assert.match(ui,/addEventListener\("click"/);
   assert.doesNotMatch(ui,/\.record\(|MediaRecorder|fetch\(/);
-  assert.match(sw,/mic-check-ui\.js\?v=66/);
+  assert.match(sw,/mic-check-ui\.js\?v=67/);
   assert.match(sw,/mic-permission\.js/);
   const unsupported=await checkMicrophonePermission(undefined);
   assert.equal(unsupported.code,"unsupported");
