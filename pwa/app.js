@@ -1,4 +1,4 @@
-import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint } from "./voice-utils.js";
+import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint, testAgentConnection } from "./voice-utils.js";
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
@@ -1624,6 +1624,37 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   const settingsNote = $("settingsNote");
   const saveEndpointButton = $("saveEndpoint");
   const clearEndpointButton = $("clearEndpoint");
+  const testConnectionButton = $("testConnection");
+  const testConnectionStatus = $("testConnectionStatus");
+  testConnectionButton.disabled = false;
+  let connectionRevision = 0;
+  function resetConnectionTest() {
+    connectionRevision++;
+    testConnectionStatus.textContent = "";
+  }
+  testConnectionButton.addEventListener("click", async () => {
+    if (!ownerToken || !endpoint) {
+      testConnectionStatus.textContent = "Save your API URL and Owner Token first. Do not share tokens in chat.";
+      return;
+    }
+    let enteredEndpoint;
+    try { enteredEndpoint = normalizeAgentEndpoint(endpointInput.value); } catch (_) {}
+    if (enteredEndpoint !== endpoint || agentTokenInput.value.trim() !== ownerToken) {
+      testConnectionStatus.textContent = "Save changed connection settings before testing.";
+      return;
+    }
+    const revision = ++connectionRevision;
+    testConnectionButton.disabled = true;
+    testConnectionStatus.textContent = "Testing saved AI connection…";
+    try {
+      const result = await testAgentConnection(endpoint, ownerToken);
+      if (revision !== connectionRevision) return;
+      testConnectionStatus.textContent = result.message;
+      setConnection(result.ok, result.ok ? "AI connection verified" : "AI test failed");
+    } finally {
+      testConnectionButton.disabled = false;
+    }
+  });
   $("settingsButton").addEventListener("click", () => {
     endpointInput.value = endpoint || DEFAULT_ENDPOINT;
     agentTokenInput.value = ownerToken;
@@ -1643,7 +1674,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       endpoint = normalized;
       ownerToken = enteredToken || localStorage.getItem(STORAGE_TOKEN) || "";
       sessionStorage.removeItem(STORAGE_TOKEN);
-      settingsNote.textContent = "Saved on this iPhone. Endpoint abhi test nahi hua; chat mein ek message bhej kar check karo.";
+      resetConnectionTest();
+      settingsNote.textContent = "Saved on this iPhone. Tap TEST AI CONNECTION to verify.";
       saveEndpointButton.textContent = "Saved ✓";
       setConnection(false, endpoint ? (ownerToken ? "Endpoint saved · not tested" : "Owner token needed · this browser") : "Not connected");
     } catch (error) {
@@ -1651,8 +1683,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       saveEndpointButton.textContent = "Save endpoint";
     }
   });
-  endpointInput.addEventListener("input", () => { saveEndpointButton.textContent = "Save endpoint"; });
-  agentTokenInput.addEventListener("input", () => { saveEndpointButton.textContent = "Save endpoint"; });
+  endpointInput.addEventListener("input", () => { saveEndpointButton.textContent = "Save endpoint"; resetConnectionTest(); });
+  agentTokenInput.addEventListener("input", () => { saveEndpointButton.textContent = "Save endpoint"; resetConnectionTest(); });
   clearEndpointButton.addEventListener("click", () => {
     try {
       localStorage.removeItem(STORAGE_ENDPOINT);
@@ -1662,6 +1694,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       ownerToken = "";
       endpointInput.value = "";
       agentTokenInput.value = "";
+      resetConnectionTest();
       settingsNote.textContent = "Disconnected on this iPhone.";
       saveEndpointButton.textContent = "Save endpoint";
       setConnection(false, "Not connected");
