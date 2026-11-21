@@ -342,3 +342,20 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 #hubApprovalExport:focus-visible,.hub-handoff-button:focus-visible,#micPermissionCheck:focus-visible{outline:3px solid #ffe1a8;outline-offset:2px}
 #micPermissionStatus[data-result="granted"]{color:#9fe6b8}
 #micPermissionStatus[data-result="denied"]{color:#f1ab90}
+
+/* Session-only voice QA, opt-in status; never a recording workflow. */
+.voice-qa-panel{margin:14px 0 2px;padding:13px;border:1px solid #3f5b74;background:#0e1829;border-radius:13px;color:#f5e5c8}
+.voice-qa-panel h2{font-size:15px;line-height:1.4;margin:0 0 5px}
+.voice-qa-panel>p{font-size:11px;line-height:1.5;color:#bdc6d5;margin:7px 0}
+.voice-qa-rows{display:grid;gap:8px;margin:13px 0}
+.voice-qa-rows>div{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #26384c;padding:7px 0}
+.voice-qa-rows span{font-size:12px;line-height:1.4;text-align:left}
+.voice-qa-rows strong{font-size:10px;line-height:1.4;text-align:right;max-width:52%;color:#b5bdcc}
+.voice-qa-rows strong[data-status="passed"]{color:#b0e6c5}
+.voice-qa-rows strong[data-status="failed"]{color:#ffb4a5}
+.voice-qa-rows strong[data-status="unsupported"]{color:#f6c882}
+.voice-qa-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.voice-qa-actions button{font-size:11px;font-weight:700;min-height:44px;border:1px solid #c8a978;border-radius:10px;background:#253048;color:#f6dda4;cursor:pointer}
+.voice-qa-actions button:focus-visible{outline:3px solid #ffe3b0;outline-offset:2px}
+#voiceQaFallback{width:100%;margin-top:10px;background:#07101d;color:#fff0d2;border:1px solid #4c627e;border-radius:8px;padding:9px;font-size:12px}
+#voiceQaFallback[hidden]{display:none}
