@@ -61,7 +61,7 @@ import {APPROVAL_STORAGE_KEY, APPROVAL_KINDS, MAX_APPROVAL_ITEMS, normalizeAppro
     }catch(e){renderStatus("Not saved: "+(e?.message||"Browser storage error"));}
   });
   $("hubChatLink")?.addEventListener("click",()=>{$("messageInput")?.focus();});
-  $("hubTaskLink")?.addEventListener("click",()=>{$("activityToggle")?.click();$("taskPanel")?.scrollIntoView({behavior:"smooth",block:"start"});});
+  $("hubTaskLink")?.addEventListener("click",()=>{if($("activityToggle")?.getAttribute("aria-expanded")!=="true") $("activityToggle")?.click();$("taskPanel")?.scrollIntoView({behavior:"smooth",block:"start"});});
   window.addEventListener("storage",event=>{if(!event.key||event.key===APPROVAL_STORAGE_KEY){try{items=normalizeApprovals(JSON.parse(localStorage.getItem(APPROVAL_STORAGE_KEY)||"[]"));render();}catch(_){}}refreshCards();});
   window.addEventListener("focus",refreshCards);
   render();refreshCards();
