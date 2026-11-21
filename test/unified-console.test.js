@@ -15,10 +15,11 @@ test("unified dashboard provides separate, no-token-sharing navigation",()=>{
  assert.match(controller,/credentials:"omit"/);
  assert.match(controller,/method:"GET"/);
  assert.match(controller,/hubDraftFromChat/);
+ assert.match(controller,/jomy:connection-status/);
  assert.match(html,/id="hubSchedulerCheck"/);
  assert.match(html,/id="hubDraftFromChat"/);
  assert.doesNotMatch(controller,/AGENT_OWNER_TOKEN|SCHEDULER_OWNER_TOKEN/);
- assert.match(sw,/unified-console\.js\?v=66/);
+ assert.match(sw,/unified-console\.js\?v=67/);
  assert.match(sw,/approval-utils\.js/);
 });
 test("approval decisions record only permission; never execute actions",()=>{
