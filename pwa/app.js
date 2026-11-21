@@ -1,4 +1,4 @@
-import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint, testAgentConnection } from "./voice-utils.js";
+import { parseWakeCommand, discardPendingVoiceCapture, normalizeAgentEndpoint, testAgentConnection, requestAgentJson } from "./voice-utils.js";
 import { prepareSpeechText } from "./speech-text.js";
 import { selectHindiFemaleVoice } from "./speech-voice.js";
 import { addMemory, removeMemory, extractMemoryFromMessage, formatMemoryContext } from "./memory-utils.js";
@@ -533,14 +533,13 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       if (!endpoint || !ownerToken) throw new Error("Settings mein Agent API URL aur Owner token save karo.");
       // Use the dedicated, authenticated planning endpoint. Chat responses are
       // free-form prose and must not be parsed as task plans.
-      const planEndpoint = new URL(endpoint);
+      const planEndpoint = new URL(normalizeAgentEndpoint(endpoint));
       planEndpoint.pathname = "/api/agent/plan";
-      const response = await fetch(planEndpoint.toString(), {
+      const {response, data} = await requestAgentJson(planEndpoint.toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ownerToken },
         body: JSON.stringify({ task: planningText })
       });
-      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         // The authenticated route sometimes returns malformed model output.
         // If that *specific* failure occurs, retain the supplied task names
@@ -573,7 +572,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       const current = taskQueue.find(item => item.id === taskId);
       if (current && current.status === TASK_STATES.PLANNING) {
         const failed = transitionTask(current, TASK_STATES.FAILED, { error: error.message });
-        updateTask(taskId, () => failed);
+        try { updateTask(taskId, () => failed); } catch (_) { /* Storage warning already visible. */ }
       }
     }
   }
@@ -1455,23 +1454,20 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         if (requestHistory.length <= firstChatIndex) break;
         requestHistory.splice(firstChatIndex, 1);
       }
-      const response = await fetch(endpoint, {
+      const {response, data} = await requestAgentJson(normalizeAgentEndpoint(endpoint), {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(ownerToken ? { "Authorization": "Bearer " + ownerToken } : {}) },
         body: JSON.stringify({ message: text, history: requestHistory, sessionId, locale: "hi-IN", client: "jomy-autonomous-agent" })
       });
       if (!response.ok) {
         let detail = "Agent endpoint returned HTTP " + response.status;
-        try {
-          const errorData = await response.json();
-          if (typeof errorData.error === "string") detail = errorData.error;
-        } catch (_) {}
+        if (typeof data.error === "string") detail = data.error;
+        if (response.status === 401 || response.status === 403) detail = "Owner authentication rejected. Check Settings and TEST AI CONNECTION.";
         if (response.status === 404) detail = "Agent API route not found. Settings mein poora URL /api/agent/chat par end hona chahiye.";
         throw new Error(detail);
       }
-      const data = await response.json();
       const reply = typeof data.reply === "string" ? data.reply : typeof data.message === "string" ? data.message : "";
-      if (!reply) throw new Error("The agent response did not include a reply string.");
+      if (!reply.trim()) throw new Error("The agent response did not include a reply string.");
       addMessage("agent", reply);
       speak(reply);
       setConnection(true, "Connected");
