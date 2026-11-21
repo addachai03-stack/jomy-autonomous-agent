@@ -51,3 +51,6 @@ Configure the Workers AI binding, `AGENT_OWNER_TOKEN`, and `ALLOWED_ORIGIN` loca
 
 ## Voice limitations
 Voice recognition is browser-dependent. Hands-free begins only after a user tap and microphone permission. Some iPhone Safari versions do not expose the Web Speech Recognition API; use the iOS keyboard microphone in the message field if voice recognition is unavailable. When the PWA is backgrounded, JOMY stops capture and discards pending voice commands. Tap the microphone or Hands-free again after returning to the foreground. iOS may suspend microphone access or speech recognition while backgrounded or locked, so always-on background wake-word listening is not guaranteed.
+
+## Scheduled run history
+The isolated cloud scheduler stores up to 200 recent run outcomes in its own D1 `job_runs` table, including the daily APPLIQ health-check job. The protected `GET /api/history` endpoint and VIEW LAST 30 RUNS dashboard control show the latest 30 outcomes. No owner token is stored in run history; result logging is best-effort and is never used to retry an already committed job. Earlier jobs are not backfilled. This is not a notification system, and report-only CSP remains an APPLIQ draft PR with no production merge.
