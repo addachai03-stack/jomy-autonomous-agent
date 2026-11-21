@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker,{validateJob,executeJob,nextDue,tick,checkWebsite} from "../src/scheduler-worker.js";
+import worker,{validateJob,executeJob,nextDue,tick,checkWebsite,diagnoseHomepage} from "../src/scheduler-worker.js";
 test("scheduler validates time, bounded inputs and allowed actions",()=>{
  const now=1000000,good={title:"Report",kind:"text_report",input:"one two",runAt:now,repeat:"once"};
  assert.equal(validateJob(good,now).title,"Report");
@@ -61,4 +61,17 @@ test("website health is allowlisted and read only",async()=>{
  assert.equal((await checkWebsite(url,async()=>new Response(null,{status:302}))).reachable,false);
  assert.equal((await checkWebsite(url,async()=>{throw Error("network")})).reachable,false);
  await assert.rejects(checkWebsite("https://example.com/"),/not approved/);
+});
+
+test("homepage diagnostics reports observed indicators and never claims a security audit",async()=>{
+ const url="https://appliq-app.addachai03.workers.dev/";
+ const good=await checkWebsite(url,async()=>new Response('<html lang="en"><head><title>APPLIQ</title><meta name="viewport" content="width=device-width"></head><body></body></html>',{headers:{"content-type":"text/html","x-content-type-options":"nosniff"}}));
+ for(const n of ["Page title","Mobile viewport","Document language","Content type protection"])assert.equal(good.checks.find(x=>x.name===n).state,"pass");
+ assert.equal(good.checks.find(x=>x.name==="Content security policy").state,"warning");
+ assert.match(good.note,/No redirects, AI inference/);
+ const missing=await checkWebsite(url,async()=>new Response("<html><head></head></html>",{headers:{"content-type":"text/html"}}));
+ assert.equal(missing.checks.find(x=>x.name==="Page title").state,"warning");
+ const partial=await checkWebsite(url,async()=>new Response("x".repeat(70000),{headers:{"content-type":"text/html"}}));
+ assert.equal(partial.checks.find(x=>x.name==="Page title").state,"not_tested");
+ assert.equal(JSON.stringify(partial).includes("x".repeat(100)),false);
 });
