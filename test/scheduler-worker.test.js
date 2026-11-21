@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker,{validateJob,executeJob,nextDue,tick} from "../src/scheduler-worker.js";
+import worker,{validateJob,executeJob,nextDue,tick,checkWebsite} from "../src/scheduler-worker.js";
 test("scheduler validates time, bounded inputs and allowed actions",()=>{
  const now=1000000,good={title:"Report",kind:"text_report",input:"one two",runAt:now,repeat:"once"};
  assert.equal(validateJob(good,now).title,"Report");
@@ -49,4 +49,16 @@ test("heartbeat is returned only to authenticated scheduler owners",async()=>{
  assert.match(html,/crypto.getRandomValues\(new Uint8Array\(32\)\)/);
  assert.match(html,/navigator.clipboard.writeText\(value\)/);
  assert.doesNotMatch(html,/localStorage|sessionStorage/);
+});
+
+test("website health is allowlisted and read only",async()=>{
+ const url="https://appliq-app.addachai03.workers.dev/",now=1000000;
+ const job={title:"Check",input:url,kind:"website_health",runAt:now,repeat:"once"};
+ assert.equal(validateJob(job,now).kind,"website_health");
+ for(const input of ["http://localhost/","https://example.com/",url+"?x=1",url+"admin"])assert.throws(()=>validateJob({...job,input},now),/approved/);
+ const r=await checkWebsite(url,async(u,o)=>{assert.equal(u,url);assert.equal(o.method,"GET");assert.equal(o.redirect,"manual");assert.ok(o.signal);return new Response("ok",{headers:{"content-type":"text/html"}})});
+ assert.equal(r.reachable,true);assert.equal(r.httpStatus,200);assert.equal(r.html,true);
+ assert.equal((await checkWebsite(url,async()=>new Response(null,{status:302}))).reachable,false);
+ assert.equal((await checkWebsite(url,async()=>{throw Error("network")})).reachable,false);
+ await assert.rejects(checkWebsite("https://example.com/"),/not approved/);
 });
