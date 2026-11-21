@@ -1,8 +1,8 @@
 // Keep HTML, JS and CSS from the same release. Previous cache-first fetches
 // could serve older app.js/styles.css alongside freshly deployed Dashboard HTML.
-const CACHE = "jomy-agent-shell-v64";
+const CACHE = "jomy-agent-shell-v65";
 const ASSETS = [
-  "/", "/index.html", "/styles.css?v=64", "/app.js?v=64", "/unified-console.js?v=64", "/approval-utils.js",
+  "/", "/index.html", "/styles.css?v=65", "/app.js?v=65", "/unified-console.js?v=65", "/approval-utils.js", "/voice-language.js",
   "/manifest.json", "/icon.svg", "/voice-utils.js", "/task-engine.js",
   "/task-planner.js", "/memory-utils.js", "/speech-text.js", "/speech-voice.js"
 ];
