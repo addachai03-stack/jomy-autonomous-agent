@@ -28,6 +28,8 @@ test("PWA voice choice stops active mic and does not silently restart",()=>{
   assert.match(app,/if \(handsFree \|\| listening \|\| recognitionStarting\) stopHandsFree\(\)/);
   assert.match(app,/recognition\.lang = voiceLanguage/);
   assert.match(app,/utterance\.lang = voiceLanguage/);
-  assert.match(sw,/jomy-agent-shell-v66/);
+  assert.match(sw,/jomy-agent-shell-v67/);
   assert.match(sw,/voice-language\.js/);
+  assert.match(sw,/voice-qa-panel\.js\?v=67/);
+  assert.match(sw,/voice-qa\.js/);
 });
