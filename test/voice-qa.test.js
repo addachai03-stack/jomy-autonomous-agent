@@ -35,6 +35,7 @@ test("UI is accessible, session-only, and does not start or upload microphone au
  assert.match(html,/id="voiceQaCopy"/);
  assert.match(html,/id="voiceQaReset"/);
  assert.match(ui,/jomy:voice-qa/);
+ assert.match(ui,/getElementById\("micButton"\)\?\.disabled/);
  assert.match(ui,/voiceQaSummary/);
  assert.doesNotMatch(ui,/localStorage|sessionStorage|fetch\(/);
  assert.doesNotMatch(ui,/getUserMedia|SpeechRecognition\(/);
