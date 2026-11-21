@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v62 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v63 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=62"/);
-  assert.match(html, /src="\/app\.js\?v=62"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v62"/);
-  assert.match(worker, /"\/styles\.css\?v=62"/);
-  assert.match(worker, /"\/app\.js\?v=62"/);
+  assert.match(html, /href="\/styles\.css\?v=63"/);
+  assert.match(html, /src="\/app\.js\?v=63"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v63"/);
+  assert.match(worker, /"\/styles\.css\?v=63"/);
+  assert.match(worker, /"\/app\.js\?v=63"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -735,4 +735,11 @@ test("JOMY undo delete is ephemeral, accessible and preserves saved task records
   assert.doesNotMatch(undo,/fetch\(|planTask\(|sendMessage\(|localStorage\.clear\(/);
   assert.match(css,/\.task-delete-recovery\[hidden\]\{display:none!important\}/);
   assert.match(css,/\.task-delete-recovery button\{[^\n]*min-height:44px/);
+});
+
+
+test("Cloud Automation opens only the isolated scheduler preview without transferring local tasks", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  assert.match(html,/id="cloudAutomationLink" href="https:\/\/jomy-cloud-scheduler-preview\.addachai03\.workers\.dev\/" target="_blank" rel="noopener noreferrer"/);
+  assert.match(html,/Local tasks are not uploaded automatically/);
 });
