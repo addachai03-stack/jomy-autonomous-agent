@@ -85,3 +85,33 @@ export async function testAgentConnection(endpoint, token, request = globalThis.
     return {ok:false,message:controller.signal.aborted ? "Connection test timed out. Try again." : "Cannot reach AI API. Check network, HTTPS and browser origin permissions."};
   } finally { clearTimeout(timer); }
 }
+
+
+// Bound the entire JSON request (including response-body read), not only headers.
+// No automatic retries: AI requests can consume quota even if the client aborts.
+export async function requestAgentJson(url, options, request = globalThis.fetch, timeoutMs = 30000) {
+  const controller = new AbortController();
+  let timer;
+  try {
+    const responsePromise = (async () => {
+      const response = await request(url, {...options, redirect:"error", cache:"no-store", signal:controller.signal});
+      let data;
+      try { data = await response.json(); }
+      catch (error) {
+        if (controller.signal.aborted) throw error;
+        if (response.ok) throw new Error("AI response was not valid JSON.");
+        data = {};
+      }
+      return {response,data: data && typeof data === "object" ? data : {}};
+    })();
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error("AI request timed out. Please retry manually."));
+        controller.abort();
+      }, timeoutMs);
+    });
+    return await Promise.race([responsePromise, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
