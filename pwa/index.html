@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=68">
+  <link rel="stylesheet" href="/styles.css?v=69">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -74,13 +74,33 @@
       </div>
     </section>
     <section class="unified-dashboard" id="unifiedDashboard" aria-label="JOMY unified command dashboard">
-      <div class="hub-head"><div><p class="eyebrow">JOMY COMMAND CENTER</p><h2>One dashboard. Owner in control.</h2></div><span class="hub-pill">PREVIEW · NO AUTO ACTIONS</span></div>
+      <div class="hub-head"><div><p class="eyebrow">JOMY COMMAND CENTER</p><h2>One dashboard. Owner in control.</h2></div><span class="hub-pill">PREVIEW · CONTROLLED TOOLS</span></div>
       <div class="hub-grid">
         <article class="hub-tile"><span>01 / AI CHAT</span><strong>Ask JOMY</strong><small id="hubAiStatus">Open Settings to connect Chat</small><a id="hubChatLink" href="#chatForm">Open Chat</a></article>
         <article class="hub-tile"><span>02 / CLOUD</span><strong>Automation</strong><small>Daily APPLIQ monitoring · owner login separate</small><button type="button" id="hubSchedulerCheck" class="hub-tile-action">Check Cloud Health</button><small id="hubSchedulerStatus" aria-live="polite">Health check not run yet. No owner token shared.</small><a href="https://jomy-cloud-scheduler-preview.addachai03.workers.dev/" target="_blank" rel="noopener noreferrer">Open Scheduler</a></article>
         <article class="hub-tile"><span>03 / TASKS</span><strong>Local Planner</strong><small id="hubTaskStatus">Tasks on this device</small><a id="hubTaskLink" href="#taskPanel">Open Tasks</a></article>
         <article class="hub-tile"><span>04 / SYSTEM</span><strong>API Health</strong><small>Configuration readiness only. This is not a successful AI reply test.</small><a href="https://jomy-autonomous-agent-api.addachai03.workers.dev/health" target="_blank" rel="noopener noreferrer">Inspect API Health</a></article>
       </div>
+      <section class="agent-engine-card" id="agentEnginePanel" aria-labelledby="agentEngineTitle">
+        <div class="hub-approval-top"><h3 id="agentEngineTitle">05 / AI AGENT ENGINE · V1</h3><span>SAFE READ-ONLY TOOLS</span></div>
+        <p class="hub-hint">Owner-triggered goal → safety gate → bounded tools or optional AI plan. No continuous autonomous background execution, code edits, payment, deployment or secret sharing.</p>
+        <form id="agentEngineForm" class="hub-request-form">
+          <label for="agentEngineGoal">Goal / command</label>
+          <textarea id="agentEngineGoal" minlength="4" maxlength="400" rows="2" required placeholder="e.g. Check cloud scheduler and local tasks"></textarea>
+          <label for="agentEngineTool">Agent mode</label>
+          <select id="agentEngineTool" required>
+            <option value="auto">Auto-select allowlisted safe checks</option>
+            <option value="system_overview">System overview · 2 read-only tools</option>
+            <option value="scheduler_readiness">Cloud scheduler readiness</option>
+            <option value="local_task_summary">Count local tasks (no titles)</option>
+            <option value="ai_plan">AI-generated task plan · 1 model call</option>
+          </select>
+          <button type="submit" id="agentEngineRun">RUN AGENT (MANUAL START)</button>
+        </form>
+        <p id="agentEngineStatus" class="hub-status" role="status" aria-live="polite">Idle · no goal run yet</p>
+        <ol id="agentEngineResult" class="agent-engine-result" aria-label="Agent execution evidence"></ol>
+        <button type="button" id="agentEngineReview" class="hub-draft-button" hidden>Prepare separate owner approval draft</button>
+      </section>
       <section class="hub-approvals" aria-labelledby="hubApprovalHeading">
         <div class="hub-approval-top"><h3 id="hubApprovalHeading">Owner Approval Inbox</h3><span id="hubApprovalCount">0 pending</span></div>
         <button type="button" class="hub-draft-button" id="hubDraftFromChat">Use latest chat as review draft (no auto-save)</button>
@@ -428,9 +448,10 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=68"></script>
-  <script type="module" src="/unified-console.js?v=68"></script>
-  <script type="module" src="/mic-check-ui.js?v=68"></script>
-  <script type="module" src="/voice-qa-panel.js?v=68"></script>
+  <script type="module" src="/app.js?v=69"></script>
+  <script type="module" src="/unified-console.js?v=69"></script>
+  <script type="module" src="/mic-check-ui.js?v=69"></script>
+  <script type="module" src="/voice-qa-panel.js?v=69"></script>
+  <script type="module" src="/agent-engine-ui.js?v=69"></script>
 </body>
 </html>
