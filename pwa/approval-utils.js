@@ -22,7 +22,7 @@ export function createApproval(source, data, now=Date.now(), id) {
   const current=normalizeApprovals(source);
   if(current.length>=MAX_APPROVAL_ITEMS) throw new Error("Inbox full (20). Keep old requests until reviewed elsewhere; nothing executed.");
   const title=String(data?.title||"").trim(), note=String(data?.note||"").trim(), kind=data?.kind;
-  if(title.length<4||title.length>140||note.length>400||!Object.hasOwn(APPROVAL_KIN,kind))throw new Error("Valid action type, 4–140 character title, and up to 400 character note required.");
+  if(title.length<4||title.length>140||note.length>400||!Object.hasOwn(APPROVAL_KINDS,kind))throw new Error("Valid action type, 4–140 character title, and up to 400 character note required.");
   if(secretPattern.test(title)||secretPattern.test(note))throw new Error("Never put passwords, tokens or OTPs in approval requests.");
   if(!Number.isFinite(now)||!Number.isInteger(now)||now<0||typeof id!=="string"||id.length<12||id.length>89)throw new Error("Invalid request identifier.");
   if(current.some(x=>x.id===id))throw new Error("Duplicate request identifier.");
