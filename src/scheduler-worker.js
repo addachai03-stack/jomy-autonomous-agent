@@ -113,7 +113,7 @@ export async function tick(db,now=Date.now(),fetcher=fetch,env={}){
     if(update.meta?.changes===1){
       // History is best-effort: never re-run a successfully committed job if history storage fails.
       try{
-        await db.prepare("INSERT OR IGNORE INTO job_runs(job_id,ran_at,status,result) VALUES(?,?,?,?)").bind(job.id,now,status,result).run();
+        await db.prepare("INSERT OR IGNORE INTO job_runs(job_id,ran_at,status,result) VALUES(?,?,?,?)").bind(job.id,now,status==="queued"?"done":status,result).run();
         await db.prepare("DELETE FROM job_runs WHERE id NOT IN (SELECT id FROM job_runs ORDER BY id DESC LIMIT 200)").run();
       }catch(_){/* Job outcome is already persisted; monitoring history unavailable. */}
       if(status==="failed")failed++;else completed++;
