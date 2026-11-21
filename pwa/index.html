@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=58">
+  <link rel="stylesheet" href="/styles.css?v=59">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -198,6 +198,9 @@
       <p>Use your secure HTTPS Agent API URL. The URL and private Agent access token are saved in this browser on this device. Do not use shared devices. No MCP or external messaging integration is connected.</p>
       <div class="dialog-actions"><button class="quiet-button" id="clearEndpoint" type="button">Disconnect</button><button class="primary-button" id="saveEndpoint" type="button">Save endpoint</button></div>
       <p class="settings-note" id="settingsNote" role="status"></p>
+      <button class="quiet-button" id="testConnection" type="button" style="width:100%;min-height:44px" disabled>TEST AI CONNECTION</button>
+      <p>One short authenticated AI request. Uses your saved API URL and token; no chat history or personal memory is sent. Uses a small amount of AI quota.</p>
+      <p id="testConnectionStatus" class="settings-note" role="status" aria-live="polite"></p>
     </div>
   </dialog>
   <script>
@@ -364,6 +367,6 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=58"></script>
+  <script type="module" src="/app.js?v=59"></script>
 </body>
 </html>
