@@ -13,6 +13,8 @@ if(root){
      el.dataset.status=value;
      el.setAttribute("aria-label",voiceQaLabel(step)+": "+el.textContent);
    }
+   const fallback=document.getElementById("voiceQaFallback");
+   if(fallback&&!fallback.hidden)fallback.value=voiceQaSummary(state);
  }
  window.addEventListener("jomy:voice-qa",event=>{
    const detail=event?.detail;
@@ -22,6 +24,8 @@ if(root){
  });
  document.getElementById("voiceQaReset")?.addEventListener("click",()=>{
    state=createVoiceQaState();render();
+   const fallback=document.getElementById("voiceQaFallback");
+   if(fallback){fallback.hidden=true;fallback.value="";}
    status.textContent="Session voice checks reset. No browser/device settings changed.";
  });
  document.getElementById("voiceQaCopy")?.addEventListener("click",async()=>{
