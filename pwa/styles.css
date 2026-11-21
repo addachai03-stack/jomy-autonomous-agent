@@ -297,3 +297,26 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .task-delete-recovery p{margin:0 0 9px;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
 .task-delete-recovery button{width:100%;min-height:44px;border:1px solid #ddba7b;border-radius:9px;background:#32271d;color:#f2d9a8;font-size:11px;font-weight:800;cursor:pointer}
 .task-delete-recovery button:focus-visible{outline:2px solid #f2d9a8;outline-offset:2px}
+
+/* JOMY Unified Command Center · preview-only enhancement, phone-first */
+.unified-dashboard{margin:22px 0 18px;padding:19px;border:1px solid #d8ad5966;border-radius:20px;background:linear-gradient(145deg,#151d2d,#0a111c);box-shadow:0 18px 40px #0004}
+.hub-head{display:flex;align-items:flex-start;justify-content:space-between;gap:13px;flex-wrap:wrap;margin-bottom:13px}
+.hub-head h2{font-size:20px;line-height:1.3;margin:3px 0;color:#f6e9ce}
+.hub-pill{font-size:9px;border:1px solid #dab97677;padding:7px 10px;border-radius:30px;color:#ebcf94;letter-spacing:1px}
+.hub-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.hub-tile{display:flex;flex-direction:column;align-items:flex-start;gap:9px;min-width:0;padding:14px;border:1px solid #2c3d58;border-radius:13px;background:#101827}
+.hub-tile>span{font-size:10px;letter-spacing:1px;color:#c6a26b}.hub-tile strong{font-size:16px;color:#fff}.hub-tile small{font-size:11px;color:#afbdd1;line-height:1.55;overflow-wrap:anywhere;min-height:34px}
+.hub-tile a{display:flex;align-items:center;justify-content:center;min-height:44px;width:100%;border:1px solid #ccab70;border-radius:9px;text-decoration:none;font-size:12px;font-weight:750;color:#f2d39c;background:#2b261d}
+.hub-tile a:focus-visible,.approval-actions button:focus-visible,.hub-request-form button:focus-visible{outline:3px solid #ffe0a3;outline-offset:2px}
+.hub-approvals{margin-top:18px;padding-top:17px;border-top:1px solid #34465d}
+.hub-approval-top{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.hub-approval-top h3{font-size:16px;margin:0;color:#f2dbab}.hub-approval-top span{font-size:11px;color:#e9c78c}
+.hub-hint{font-size:12px;line-height:1.6;color:#acb9c9}
+.hub-request-form{display:grid;grid-template-columns:1fr;gap:6px;margin-top:13px}.hub-request-form label{font-size:11px;color:#d6dfec}
+.hub-request-form :is(input,select,textarea){display:block;width:100%;border:1px solid #44546d;border-radius:9px;background:#111d2d;padding:11px;color:#f6ead6;font-size:16px;min-height:43px}
+.hub-request-form textarea{resize:vertical}.hub-request-form button{min-height:44px;border-radius:9px;border:1px solid #e0b96e;background:#d9ad59;color:#121318;font-weight:800;font-size:11px;cursor:pointer}
+.hub-request-form button:disabled{opacity:.5;cursor:not-allowed}
+.hub-status{font-size:12px;min-height:20px;line-height:1.55;color:#f1dba4;overflow-wrap:anywhere}
+.hub-approval-list{display:grid;gap:10px}.approval-card{padding:13px;border-radius:12px;border:1px solid #3b4d67;background:#0d1522;overflow-wrap:anywhere}
+.approval-card strong{display:block;font-size:13px;color:#f6e9d2}.approval-card p{font-size:12px;color:#bdc7d3;line-height:1.6}
+.approval-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}.approval-actions button{min-height:44px;border-radius:9px;border:1px solid #bfa46d;background:#172337;color:#f3d69e;font-size:11px;cursor:pointer}
+@media(max-width:380px){.unified-dashboard{padding:13px}.hub-grid{grid-template-columns:1fr}.hub-tile small{min-height:0}}
