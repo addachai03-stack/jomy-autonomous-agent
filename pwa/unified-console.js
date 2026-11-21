@@ -9,6 +9,8 @@ import {APPROVAL_STORAGE_KEY, APPROVAL_KINDS, MAX_APPROVAL_ITEMS, normalizeAppro
   let items=[];
   const status=$("hubApprovalStatus"), list=$("hubApprovalList"), counter=$("hubApprovalCount");
   const aiStatus=$("hubAiStatus"),taskStatus=$("hubTaskStatus");
+  const SCHEDULER_HEALTH_URL="https://jomy-cloud-scheduler-preview.addachai03.workers.dev/health";
+
   const renderStatus = msg => {status.textContent=msg;};
   try{items=normalizeApprovals(JSON.parse(localStorage.getItem(APPROVAL_STORAGE_KEY)||"[]"));}catch(_){items=[];renderStatus("Browser storage unavailable; previously saved requests could not be loaded.");}
   function save(next) {
@@ -61,6 +63,41 @@ import {APPROVAL_STORAGE_KEY, APPROVAL_KINDS, MAX_APPROVAL_ITEMS, normalizeAppro
     }catch(e){renderStatus("Not saved: "+(e?.message||"Browser storage error"));}
   });
   $("hubChatLink")?.addEventListener("click",()=>{$("messageInput")?.focus();});
+  $("hubDraftFromChat")?.addEventListener("click",()=>{
+    // Only a user gesture creates a local form draft; never persist or execute automatically.
+    const messages=[...document.querySelectorAll("#messages article.message.user div")];
+    const title=messages[messages.length-1]?.textContent?.trim()||"";
+    if(!title){renderStatus("Pehle JOMY ko message bhejo, phir draft banao.");return;}
+    if(title.length>140){renderStatus("Last chat is too long. Write a short, non-sensitive action summary manually.");return;}
+    try{
+      createApproval([],{kind:"code",title,note:"Draft from local chat; owner must review and save manually."},Date.now(),"validate-draft-12345678");
+      $("hubRequestKind").value="code";
+      $("hubRequestTitle").value=title;
+      $("hubRequestNote").value="Draft from local chat. Review scope before any action.";
+      $("hubRequestTitle").focus();
+      $("hubRequestForm").scrollIntoView({behavior:"smooth",block:"center"});
+      renderStatus("Draft filled locally; press SAVE FOR OWNER REVIEW only if correct. Nothing submitted yet.");
+    }catch(e){renderStatus("Cannot draft this message: "+(e?.message||"Validation failed"));}
+  });
+  let healthInFlight=false;
+  $("hubSchedulerCheck")?.addEventListener("click",async()=>{
+    if(healthInFlight)return;
+    healthInFlight=true;
+    const button=$("hubSchedulerCheck"),output=$("hubSchedulerStatus");
+    button.disabled=true;
+    output.textContent="Checking public scheduler readiness…";
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);
+    try{
+      const response=await fetch(SCHEDULER_HEALTH_URL,{method:"GET",mode:"cors",cache:"no-store",credentials:"omit",redirect:"error",signal:controller.signal});
+      if(!response.ok)throw new Error("HTTP "+response.status);
+      const info=await response.json();
+      if(info?.service!=="JOMY Scheduler Preview")throw new Error("Unexpected service response");
+      output.textContent=info.schedulerEnabled&&info.databaseConfigured&&info.ownerAuthConfigured
+        ?"Scheduler ready · 5-min cloud ticks · AI review "+(info.aiReviewEnabled?"enabled":"off")+". This is readiness only, not a completed job."
+        :"Scheduler configuration needs attention · inspect separate owner dashboard.";
+    }catch(_){output.textContent="Cannot verify scheduler status from this browser. Open Scheduler for owner-only details.";}
+    finally{clearTimeout(timer);healthInFlight=false;button.disabled=false;}
+  });
   $("hubTaskLink")?.addEventListener("click",()=>{if($("activityToggle")?.getAttribute("aria-expanded")!=="true") $("activityToggle")?.click();$("taskPanel")?.scrollIntoView({behavior:"smooth",block:"start"});});
   window.addEventListener("storage",event=>{if(!event.key||event.key===APPROVAL_STORAGE_KEY){try{items=normalizeApprovals(JSON.parse(localStorage.getItem(APPROVAL_STORAGE_KEY)||"[]"));render();}catch(_){}}refreshCards();});
   window.addEventListener("focus",refreshCards);
