@@ -85,3 +85,21 @@ test("AI review fails closed and makes at most one attempt per UTC day",async()=
  assert.equal((await reviewDiagnostics(db,report,env,1000000)).status,"completed");
  assert.equal((await reviewDiagnostics(db,report,env,1000000)).status,"daily_limit");assert.equal(attempts,1);
 });
+
+test("owner-only bounded run history and safe render controls",async()=>{
+ const token="private-synthetic-test-value-abcdefghij";
+ const db={prepare(sql){
+   assert.match(sql,/FROM job_runs/);
+   assert.match(sql,/LIMIT 30/);
+   return {async all(){return {results:[{job_id:"demo",title:"Test",ran_at:1000,status:"done",result:"ok"}]}}};
+ }};
+ const env={SCHEDULER_OWNER_TOKEN:token,JOBS_DB:db,SCHEDULER_ENABLED:"true"};
+ assert.equal((await worker.fetch(new Request("https://test.example/api/history"),env)).status,401);
+ const r=await worker.fetch(new Request("https://test.example/api/history",{headers:{Authorization:"Bearer "+token}}),env);
+ assert.equal(r.status,200);
+ assert.equal((await r.json()).runs.length,1);
+ const page=await worker.fetch(new Request("https://test.example/"),env);
+ const html=await page.text();
+ assert.match(html,/id="history"/);
+ assert.match(html,/detail.textContent=j.result/);
+});
