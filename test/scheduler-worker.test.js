@@ -103,3 +103,22 @@ test("owner-only bounded run history and safe render controls",async()=>{
  assert.match(html,/id="history"/);
  assert.match(html,/detail.textContent=j.result/);
 });
+
+test("recurring successful run records DONE while keeping next occurrence QUEUED",async()=>{
+ const due=86400000,now=86401000;
+ const job={id:"daily",title:"Daily test",kind:"checklist",input:"Read only",due_at:due,repeat:"daily"};
+ let updated=null,historic=null;
+ const db={prepare(sql){return {
+  bind(...args){return {async all(){return {results:[job]};},async run(){
+    if(sql.startsWith("UPDATE jobs"))updated=args;
+    if(sql.startsWith("INSERT OR IGNORE INTO job_runs"))historic=args;
+    return {meta:{changes:1}};
+  }};},
+  async run(){return {meta:{changes:1}};}
+ };}};
+ assert.deepEqual(await tick(db,now),{completed:1,failed:0});
+ assert.equal(updated[0],"queued");
+ assert.equal(historic[2],"done");
+ assert.equal(historic[0],"daily");
+ assert.equal(historic[1],now);
+});
