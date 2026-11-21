@@ -23,7 +23,7 @@ export function classifyAgentGoal(goal,requestedTool="auto"){
  if(requestedTool==="scheduler_readiness")return {mode:"read_only",tools:["scheduler_readiness"],reason:"Public scheduler configuration readiness only; not an APPLIQ job result."};
  if(requestedTool==="system_overview")return {mode:"read_only",tools:["local_task_summary","scheduler_readiness"],reason:"Two bounded read-only checks."};
  const lower=text.toLowerCase();
- const local=/(?:\b(?:task|todo|checklist|planner|queue)\b|टास्क|काम|कार्य)/i.test(lower);
+ const local=/(?:\b(?:tasks?|todos?|checklists?|planners?|queues?)\b|टास्क|काम|कार्य)/i.test(lower);
  const scheduler=/(?:\b(?:scheduler|automation|cloud|monitor|health|status|uptime)\b|शेड्यूल|ऑटोमेशन|स्थिति)/i.test(lower);
  const tools=[...(local?["local_task_summary"]:[]),...(scheduler?["scheduler_readiness"]:[])];
  return tools.length?{mode:"read_only",tools,reason:"Matched allowlisted read-only browser tools."}:{mode:"plan_only",tools:[],reason:"Unknown goal. No autonomous tool ran; select AI Plan or a known safe check."};

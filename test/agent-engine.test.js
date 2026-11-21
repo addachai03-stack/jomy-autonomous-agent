@@ -92,3 +92,14 @@ test("phone UI links real AI planner but never auto-runs AI or external actions"
  assert.match(sw,/agent-engine-core\.js/);
  assert.match(sw,/agent-engine-ui\.js\?v=69/);
 });
+
+test("auto-select counts local tasks for plural commands", async () => {
+  for (const goal of ["Count local tasks", "mere tasks kitne hain", "Count my todos"]) {
+    const result = await runAgentGoal({ goal }, { readTasks: () => [{ status: "done" }] });
+    assert.equal(result.status, "completed", goal);
+    assert.deepEqual(result.tools.map(tool => tool.tool), ["local_task_summary"]);
+    assert.equal(result.tools[0].counts.total, 1);
+  }
+  assert.equal(classifyAgentGoal("Delete local tasks").mode, "approval_required");
+  assert.equal(classifyAgentGoal("Explain multitasking").mode, "plan_only");
+});
