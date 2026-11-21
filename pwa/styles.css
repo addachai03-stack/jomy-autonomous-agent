@@ -359,3 +359,10 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .voice-qa-actions button:focus-visible{outline:3px solid #ffe3b0;outline-offset:2px}
 #voiceQaFallback{width:100%;margin-top:10px;background:#07101d;color:#fff0d2;border:1px solid #4c627e;border-radius:8px;padding:9px;font-size:12px}
 #voiceQaFallback[hidden]{display:none}
+
+/* Guided voice QA: never activates a microphone via automatic navigation. */
+.voice-qa-guide{margin:13px 0 15px;padding:12px;background:#152238;border:1px solid #566b84;border-radius:11px}
+.voice-qa-guide strong{display:block;font-size:10px;letter-spacing:.09em;color:#e6c68e}
+.voice-qa-guide p{font-size:12px;line-height:1.6;color:#d5e1ef;margin:7px 0 10px}
+.voice-qa-guide button{width:100%;min-height:44px;padding:10px;background:#30415b;border:1px solid #e2c181;border-radius:9px;color:#f5e3b8;font-weight:750;font-size:12px;cursor:pointer}
+.voice-qa-guide button:focus-visible{outline:3px solid #fce3ae;outline-offset:2px}
