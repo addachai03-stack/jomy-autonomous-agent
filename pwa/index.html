@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=63">
+  <link rel="stylesheet" href="/styles.css?v=64">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -47,6 +47,37 @@
         <a id="cloudAutomationLink" href="https://jomy-cloud-scheduler-preview.addachai03.workers.dev/" target="_blank" rel="noopener noreferrer" style="display:flex;min-height:44px;align-items:center;justify-content:center;border:1px solid #d8ad5966;border-radius:10px;color:#e5c479;text-decoration:none;font-size:12px;font-weight:700">CLOUD AUTOMATION · OPEN SCHEDULER ↗</a>
         <p class="voice-hint" style="margin-top:6px">Separate owner-protected cloud preview. Scheduled checklist and text-report jobs only. Local tasks are not uploaded automatically.</p>
       </div>
+    </section>
+    <section class="unified-dashboard" id="unifiedDashboard" aria-label="JOMY unified command dashboard">
+      <div class="hub-head"><div><p class="eyebrow">JOMY COMMAND CENTER</p><h2>One dashboard. Owner in control.</h2></div><span class="hub-pill">PREVIEW · NO AUTO ACTIONS</span></div>
+      <div class="hub-grid">
+        <article class="hub-tile"><span>01 / AI CHAT</span><strong>Ask JOMY</strong><small id="hubAiStatus">Open Settings to connect Chat</small><a id="hubChatLink" href="#chatForm">Open Chat</a></article>
+        <article class="hub-tile"><span>02 / CLOUD</span><strong>Automation</strong><small>Daily APPLIQ monitoring and run history · separate owner login</small><a href="https://jomy-cloud-scheduler-preview.addachai03.workers.dev/" target="_blank" rel="noopener noreferrer">Open Scheduler</a></article>
+        <article class="hub-tile"><span>03 / TASKS</span><strong>Local Planner</strong><small id="hubTaskStatus">Tasks on this device</small><a id="hubTaskLink" href="#taskPanel">Open Tasks</a></article>
+        <article class="hub-tile"><span>04 / SYSTEM</span><strong>API Health</strong><small>Configuration readiness only. This is not a successful AI reply test.</small><a href="https://jomy-autonomous-agent-api.addachai03.workers.dev/health" target="_blank" rel="noopener noreferrer">Inspect API Health</a></article>
+      </div>
+      <section class="hub-approvals" aria-labelledby="hubApprovalHeading">
+        <div class="hub-approval-top"><h3 id="hubApprovalHeading">Owner Approval Inbox</h3><span id="hubApprovalCount">0 pending</span></div>
+        <p class="hub-hint">Review requests for code, deployment, messages or sensitive actions. Approving a plan records a decision <strong>only on this device</strong>; it never triggers external actions.</p>
+        <form id="hubRequestForm" class="hub-request-form">
+          <label for="hubRequestKind">Action category</label>
+          <select id="hubRequestKind" required>
+            <option value="code">Code change / pull request</option>
+            <option value="deploy">Deploy / publish</option>
+            <option value="message">External message</option>
+            <option value="payment">Payment / money</option>
+            <option value="delete">Delete / destructive action</option>
+          </select>
+          <label for="hubRequestTitle">Proposed action</label>
+          <input id="hubRequestTitle" maxlength="140" minlength="4" required placeholder="e.g. Review APPLIQ CSP PR #24">
+          <label for="hubRequestNote">Reason / scope (optional; no passwords, tokens or OTPs)</label>
+          <textarea id="hubRequestNote" maxlength="400" rows="2" placeholder="What to review before proceeding"></textarea>
+          <button type="submit" id="hubRequestSubmit">SAVE FOR OWNER REVIEW</button>
+        </form>
+        <p id="hubRequestLimit" class="hub-hint">0/20 requests</p>
+        <p id="hubApprovalStatus" role="status" aria-live="polite" class="hub-status">Draft-only inbox. No external actions or billing.</p>
+        <div id="hubApprovalList" class="hub-approval-list" aria-live="polite"></div>
+      </section>
     </section>
     <section class="activity" aria-label="Recent conversation">
       <button class="activity-toggle" id="activityToggle" aria-expanded="false"><span><i class="activity-dot"></i> RECENT ACTIVITY</span><span id="activityCount">0 messages</span><b id="activityChevron">＋</b></button>
@@ -371,6 +402,7 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=63"></script>
+  <script type="module" src="/app.js?v=64"></script>
+  <script type="module" src="/unified-console.js?v=64"></script>
 </body>
 </html>
