@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker,{validateJob,executeJob,nextDue,tick,checkWebsite,diagnoseHomepage} from "../src/scheduler-worker.js";
+import worker,{validateJob,executeJob,nextDue,tick,checkWebsite,diagnoseHomepage,reviewDiagnostics} from "../src/scheduler-worker.js";
 test("scheduler validates time, bounded inputs and allowed actions",()=>{
  const now=1000000,good={title:"Report",kind:"text_report",input:"one two",runAt:now,repeat:"once"};
  assert.equal(validateJob(good,now).title,"Report");
@@ -74,4 +74,14 @@ test("homepage diagnostics reports observed indicators and never claims a securi
  const partial=await checkWebsite(url,async()=>new Response("x".repeat(70000),{headers:{"content-type":"text/html"}}));
  assert.equal(partial.checks.find(x=>x.name==="Page title").state,"not_tested");
  assert.equal(JSON.stringify(partial).includes("x".repeat(100)),false);
+});
+
+test("AI review fails closed and makes at most one attempt per UTC day",async()=>{
+ let attempts=0,claims=0;
+ const db={prepare(sql){assert.match(sql,/INSERT INTO ai_review_budget/);return {bind(){return {async run(){return {meta:{changes:claims++===0?1:0}}}}}}}};
+ const report={reachable:true,httpStatus:200,elapsedMs:200,checks:[{name:"CSP",state:"warning",detail:"not shared"}],privateValue:"not shared"};
+ const env={AI_REVIEW_ENABLED:"true",AI:{async run(model,input){attempts++;assert.equal(model,"@cf/openai/gpt-oss-20b");assert.ok(input.max_tokens<=450);assert.doesNotMatch(JSON.stringify(input),/not shared/);return {response:"Review CSP before editing."};}}};
+ assert.equal((await reviewDiagnostics(db,report,{AI:env.AI})).status,"disabled");assert.equal(claims,0);
+ assert.equal((await reviewDiagnostics(db,report,env,1000000)).status,"completed");
+ assert.equal((await reviewDiagnostics(db,report,env,1000000)).status,"daily_limit");assert.equal(attempts,1);
 });
