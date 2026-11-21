@@ -91,14 +91,12 @@
           <select id="agentEngineTool" required>
             <option value="auto">Auto-select allowlisted safe checks</option>
             <option value="system_overview">System overview · 2 read-only tools</option>
-            <option value="github_ci">GitHub CI · current preview branch</option>
             <option value="scheduler_readiness">Cloud scheduler readiness</option>
             <option value="local_task_summary">Count local tasks (no titles)</option>
             <option value="ai_plan">AI-generated task plan · 1 model call</option>
           </select>
           <button type="submit" id="agentEngineRun">RUN AGENT (MANUAL START)</button>
         </form>
-        <p><a href="https://jomy-autopilot-x-preview.addachai03.workers.dev/app" target="_blank" rel="noopener noreferrer">Open coding agent · owner sign-in ↗</a></p>
         <p id="agentEngineStatus" class="hub-status" role="status" aria-live="polite">Idle · no goal run yet</p>
         <ol id="agentEngineResult" class="agent-engine-result" aria-label="Agent execution evidence"></ol>
         <button type="button" id="agentEngineReview" class="hub-draft-button" hidden>Prepare separate owner approval draft</button>
