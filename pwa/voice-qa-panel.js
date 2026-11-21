@@ -1,4 +1,4 @@
-import {createVoiceQaState,updateVoiceQaState,VOICE_QA_STEPS,voiceQaSummary,voiceQaLabel} from "./voice-qa.js";
+import {createVoiceQaState,updateVoiceQaState,VOICE_QA_STEPS,voiceQaSummary,voiceQaLabel,nextVoiceQaAction} from "./voice-qa.js";
 // No mic opened, no speech recognition started, no persistence or external requests.
 const root=document.getElementById("voiceQaPanel");
 if(root){
@@ -7,6 +7,9 @@ if(root){
  // The main module may have detected unsupported speech recognition before this panel loaded.
  if(document.getElementById("micButton")?.disabled)state=updateVoiceQaState(state,{step:"recognition",status:"unsupported"});
  const status=document.getElementById("voiceQaStatus");
+ const nextButton=document.getElementById("voiceQaNext");
+ const nextText=document.getElementById("voiceQaGuide");
+ let nextAction=nextVoiceQaAction(state);
  function render(){
    for(const step of VOICE_QA_STEPS){
      const value=state[step],el=els[step];
@@ -15,6 +18,9 @@ if(root){
      el.dataset.status=value;
      el.setAttribute("aria-label",voiceQaLabel(step)+": "+el.textContent);
    }
+   nextAction=nextVoiceQaAction(state);
+   if(nextButton)nextButton.textContent=nextAction.label+" · locate control";
+   if(nextText)nextText.textContent=nextAction.guidance;
    const fallback=document.getElementById("voiceQaFallback");
    if(fallback&&!fallback.hidden)fallback.value=voiceQaSummary(state);
  }
@@ -23,6 +29,16 @@ if(root){
    if(!detail||typeof detail!=="object")return;
    state=updateVoiceQaState(state,detail);
    render();
+ });
+ nextButton?.addEventListener("click",()=>{
+   // Finding a control must never trigger recognition, AI inference or microphone permission.
+   const target=document.getElementById(nextAction.targetId);
+   if(!target){status.textContent="Test control missing. Reload preview and try again.";return;}
+   target.scrollIntoView({behavior:"smooth",block:"center"});
+   target.focus({preventScroll:true});
+   status.textContent=nextAction.step==="complete"
+     ?"All four events observed this session. Copy a result without private data."
+     :"Control located. Tap it manually to run the check; JOMY did not start your microphone.";
  });
  document.getElementById("voiceQaReset")?.addEventListener("click",()=>{
    state=createVoiceQaState();render();
