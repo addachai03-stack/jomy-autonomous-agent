@@ -126,3 +126,25 @@ test("recurring successful run records DONE while keeping next occurrence QUEUED
  assert.equal(historic[0],"daily");
  assert.equal(historic[1],now);
 });
+
+test("public scheduler health allows only trusted JOMY origins without owner data",async()=>{
+ const env={SCHEDULER_ENABLED:"true",JOBS_DB:{},SCHEDULER_OWNER_TOKEN:"synthetic-health-token-aaaaaaaaaaaaaa",AI_REVIEW_ENABLED:"false"};
+ for(const origin of ["https://feature-jomy-daily-progress.jomy-agent-pwa.pages.dev","https://jomy-agent-pwa.pages.dev"]){
+   const response=await worker.fetch(new Request("https://scheduler.example/health",{headers:{Origin:origin}}),env);
+   assert.equal(response.status,200);
+   assert.equal(response.headers.get("access-control-allow-origin"),origin);
+   assert.equal(response.headers.get("vary"),"Origin");
+   const result=await response.json();
+   assert.equal(result.schedulerEnabled,true);
+   assert.equal(result.databaseConfigured,true);
+   assert.equal(result.aiReviewEnabled,false);
+   assert.equal(Object.hasOwn(result,"jobs"),false);
+   assert.equal(Object.hasOwn(result,"token"),false);
+ }
+ const denied=await worker.fetch(new Request("https://scheduler.example/health",{headers:{Origin:"https://attacker.example"}}),env);
+ assert.equal(denied.status,200);
+ assert.equal(denied.headers.has("access-control-allow-origin"),false);
+ const protectedRoute=await worker.fetch(new Request("https://scheduler.example/api/history",{headers:{Origin:"https://feature-jomy-daily-progress.jomy-agent-pwa.pages.dev"}}),env);
+ assert.equal(protectedRoute.status,401);
+ assert.equal(protectedRoute.headers.has("access-control-allow-origin"),false);
+});
