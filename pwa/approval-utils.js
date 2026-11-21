@@ -8,7 +8,7 @@ export const APPROVAL_KINDS = Object.freeze({
   payment: "Payment / money",
   delete: "Delete / destructive action"
 });
-const secretPattern = /(?:\b(?:password|passphrase|api[_ -]?key|secret[_ -]?key|bearer|otp|pin|cvv|token|aadhaar)\b\s*[:=]\s*\S+|sb_secret_[\w-]+|sk-[\w-]{12,})/i;
+const secretPattern = /(?:\b(?:password|passphrase|api[_ -]?key|secret[_ -]?key|bearer|otp|pin|cvv|token|aadhaar)\b\s*[:=]\s*\S+|Bearer\s+[A-Za-z0-9._~+/-]{4,}|sb_secret_[\w-]+|sk-[\w-]{12,})/i;
 export function normalizeApprovals(source) {
   if (!Array.isArray(source)) return [];
   return source.filter(row => row && typeof row.id === "string" && row.id.length < 90 &&
