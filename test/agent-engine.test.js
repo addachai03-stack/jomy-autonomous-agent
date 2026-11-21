@@ -8,7 +8,7 @@ const core=readFileSync(new URL("../pwa/agent-engine-core.js",import.meta.url),"
 const sw=readFileSync(new URL("../pwa/sw.js",import.meta.url),"utf8");
 
 test("agent permits only a bounded, fixed read-only tool registry",()=>{
- assert.deepEqual(AGENT_TOOL_IDS,["auto","system_overview","scheduler_readiness","local_task_summary","ai_plan"]);
+ assert.deepEqual(AGENT_TOOL_IDS,["auto","github_ci","system_overview","scheduler_readiness","local_task_summary","ai_plan"]);
  assert.equal(classifyAgentGoal("Check the cloud scheduler and task queue").mode,"read_only");
  assert.deepEqual(classifyAgentGoal("Check the cloud scheduler and task queue").tools,["local_task_summary","scheduler_readiness"]);
  assert.equal(classifyAgentGoal("Invent a brand new marketing campaign").mode,"plan_only");
@@ -102,4 +102,26 @@ test("auto-select counts local tasks for plural commands", async () => {
   }
   assert.equal(classifyAgentGoal("Delete local tasks").mode, "approval_required");
   assert.equal(classifyAgentGoal("Explain multitasking").mode, "plan_only");
+});
+
+test("GitHub diagnostics bind the CI result to the preview head", async () => {
+ const sha = "ab".repeat(20);
+ const goal = "GitHub CI status";
+ const run = {head_sha:sha, head_branch:"feature/jomy-daily-progress-3-5", event:"push", status:"completed", conclusion:"failure"};
+ async function execute(runs) {
+   const paths = [];
+   const result = await runAgentGoal({goal}, {request:async (url, options) => {
+     assert.equal(options.credentials, "omit");
+     assert.equal(options.headers, undefined);
+     paths.push(url);
+     return {ok:true, json:async () => paths.length === 1 ? {sha} : {workflow_runs:runs}};
+   }});
+   assert.equal(paths.length, 2);
+   assert.equal(new URL(paths[1]).searchParams.get("head_sha"), sha);
+   return result;
+ }
+ assert.match((await execute([run])).tools[0].summary, /failure/);
+ assert.match((await execute([])).tools[0].summary, /no CI run/);
+ assert.equal((await execute([{...run, head_sha:"bad"}])).status, "partial");
+ assert.equal(classifyAgentGoal("GitHub push code", "github_ci").mode, "approval_required");
 });

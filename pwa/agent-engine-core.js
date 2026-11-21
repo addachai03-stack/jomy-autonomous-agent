@@ -1,7 +1,7 @@
 // JOMY Agent Engine V1: allowlisted, bounded browser orchestration.
 // Every external action is denied. Only the fixed public scheduler readiness GET
 // and aggregate-only local task counts are implemented.
-export const AGENT_TOOL_IDS=Object.freeze(["auto","system_overview","scheduler_readiness","local_task_summary","ai_plan"]);
+export const AGENT_TOOL_IDS=Object.freeze(["auto","github_ci","system_overview","scheduler_readiness","local_task_summary","ai_plan"]);
 export const SCHEDULER_READINESS_URL="https://jomy-cloud-scheduler-preview.addachai03.workers.dev/health";
 export const AGENT_MAX_GOAL_LENGTH=400;
 const DANGEROUS=/(?:\b(?:deploy|publish|release|push|commit|merge|delete|erase|remove|reset|wipe|pay|payment|transfer|withdraw|deposit|purchase|buy|refund|email|whatsapp|telegram|sms|message|send|modify|edit|overwrite|credential|password|secret|api[_ -]?key|token|otp|approve\s+(?:payment|deployment))\b|डिलीट|हटाओ|भेजो|पैसे|भुगतान|खरीदो|रुपये\s*भेज)/i;
@@ -18,6 +18,9 @@ export function classifyAgentGoal(goal,requestedTool="auto"){
  if(!AGENT_TOOL_IDS.includes(requestedTool))throw new Error("Unknown agent tool.");
  // Risk gate overrides explicit tool choice. Never let the model or UI choose to bypass.
  if(DANGEROUS.test(text))return {mode:"approval_required",tools:[],reason:"Sensitive or external action detected. No tools ran. Create a separate owner review request; approval here alone never authorizes execution."};
+ const githubIntent = /\b(?:github|ci|build checks?)\b/i.test(text);
+ if(requestedTool==="github_ci" || (requestedTool==="auto" && githubIntent))
+   return {mode:"read_only",tools:["github_ci"],reason:"Read GitHub checks for the current JOMY preview branch."};
  if(requestedTool==="ai_plan")return {mode:"ai_plan",tools:[],reason:"One optional AI planning call. No tool execution."};
  if(requestedTool==="local_task_summary")return {mode:"read_only",tools:["local_task_summary"],reason:"Read only task counts saved in this browser."};
  if(requestedTool==="scheduler_readiness")return {mode:"read_only",tools:["scheduler_readiness"],reason:"Public scheduler configuration readiness only; not an APPLIQ job result."};
@@ -49,18 +52,45 @@ export async function checkSchedulerReadiness(request=globalThis.fetch){
      summary:configured?"Scheduler configuration ready; AI review "+(raw.aiReviewEnabled===true?"enabled":"off")+". No job completion verified.":"Scheduler configuration incomplete. No job completion verified."};
  }finally{clearTimeout(timer);}
 }
+async function checkGitHubCI(request) {
+ const api = "https://api.github.com/repos/addachai03-stack/jomy-autonomous-agent";
+ const branch = "feature/jomy-daily-progress-3-5";
+ const controller = new AbortController();
+ const timer = setTimeout(() => controller.abort(), 10000);
+ async function read(path) {
+   const response = await request(api + path, {
+     method: "GET", credentials: "omit", redirect: "error", cache: "no-store", signal: controller.signal
+   });
+   if (!response.ok) throw new Error("GitHub check unavailable.");
+   return response.json();
+ }
+ try {
+   const head = await read("/commits/" + encodeURIComponent(branch));
+   if (!/^[0-9a-f]{40}$/.test(head.sha)) throw new Error("Invalid GitHub commit.");
+   const result = await read("/actions/workflows/agent-checks.yml/runs?branch=" + encodeURIComponent(branch) + "&event=push&head_sha=" + head.sha + "&per_page=1");
+   if (!Array.isArray(result.workflow_runs)) throw new Error("Invalid GitHub response.");
+   const run = result.workflow_runs[0];
+   const prefix = "Preview " + head.sha.slice(0, 7) + " · ";
+   if (!run) return {tool:"github_ci", status:"completed", readOnly:true, summary:prefix + "no CI run recorded yet."};
+   if (run.head_sha !== head.sha || run.head_branch !== branch || run.event !== "push") throw new Error("Unexpected CI run.");
+   const state = run.status === "completed" ? run.conclusion : run.status;
+   if (typeof state !== "string" || !/^[a-z_]{1,30}$/.test(state)) throw new Error("Invalid CI status.");
+   return {tool:"github_ci", status:"completed", readOnly:true, summary:prefix + "GitHub Actions: " + state + "."};
+ } finally { clearTimeout(timer); }
+}
 export async function runAgentGoal({goal,toolId="auto"}, {readTasks,request=globalThis.fetch}={}){
  const plan=classifyAgentGoal(goal,toolId);
  if(plan.mode!=="read_only")return {status:plan.mode,executedTools:0,tools:[],message:plan.reason,readOnly:true};
  const toolResults=[];
  for(const id of plan.tools.slice(0,2)){
    try{
-     if(id==="local_task_summary"){
+     if(id==="github_ci")toolResults.push(await checkGitHubCI(request));
+     else if(id==="local_task_summary"){
        if(typeof readTasks!=="function")throw new Error("Local task reader not configured.");
        toolResults.push(summarizeLocalTasks(await readTasks()));
      }else if(id==="scheduler_readiness")toolResults.push(await checkSchedulerReadiness(request));
    }catch(_){
-     toolResults.push({tool:id,status:"failed",readOnly:true,summary:id==="scheduler_readiness"?"Scheduler readiness unavailable; no job verified.":"Local task summary unavailable; storage may be disabled."});
+     toolResults.push({tool:id,status:"failed",readOnly:true,summary:id==="github_ci"?"GitHub checks unavailable. Try again later.":id==="scheduler_readiness"?"Scheduler readiness unavailable; no job verified.":"Local task summary unavailable; storage may be disabled."});
    }
  }
  const passed=toolResults.filter(x=>x.status==="completed").length;
