@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=64">
+  <link rel="stylesheet" href="/styles.css?v=65">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -37,6 +37,8 @@
         <button class="handsfree-button" id="handsFreeButton" type="button" aria-pressed="false">Hands-free: Off</button>
         <button class="sound-button" id="soundButton" aria-pressed="true" aria-label="Toggle spoken replies">◖))</button>
       </div>
+      <div class="voice-lang-row"><label for="voiceLanguageSelect">Conversation language</label><select id="voiceLanguageSelect" aria-label="Voice recognition language"><option value="hi-IN">Hindi / Hinglish</option><option value="en-IN">English (India)</option></select></div>
+      <p class="voice-hint" id="voiceCapabilityStatus" role="status" aria-live="polite">Checking microphone support…</p>
       <p class="voice-hint" id="voiceHint">Tap Hands-free once to start. Say “JOMY” and then give your command. Keep this page open while using voice.</p>
       <button class="voice-test-button" id="testVoiceButton" type="button">🔊 Test Hindi voice</button>
     </section>
@@ -402,7 +404,7 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=64"></script>
-  <script type="module" src="/unified-console.js?v=64"></script>
+  <script type="module" src="/app.js?v=65"></script>
+  <script type="module" src="/unified-console.js?v=65"></script>
 </body>
 </html>
