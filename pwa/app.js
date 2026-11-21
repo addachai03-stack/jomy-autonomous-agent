@@ -242,9 +242,14 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     orbCaption.textContent = label;
     statusText.textContent = detail;
   }
+  function reportVoiceQa(step,status) {
+    // Only coarse-grained status events. Never emit transcript/audio/token.
+    try { window.dispatchEvent(new CustomEvent("jomy:voice-qa",{detail:{step,status}})); } catch (_) {}
+  }
   function setConnection(online, label) {
     connection.classList.toggle("online", online);
     connection.querySelector("span").textContent = label;
+    try { window.dispatchEvent(new CustomEvent("jomy:connection-status",{detail:{online,label}})); } catch (_) {}
   }
   function addMessage(role, text) {
     conversationHistory.push({ role: role === "user" ? "user" : "assistant", content: String(text).slice(0, 2000) });
@@ -1212,11 +1217,13 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     }
     utterance.onstart = () => setState("speaking", "SPEAKING", "JOMY is replying.");
     utterance.onend = () => {
+      reportVoiceQa("playback","passed");
       speakingReply = false;
       setState("idle", handsFree ? "HANDS-FREE ACTIVE" : "READY", handsFree ? "Say JOMY, then give your command." : "Your command center. Speak or type to begin.");
       if (handsFree) startRecognition();
     };
     utterance.onerror = (event) => {
+      reportVoiceQa("playback","failed");
       speakingReply = false;
       voiceHint.textContent = "Reply text is ready, but iPhone audio playback failed (" + (event.error || "unknown") + "). Tap Sound once, then try again.";
       setState("idle", "AUDIO PAUSED", "Tap Sound to re-enable voice replies.");
@@ -1281,6 +1288,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   function setupRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
+      reportVoiceQa("recognition","unsupported");
       micButton.disabled = true;
       handsFreeButton.disabled = true;
       handsFreeButton.textContent = "Voice unavailable";
@@ -1291,6 +1299,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     try {
       recognition = new SpeechRecognition();
     } catch (_) {
+      reportVoiceQa("recognition","unsupported");
       // Some iOS web views expose SpeechRecognition but cannot construct it.
       micButton.disabled = true;
       handsFreeButton.disabled = true;
@@ -1330,6 +1339,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
           interimText += event.results[i][0].transcript;
         }
       }
+      // Observe only finalized recognition, never store/transmit the transcript in QA.
+      if (finalText.trim()) reportVoiceQa("recognition","passed");
       if (!handsFree) {
         if (finalText) {
           voiceFinalTranscript = [voiceFinalTranscript, finalText].filter(Boolean).join(" ").trim();
@@ -1344,8 +1355,10 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         return;
       }
       if (!finalText) return;
+      const wasWaitingForCommand = waitingForCommand;
       const command = parseWakeCommand(finalText, finalCandidates, waitingForCommand);
       if (command === null) return;
+      if (!wasWaitingForCommand) reportVoiceQa("wake","passed");
       if (!command) {
         wakeActivityBoard();
         waitingForCommand = true;
