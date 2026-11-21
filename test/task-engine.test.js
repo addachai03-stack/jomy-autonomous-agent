@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  TASK_STATES, createTask, createManualTask, addTask, persistTaskQueueSafely, transitionTask, retryTask, recoverInterruptedTasks,
+  TASK_STATES, createTask, createManualTask, addTask, persistTaskQueueSafely, restoreDeletedTask, transitionTask, retryTask, recoverInterruptedTasks,
   actionPolicy, createActionProposal, getChecklistProgress, setChecklistStepChecked, summarizeTaskQueue, filterTaskQueue, taskDashboardCategory, searchAndSortTaskQueue, getTaskSchedule, setTaskSchedule, localCalendarDate, taskDueState, summarizeTaskDeadlines, filterTaskDeadlines, createTaskQueueBackup, readTaskQueueBackup, mergeTaskQueueBackup, getTaskAnnotations, setTaskAnnotations, MAX_TASK_TEMPLATES, createTaskTemplate, readTaskTemplates, addTaskTemplate, createTaskFromTemplate, summarizeTaskAnalytics, summarizeTaskActivityReport, createTaskActivityCsv, validateWeeklyTaskGoal, summarizeWeeklyTaskGoal, summarizeUpcomingCalendar, summarizeDailyFocusPlan, summarizeDailyTaskProgress
 } from "../src/task-engine.js";
 
@@ -1152,4 +1152,41 @@ test("JOMY storage safety never silently evicts old tasks on a full queue", () =
   assert.throws(()=>persistTaskQueueSafely(queue,fake,"jomy_agent_task_queue_v1"),/exceeds 30/);
   assert.equal(wrote,false);
   assert.throws(()=>persistTaskQueueSafely([],null,"jomy_agent_task_queue_v1"),/Valid local task storage/);
+});
+
+test("JOMY task delete recovery restores exact record at original position", () => {
+  const keepA={id:"a",title:"A",status:TASK_STATES.READY};
+  const deleted={id:"b",title:"B",status:TASK_STATES.DONE,manualCompletedAt:"2026-11-20T09:00:00.000Z",steps:[{title:"Check"}],note:"private"};
+  const keepC={id:"c",title:"C",status:TASK_STATES.READY};
+  const current=[keepA,keepC];
+  const before=JSON.stringify(current);
+  const restored=restoreDeletedTask(current,deleted,1);
+  assert.deepEqual(restored,[keepA,deleted,keepC]);
+  assert.equal(restored[1],deleted,"original task metadata and dates remain intact");
+  assert.equal(JSON.stringify(current),before,"input queue is never mutated");
+  assert.equal(restoreDeletedTask(current,deleted,99)[2].id,"b","old index beyond queue appends");
+});
+
+test("JOMY task delete recovery rejects duplicates and full queue without losing records", () => {
+  const saved={id:"saved",title:"Saved",status:TASK_STATES.READY};
+  assert.throws(()=>restoreDeletedTask([saved],saved,0),/already saved/);
+  const full=Array.from({length:30},(_,i)=>({id:String(i),title:String(i),status:TASK_STATES.READY}));
+  const before=JSON.stringify(full);
+  assert.throws(()=>restoreDeletedTask(full,saved,2),/full/);
+  assert.equal(JSON.stringify(full),before);
+  assert.throws(()=>restoreDeletedTask([],null,0),/Invalid deleted task/);
+  assert.throws(()=>restoreDeletedTask([],{id:"ok",title:"Task",status:TASK_STATES.READY},-1),/Invalid deleted task position/);
+});
+
+test("JOMY delete/undo commits snapshot before UI updates, retains undo on storage errors", () => {
+  const deleted={id:"deleted",title:"Safe",status:TASK_STATES.READY};
+  const queue=[deleted];
+  const gone=queue.filter(t=>t.id!==deleted.id);
+  const storage={setItem:()=>{throw new Error("Safari quota blocked");}};
+  assert.throws(()=>persistTaskQueueSafely(gone,storage,"tasks"),/Safari quota blocked/);
+  assert.deepEqual(queue,[deleted]);
+  const restored=restoreDeletedTask(gone,deleted,0);
+  assert.throws(()=>persistTaskQueueSafely(restored,storage,"tasks"),/Safari quota blocked/);
+  assert.deepEqual(gone,[]);
+  assert.deepEqual(restored,[deleted]);
 });
