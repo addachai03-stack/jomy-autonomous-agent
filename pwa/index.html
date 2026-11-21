@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="stylesheet" href="/styles.css?v=65">
+  <link rel="stylesheet" href="/styles.css?v=66">
   <title>JOMY · Autonomous Agent</title>
 </head>
 <body>
@@ -41,6 +41,8 @@
       <p class="voice-hint" id="voiceCapabilityStatus" role="status" aria-live="polite">Checking microphone support…</p>
       <p class="voice-hint" id="voiceHint">Tap Hands-free once to start. Say “JOMY” and then give your command. Keep this page open while using voice.</p>
       <button class="voice-test-button" id="testVoiceButton" type="button">🔊 Test Hindi voice</button>
+      <button class="voice-test-button" id="micPermissionCheck" type="button">🎙 Check Microphone Permission</button>
+      <p class="voice-hint" id="micPermissionStatus" role="status" aria-live="polite">Optional test. Microphone is released immediately; no audio is saved or uploaded.</p>
     </section>
     <section class="composer" aria-label="Message the agent">
       <form id="chatForm"><label class="sr-only" for="messageInput">Your command</label><textarea id="messageInput" rows="1" maxlength="4000" placeholder="Tell JOMY what you need…" enterkeyhint="send"></textarea><button class="send-button" id="sendButton" type="submit" aria-label="Send message">↑</button></form>
@@ -77,7 +79,7 @@
           <textarea id="hubRequestNote" maxlength="400" rows="2" placeholder="What to review before proceeding"></textarea>
           <button type="submit" id="hubRequestSubmit">SAVE FOR OWNER REVIEW</button>
         </form>
-        <p id="hubRequestLimit" class="hub-hint">0/20 requests</p>
+        <div class="hub-export-row"><p id="hubRequestLimit" class="hub-hint">0/20 requests</p><button type="button" id="hubApprovalExport">Export review log (JSON)</button></div>
         <p id="hubApprovalStatus" role="status" aria-live="polite" class="hub-status">Draft-only inbox. No external actions or billing.</p>
         <div id="hubApprovalList" class="hub-approval-list" aria-live="polite"></div>
       </section>
@@ -405,7 +407,8 @@
       });
     })();
   </script>
-  <script type="module" src="/app.js?v=65"></script>
-  <script type="module" src="/unified-console.js?v=65"></script>
+  <script type="module" src="/app.js?v=66"></script>
+  <script type="module" src="/unified-console.js?v=66"></script>
+  <script type="module" src="/mic-check-ui.js?v=66"></script>
 </body>
 </html>
