@@ -60,7 +60,7 @@ test("production PWA routes every spoken reply through the sanitizer", () => {
 
 test("production service worker precaches the speech sanitizer with a new cache version", () => {
   const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(source, /jomy-agent-shell-v60/);
+  assert.match(source, /jomy-agent-shell-v61/);
   assert.match(source, /"\/speech-text\.js"/);
   assert.match(source, /"\/speech-voice\.js"/);
 });
@@ -100,7 +100,7 @@ test("endpoint settings save and disconnect handlers are bound directly in the m
 
 test("service worker cache is bumped after consolidating endpoint settings", () => {
   const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(source, /jomy-agent-shell-v60/);
+  assert.match(source, /jomy-agent-shell-v61/);
   assert.doesNotMatch(source, /endpoint-settings\.js/);
 });
 
@@ -165,4 +165,34 @@ test("voice starts only after an explicit gesture and stops safely when hidden",
   assert.match(source,/if \(discardVoiceResults \|\| document.hidden \|\| busy \|\| speakingReply\) return/);
   assert.match(source,/if \(document.hidden && \(handsFree \|\| listening \|\| recognitionStarting \|\| voiceSendTimer !== null\)\) \{\s+stopHandsFree\(\)/);
   assert.match(source,/handsFreeButton.textContent = recognition \? "Hands-free: Off" : "Voice unavailable"/);
+});
+
+
+import { requestAgentJson } from "../pwa/voice-utils.js";
+test("chat and plan requests block redirects and parse bounded JSON", async () => {
+  const result=await requestAgentJson("https://example.test/api/agent/chat",{method:"POST"},async(url,options)=>{
+    assert.equal(options.redirect,"error");
+    assert.equal(options.cache,"no-store");
+    assert.ok(options.signal instanceof AbortSignal);
+    return new Response(JSON.stringify({reply:"OK"}),{status:200});
+  },200);
+  assert.equal(result.data.reply,"OK");
+  assert.equal(result.response.status,200);
+});
+test("AI request deadline aborts a hung fetch or response body",async()=>{
+  for(const bodyHang of [false,true]){
+    let signal;
+    const never=new Promise(()=>{});
+    await assert.rejects(requestAgentJson("https://example.test",{method:"POST"},async(url,opts)=>{
+      signal=opts.signal;
+      return bodyHang ? {ok:true,json:()=>never} : await never;
+    },15),/timed out/);
+    assert.equal(signal.aborted,true);
+  }
+});
+test("invalid JSON replies fail and non-JSON HTTP errors retain status",async()=>{
+  await assert.rejects(requestAgentJson("https://example.test",{},async()=>new Response("bad",{status:200}),200),/not valid JSON/);
+  const x=await requestAgentJson("https://example.test",{},async()=>new Response("bad",{status:502}),200);
+  assert.equal(x.response.status,502);
+  assert.deepEqual(x.data,{});
 });
