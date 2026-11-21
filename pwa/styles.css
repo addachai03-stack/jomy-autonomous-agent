@@ -289,3 +289,11 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 /* Local Safari persistence failures: visibly report, never hide the old tasks. */
 .task-storage-status{box-sizing:border-box;margin:10px 0;padding:11px 12px;border:1px solid #e59b70;background:#3a2320;border-radius:9px;color:#ffe2ca;font-size:12px;line-height:1.55;overflow-wrap:anywhere}
 .task-storage-status[hidden]{display:none!important}
+
+
+/* One-step task removal recovery. Never hide a failed localStorage save. */
+.task-delete-recovery{box-sizing:border-box;margin:10px 0;padding:11px;border:1px solid #e1bf7c70;border-radius:10px;background:#182539;color:#f1daaa}
+.task-delete-recovery[hidden]{display:none!important}
+.task-delete-recovery p{margin:0 0 9px;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+.task-delete-recovery button{width:100%;min-height:44px;border:1px solid #ddba7b;border-radius:9px;background:#32271d;color:#f2d9a8;font-size:11px;font-weight:800;cursor:pointer}
+.task-delete-recovery button:focus-visible{outline:2px solid #f2d9a8;outline-offset:2px}
