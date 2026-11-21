@@ -4,6 +4,8 @@ const root=document.getElementById("voiceQaPanel");
 if(root){
  const els=Object.fromEntries(VOICE_QA_STEPS.map(key=>[key,document.getElementById("voiceQa-"+key)]));
  let state=createVoiceQaState();
+ // The main module may have detected unsupported speech recognition before this panel loaded.
+ if(document.getElementById("micButton")?.disabled)state=updateVoiceQaState(state,{step:"recognition",status:"unsupported"});
  const status=document.getElementById("voiceQaStatus");
  function render(){
    for(const step of VOICE_QA_STEPS){
