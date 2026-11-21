@@ -11,9 +11,14 @@ test("unified dashboard provides separate, no-token-sharing navigation",()=>{
  assert.match(html,/jomy-cloud-scheduler-preview\.addachai03\.workers\.dev/);
  assert.match(html,/id="hubRequestForm"/);assert.match(html,/id="hubApprovalList"/);
  assert.match(controller,/localStorage\.setItem\(APPROVAL_STORAGE_KEY/);
- assert.doesNotMatch(controller,/fetch\(/);
+ assert.match(controller,/fetch\(SCHEDULER_HEALTH_URL/);
+ assert.match(controller,/credentials:"omit"/);
+ assert.match(controller,/method:"GET"/);
+ assert.match(controller,/hubDraftFromChat/);
+ assert.match(html,/id="hubSchedulerCheck"/);
+ assert.match(html,/id="hubDraftFromChat"/);
  assert.doesNotMatch(controller,/AGENT_OWNER_TOKEN|SCHEDULER_OWNER_TOKEN/);
- assert.match(sw,/unified-console\.js\?v=64/);
+ assert.match(sw,/unified-console\.js\?v=65/);
  assert.match(sw,/approval-utils\.js/);
 });
 test("approval decisions record only permission; never execute actions",()=>{
