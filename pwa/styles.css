@@ -327,3 +327,10 @@ button,textarea,input{font:inherit}button{cursor:pointer}.app-shell{position:rel
 .voice-lang-row select{min-height:44px;min-width:170px;max-width:100%;font-size:16px;background:#111c2d;border:1px solid #cea965;border-radius:10px;color:#f4ddaa;padding:7px 10px}
 .voice-lang-row select:focus-visible{outline:3px solid #ffe1a8;outline-offset:2px}
 #voiceCapabilityStatus{max-width:100%;color:#d4bb83;margin-top:8px}
+
+/* Safe bridge: public readiness check and optional chat-to-review draft. */
+.hub-tile-action{min-height:44px;width:100%;background:#1b3040;border:1px solid #86aac9;border-radius:9px;color:#cfe5ff;font:700 12px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.hub-tile-action:disabled{opacity:.6;cursor:wait}
+.hub-draft-button{width:100%;min-height:44px;border:1px dashed #ddbd7d;background:#253044;color:#ffe0a3;padding:9px;border-radius:9px;font-weight:750;font-size:12px;cursor:pointer;margin:8px 0}
+.hub-tile-action:focus-visible,.hub-draft-button:focus-visible{outline:3px solid #ffe0a3;outline-offset:2px}
+#hubSchedulerStatus{font-size:11px;min-height:0;line-height:1.45}
