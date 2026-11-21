@@ -38,3 +38,108 @@ jobs:
         run: npm test
       - name: Validate Cloudflare Worker build
         run: npm run check:api
+
+  validate-recovery:
+    name: Repair and verify preview candidate
+    needs: test-and-build
+    if: >-
+      failure() && needs.test-and-build.result == 'failure' && github.event_name == 'push' &&
+      (github.ref == 'refs/heads/feature/jomy-daily-progress-3-5' || github.ref == 'refs/heads/feature/jomy-autorepair-drill')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      method: ${{ steps.candidate.outputs.method }}
+      blob: ${{ steps.candidate.outputs.blob }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check scope and reproduce a syntax failure
+        id: candidate
+        env:
+          PREVIOUS: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$PREVIOUS" || exit 0
+          test -z "$(git rev-parse -q --verify HEAD^2)" || exit 0
+          file=$(git diff --no-renames --name-only HEAD^ HEAD)
+          case "$file" in
+            pwa/manifest.json|pwa/agent-engine-core.js|pwa/agent-engine-ui.js) ;;
+            *) exit 0 ;;
+          esac
+          test "$(git diff --name-status HEAD^ HEAD)" = "$(printf 'M\t%s' "$file")" || exit 0
+          test "$(git ls-tree HEAD -- "$file" | cut -d' ' -f1)" = 100644 || exit 0
+          method=rollback
+          if [[ "$file" == pwa/manifest.json ]]; then
+            if node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))" "$file"; then exit 0; fi
+            if node --input-type=module - "$file" <<'JS'
+          import fs from 'node:fs';
+          const path = process.argv[2];
+          const source = fs.readFileSync(path, 'utf8');
+          const fixed = source.replace(/,(\s*}\s*)$/, '$1');
+          JSON.parse(fixed);
+          fs.writeFileSync(path, fixed);
+          JS
+            then method=repair; fi
+          elif node --check "$file"; then
+            exit 0
+          fi
+          if [[ "$method" == rollback ]]; then git restore --source=HEAD^ -- "$file"; fi
+          echo "method=$method" >> "$GITHUB_OUTPUT"
+          echo "blob=$(git hash-object "$file")" >> "$GITHUB_OUTPUT"
+      - name: Run complete test suite and Worker dry-run against candidate
+        if: steps.candidate.outputs.method != ''
+        run: |
+          npm install --no-package-lock
+          npm run check
+
+  publish-recovery:
+    name: Apply tested recovery to the failed preview head
+    needs: [test-and-build, validate-recovery]
+    if: >-
+      always() && needs.test-and-build.result == 'failure' && needs.validate-recovery.result == 'success' &&
+      needs.validate-recovery.outputs.method != '' && github.event_name == 'push' &&
+      (github.ref == 'refs/heads/feature/jomy-daily-progress-3-5' || github.ref == 'refs/heads/feature/jomy-autorepair-drill')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          METHOD: ${{ needs.validate-recovery.outputs.method }}
+          TESTED_BLOB: ${{ needs.validate-recovery.outputs.blob }}
+        with:
+          script: |
+            const repo = context.repo;
+            const branch = context.ref.slice('refs/heads/'.length);
+            const {data: head} = await github.rest.git.getRef({...repo, ref:'heads/' + branch});
+            if (head.object.sha !== context.sha) return core.notice('A newer preview exists. Recovery skipped.');
+            const {data: failed} = await github.rest.repos.getCommit({...repo, ref:context.sha});
+            const file = failed.files?.[0];
+            const allowed = ['pwa/manifest.json', 'pwa/agent-engine-core.js', 'pwa/agent-engine-ui.js'];
+            if (failed.parents.length !== 1 || failed.parents[0].sha !== context.payload.before ||
+                failed.files?.length !== 1 || file.status !== 'modified' || !allowed.includes(file.filename)) {
+              throw new Error('Change is outside preview recovery scope.');
+            }
+            const restore = process.env.METHOD === 'rollback';
+            const ref = restore ? failed.parents[0].sha : failed.sha;
+            const {data: source} = await github.rest.repos.getContent({...repo, ref, path:file.filename});
+            let bytes = Buffer.from(source.content, 'base64');
+            if (!restore) {
+              if (file.filename !== 'pwa/manifest.json') throw new Error('Unexpected repair target.');
+              bytes = Buffer.from(bytes.toString('utf8').replace(/,(\s*}\s*)$/, '$1'));
+              JSON.parse(bytes.toString('utf8'));
+            }
+            const {data: blob} = await github.rest.git.createBlob({...repo, content:bytes.toString('base64'), encoding:'base64'});
+            if (blob.sha !== process.env.TESTED_BLOB) throw new Error('Candidate differs from tested bytes.');
+            const {data: tree} = await github.rest.git.createTree({...repo, base_tree:failed.commit.tree.sha,
+              tree:[{path:file.filename, mode:'100644', type:'blob', sha:blob.sha}]});
+            const {data: commit} = await github.rest.git.createCommit({...repo, tree:tree.sha, parents:[failed.sha],
+              message:'Preview recovery: ' + process.env.METHOD + ' ' + file.filename});
+            await github.rest.git.updateRef({...repo, ref:'heads/' + branch, sha:commit.sha, force:false});
+            core.notice('Applied tested preview recovery ' + commit.sha);
