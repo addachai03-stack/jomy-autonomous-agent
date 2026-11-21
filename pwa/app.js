@@ -165,7 +165,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   let recognitionBlocked = false;
   let recognitionStarting = false;
   let speakingReply = false;
-  let handsFree = localStorage.getItem(STORAGE_HANDSFREE) === "true";
+  // A new page never starts the microphone without a fresh owner gesture.
+  let handsFree = false;
   let waitingForCommand = false;
   let busy = false;
   let voiceSubmissionPending = false;
@@ -1210,7 +1211,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     synth.speak(utterance);
   }
   function startRecognition() {
-    if (!recognition || !handsFree || document.hidden || busy || listening || recognitionStarting || recognitionBlocked || speakingReply) return;
+    if (!recognition || !handsFree || document.hidden || busy || listening || recognitionStarting || recognitionBlocked || speakingReply || discardVoiceResults) return;
     try {
       recognitionStarting = true;
       recognition.start();
@@ -1225,20 +1226,20 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   }
   function stopHandsFree() {
     handsFree = false;
-    localStorage.setItem(STORAGE_HANDSFREE, "false");
+    try { localStorage.setItem(STORAGE_HANDSFREE, "false"); } catch (_) {}
     waitingForCommand = false;
     const pendingTranscript = voiceFinalTranscript;
     const discardedCapture = discardPendingVoiceCapture({ transcript: voiceFinalTranscript, timer: voiceSendTimer });
     voiceFinalTranscript = discardedCapture.transcript;
     voiceSendTimer = discardedCapture.timer;
-    discardVoiceResults = Boolean(recognition && listening);
+    discardVoiceResults = discardVoiceResults || Boolean(recognition && (listening || recognitionStarting));
     if (pendingTranscript && messageInput.value === pendingTranscript) messageInput.value = "";
-    if (recognition && listening) {
-      try { recognition.stop(); } catch (_) {}
+    if (recognition && (listening || recognitionStarting)) {
+      try { recognition.abort(); } catch (_) {}
     }
     listening = false;
     recognitionStarting = false;
-    handsFreeButton.textContent = "Hands-free: Off";
+    handsFreeButton.textContent = recognition ? "Hands-free: Off" : "Voice unavailable";
     handsFreeButton.setAttribute("aria-pressed", "false");
     micLabel.textContent = "Tap to speak";
     setState("idle", "READY", "Hands-free is off. Tap the mic to speak.");
@@ -1252,7 +1253,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   }
   function submitVoiceTranscript() {
     const transcript = voiceFinalTranscript.trim();
-    if (!transcript || busy || voiceSubmissionPending) return;
+    if (!transcript || busy || voiceSubmissionPending || document.hidden || discardVoiceResults) return;
     clearTimeout(voiceSendTimer);
     voiceSendTimer = null;
     voiceFinalTranscript = "";
@@ -1288,6 +1289,10 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     recognition.interimResults = true;
     recognition.continuous = true;
     recognition.onstart = () => {
+      if (discardVoiceResults || document.hidden) {
+        try { recognition.abort(); } catch (_) {}
+        return;
+      }
       recognitionStarting = false;
       recognitionBlocked = false;
       listening = true;
@@ -1296,7 +1301,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       setState("listening", handsFree ? "HANDS-FREE" : "LISTENING", handsFree ? "Say JOMY to wake me, then speak your command." : "I'm listening. Say your command.");
     };
     recognition.onresult = (event) => {
-      if (discardVoiceResults) return;
+      if (discardVoiceResults || document.hidden || busy || speakingReply) return;
       let finalText = "";
       let interimText = "";
       const finalCandidates = [];
@@ -1429,6 +1434,13 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       speak(notice);
       return;
     }
+    if (!ownerToken) {
+      const notice = "Owner token needed. Settings mein apna private token save karo aur TEST AI CONNECTION dabao. Token chat mein mat bhejo.";
+      addMessage("agent", notice);
+      speak(notice);
+      setConnection(false, "Owner token needed · this browser");
+      return;
+    }
     busy = true;
     $("sendButton").disabled = true;
     setState("thinking", "THINKING", "Working on your request…");
@@ -1499,12 +1511,8 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   renderTaskQueue();
   setupRecognition();
   setConnection(false, endpoint ? (ownerToken ? "Endpoint ready · not tested" : "Owner token needed · this browser") : "Not connected");
-  handsFreeButton.textContent = handsFree ? "Hands-free: On" : "Hands-free: Off";
-  handsFreeButton.setAttribute("aria-pressed", String(handsFree));
-  if (handsFree) {
-    voiceHint.textContent = "Tap Hands-free once to start. Say “JOMY”, wait for “हाँ, बोलिए”, then speak your command. Keep this page open; iPhone may pause listening in the background or when locked.";
-    startRecognition();
-  }
+  handsFreeButton.textContent = recognition ? "Hands-free: Off" : "Voice unavailable";
+  handsFreeButton.setAttribute("aria-pressed", "false");
   soundButton.setAttribute("aria-pressed", String(soundOn));
   soundButton.textContent = soundOn ? "◖))" : "◖×";
   micButton.addEventListener("click", () => {
@@ -1512,7 +1520,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
     if (!recognition) return;
     if (handsFree) stopHandsFree();
     else if (listening) stopListening();
-    else {
+    else if (!recognitionStarting && !discardVoiceResults && !document.hidden && !busy && !speakingReply) {
       recognitionBlocked = false;
       recognitionStarting = true;
       try { recognition.start(); } catch (_) { recognitionStarting = false; setState("idle", "MIC PAUSED", "Wait a moment, then tap to retry."); }
@@ -1521,18 +1529,14 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   handsFreeButton.addEventListener("click", () => {
     unlockSpeech();
     if (!recognition) return;
-    if (handsFree && listening) {
+    if (handsFree) {
       stopHandsFree();
       return;
     }
-    if (handsFree && !listening) {
-      recognitionBlocked = false;
-      startRecognition();
-      return;
-    }
+    if (recognitionStarting || listening || discardVoiceResults || document.hidden || busy || speakingReply) return;
     handsFree = true;
     recognitionBlocked = false;
-    localStorage.setItem(STORAGE_HANDSFREE, "true");
+    try { localStorage.setItem(STORAGE_HANDSFREE, "true"); } catch (_) {}
     waitingForCommand = false;
     handsFreeButton.textContent = "Hands-free: On";
     handsFreeButton.setAttribute("aria-pressed", "true");
@@ -1706,19 +1710,9 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
   // iOS Safari may suspend recognition when this PWA is backgrounded.
   // Stop cleanly while hidden and resume only after the page is visible again.
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      if (recognition && listening) {
-        try { recognition.stop(); } catch (_) {}
-      }
-      recognitionStarting = false;
-      if (handsFree) {
-        voiceHint.textContent = "Safari ne listening pause ki hai. JOMY ko foreground mein lao; mic permission active ho to listening resume hogi.";
-        setState("idle", "VOICE PAUSED", "JOMY ko foreground mein rakho for hands-free voice.");
-      }
-      return;
-    }
-    if (handsFree && !busy && !speakingReply && !recognitionBlocked) {
-      startRecognition();
+    if (document.hidden && (handsFree || listening || recognitionStarting || voiceSendTimer !== null)) {
+      stopHandsFree();
+      voiceHint.textContent = "Voice stopped while JOMY was in the background. Tap Hands-free or the microphone again to resume.";
     }
   });
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
