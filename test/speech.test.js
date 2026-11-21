@@ -60,7 +60,7 @@ test("production PWA routes every spoken reply through the sanitizer", () => {
 
 test("production service worker precaches the speech sanitizer with a new cache version", () => {
   const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(source, /jomy-agent-shell-v58/);
+  assert.match(source, /jomy-agent-shell-v59/);
   assert.match(source, /"\/speech-text\.js"/);
   assert.match(source, /"\/speech-voice\.js"/);
 });
@@ -100,6 +100,57 @@ test("endpoint settings save and disconnect handlers are bound directly in the m
 
 test("service worker cache is bumped after consolidating endpoint settings", () => {
   const source = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(source, /jomy-agent-shell-v58/);
+  assert.match(source, /jomy-agent-shell-v59/);
   assert.doesNotMatch(source, /endpoint-settings\.js/);
+});
+
+
+import { testAgentConnection } from "../pwa/voice-utils.js";
+
+test("connection diagnostic makes no request without credentials", async () => {
+  const result=await testAgentConnection("https://example.test/api/agent/chat","",()=>{throw Error("must not call fetch")});
+  assert.equal(result.ok,false);
+  assert.match(result.message,/Owner token needed/);
+});
+
+test("connection diagnostic sends a single minimal authenticated test, without history or redirects", async () => {
+  let calls=0;
+  const result=await testAgentConnection("https://example.test/api/agent/chat","sample-only",async(url,opts)=>{
+    calls++;
+    assert.equal(url,"https://example.test/api/agent/chat");
+    assert.equal(opts.headers.Authorization,"Bearer sample-only");
+    assert.equal(opts.redirect,"error");
+    const payload=JSON.parse(opts.body);
+    assert.deepEqual(payload.history,[]);
+    assert.deepEqual(Object.keys(payload).sort(),["client","history","locale","message"]);
+    return new Response(JSON.stringify({reply:"OK"}),{status:200});
+  });
+  assert.equal(calls,1);
+  assert.equal(result.ok,true);
+});
+
+test("connection diagnostic classifies rejected auth, provider limits and malformed replies", async () => {
+  for(const [status,data,match] of [
+    [401,{},/authentication rejected/],
+    [502,{code:"AI_ALLOCATION_OR_BILLING"},/allocation or billing/],
+    [200,{reply:" "},/no readable AI reply/]
+  ]){
+    const result=await testAgentConnection("https://example.test","sample-only",async()=>new Response(JSON.stringify(data),{status}));
+    assert.equal(result.ok,false);
+    assert.match(result.message,match);
+  }
+  const result=await testAgentConnection("https://example.test","sample-only",async()=>{throw Error("private network detail")});
+  assert.equal(result.ok,false);
+  assert.match(result.message,/Cannot reach AI API/);
+  assert.doesNotMatch(result.message,/private network detail/);
+});
+
+test("connection diagnostic is explicitly user initiated in settings", () => {
+  const source = readFileSync(new URL("../pwa/app.js", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
+  assert.match(html,/id="testConnection" type="button"/);
+  assert.match(source,/testConnectionButton.addEventListener\("click", async/);
+  assert.match(source,/await testAgentConnection\(endpoint, ownerToken\)/);
+  assert.match(source,/revision !== connectionRevision/);
+  assert.match(source,/enteredEndpoint !== endpoint/);
 });
