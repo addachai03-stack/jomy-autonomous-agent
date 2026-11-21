@@ -44,3 +44,29 @@ export function approvalSummary(source){
   const list=normalizeApprovals(source);
   return {total:list.length,pending:list.filter(x=>x.status==="pending").length,approved:list.filter(x=>x.status==="approved").length,rejected:list.filter(x=>x.status==="rejected").length};
 }
+
+/**
+ * Generates a review brief, not permission for a computer to execute an operation.
+ * This is deliberately permitted only after a user reviewed an item.
+ */
+export function buildApprovedHandoff(source,id){
+  const item=normalizeApprovals(source).find(row=>row.id===id);
+  if(!item)throw new Error("Review request not found.");
+  if(item.status!=="approved")throw new Error("Only owner-reviewed, approved plans can have a handoff brief.");
+  const kind=APPROVAL_KINDS[item.kind];
+  return [
+    "JOMY OWNER REVIEW BRIEF — MANUAL HANDOFF ONLY",
+    "Category: "+kind,
+    "Proposed action: "+item.title,
+    "Reason: "+(item.note||"Not provided"),
+    "Local review: approved plan",
+    "Important: This browser approval did NOT execute the action, authorize API use, send a message, publish, delete, or move money.",
+    "Any external operation requires separate owner confirmation and appropriate permissions at the destination."
+  ].join("\n");
+}
+/** Portable review-only backup; no cloud sync and no external effects. */
+export function exportApprovalSnapshot(source,exportedAt=new Date().toISOString()){
+  if(!/^\d{4}-\d{2}-\d{2}T/.test(exportedAt))throw new Error("Invalid export timestamp.");
+  const list=normalizeApprovals(source);
+  return JSON.stringify({format:"jomy-owner-approvals",version:1,exportedAt,items:list,execution:false},null,2);
+}
