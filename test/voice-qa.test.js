@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-import {createVoiceQaState, updateVoiceQaState, voiceQaSummary, VOICE_QA_STEPS, voiceQaLabel} from "../pwa/voice-qa.js";
+import {createVoiceQaState, updateVoiceQaState, voiceQaSummary, VOICE_QA_STEPS, voiceQaLabel, nextVoiceQaAction} from "../pwa/voice-qa.js";
 
 const app=readFileSync(new URL("../pwa/app.js",import.meta.url),"utf8");
 const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
@@ -49,4 +49,42 @@ test("UI is accessible, session-only, and does not start or upload microphone au
  assert.match(sw,/jomy-agent-shell-v68/);
  assert.match(sw,/voice-qa-panel\.js\?v=68/);
  assert.match(sw,/voice-qa\.js/);
+});
+
+test("guided voice QA shows one manual next step and does not silently pass",()=>{
+ let status=createVoiceQaState();
+ assert.equal(nextVoiceQaAction(status).targetId,"micPermissionCheck");
+ assert.equal(nextVoiceQaAction(status).step,"permission");
+ status=updateVoiceQaState(status,{step:"permission",status:"passed"});
+ assert.equal(nextVoiceQaAction(status).targetId,"micButton");
+ status=updateVoiceQaState(status,{step:"recognition",status:"passed"});
+ assert.equal(nextVoiceQaAction(status).targetId,"testVoiceButton");
+ status=updateVoiceQaState(status,{step:"playback",status:"passed"});
+ assert.equal(nextVoiceQaAction(status).targetId,"handsFreeButton");
+ status=updateVoiceQaState(status,{step:"wake",status:"passed"});
+ assert.equal(nextVoiceQaAction(status).step,"complete");
+ assert.equal(nextVoiceQaAction(status).targetId,"voiceQaCopy");
+ assert.match(nextVoiceQaAction(status).guidance,/future reliability/);
+});
+test("unsupported speech recognition points to dictation after playback test",()=>{
+ let status=createVoiceQaState();
+ status=updateVoiceQaState(status,{step:"permission",status:"passed"});
+ status=updateVoiceQaState(status,{step:"recognition",status:"unsupported"});
+ assert.equal(nextVoiceQaAction(status).step,"playback");
+ status=updateVoiceQaState(status,{step:"playback",status:"passed"});
+ const step=nextVoiceQaAction(status);
+ assert.equal(step.step,"fallback");
+ assert.equal(step.targetId,"messageInput");
+ assert.match(step.guidance,/keyboard microphone/);
+});
+test("guidance only locates test controls; no microphone or AI requests",()=>{
+ assert.match(html,/id="voiceQaNext"/);
+ assert.match(html,/id="voiceQaGuide"/);
+ assert.match(ui,/nextVoiceQaAction\(state\)/);
+ assert.match(ui,/target\.focus\(/);
+ assert.doesNotMatch(ui,/target\.click\(/);
+ assert.doesNotMatch(ui,/getUserMedia|SpeechRecognition\(|fetch\(/);
+ assert.match(app,/reportVoiceQa\("recognition","failed"\)/);
+ assert.match(app,/reportVoiceQa\("playback","unsupported"\)/);
+ assert.match(sw,/jomy-agent-shell-v68/);
 });
