@@ -1163,6 +1163,18 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       window.speechSynthesis.resume();
     } catch (_) {}
   }
+  // Wait for the previous recognition session's onend before restarting.
+  // In particular, muted replies can otherwise start a new session immediately.
+  function endRecognitionForReply() {
+    if (!recognition || !listening) return;
+    discardVoiceResults = true;
+    listening = false;
+    try { recognition.stop(); }
+    catch (_) {
+      discardVoiceResults = false;
+      recognitionBlocked = true;
+    }
+  }
   function speak(text) {
     if (!soundOn || !("speechSynthesis" in window)) {
       speakingReply = false;
@@ -1175,10 +1187,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       if (handsFree) startRecognition();
       return;
     }
-    if (recognition && listening) {
-      try { recognition.stop(); } catch (_) {}
-      listening = false;
-    }
+    endRecognitionForReply();
     const synth = window.speechSynthesis;
     synth.cancel();
     speakingReply = true;
@@ -1333,8 +1342,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
       if (!command) {
         wakeActivityBoard();
         waitingForCommand = true;
-        try { recognition.stop(); } catch (_) {}
-        listening = false;
+        endRecognitionForReply();
         speak("हाँ, बोलिए।");
         return;
       }
@@ -1343,8 +1351,7 @@ import { parseTaskPlan, needsTaskDetails, createLocalTaskOutline } from "./task-
         stopHandsFree();
         return;
       }
-      try { recognition.stop(); } catch (_) {}
-      listening = false;
+      endRecognitionForReply();
       sendMessage(command);
     };
     recognition.onerror = (event) => {
