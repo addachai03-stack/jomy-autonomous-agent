@@ -54,12 +54,13 @@
       <div class="hub-head"><div><p class="eyebrow">JOMY COMMAND CENTER</p><h2>One dashboard. Owner in control.</h2></div><span class="hub-pill">PREVIEW · NO AUTO ACTIONS</span></div>
       <div class="hub-grid">
         <article class="hub-tile"><span>01 / AI CHAT</span><strong>Ask JOMY</strong><small id="hubAiStatus">Open Settings to connect Chat</small><a id="hubChatLink" href="#chatForm">Open Chat</a></article>
-        <article class="hub-tile"><span>02 / CLOUD</span><strong>Automation</strong><small>Daily APPLIQ monitoring and run history · separate owner login</small><a href="https://jomy-cloud-scheduler-preview.addachai03.workers.dev/" target="_blank" rel="noopener noreferrer">Open Scheduler</a></article>
+        <article class="hub-tile"><span>02 / CLOUD</span><strong>Automation</strong><small>Daily APPLIQ monitoring · owner login separate</small><button type="button" id="hubSchedulerCheck" class="hub-tile-action">Check Cloud Health</button><small id="hubSchedulerStatus" aria-live="polite">Health check not run yet. No owner token shared.</small><a href="https://jomy-cloud-scheduler-preview.addachai03.workers.dev/" target="_blank" rel="noopener noreferrer">Open Scheduler</a></article>
         <article class="hub-tile"><span>03 / TASKS</span><strong>Local Planner</strong><small id="hubTaskStatus">Tasks on this device</small><a id="hubTaskLink" href="#taskPanel">Open Tasks</a></article>
         <article class="hub-tile"><span>04 / SYSTEM</span><strong>API Health</strong><small>Configuration readiness only. This is not a successful AI reply test.</small><a href="https://jomy-autonomous-agent-api.addachai03.workers.dev/health" target="_blank" rel="noopener noreferrer">Inspect API Health</a></article>
       </div>
       <section class="hub-approvals" aria-labelledby="hubApprovalHeading">
         <div class="hub-approval-top"><h3 id="hubApprovalHeading">Owner Approval Inbox</h3><span id="hubApprovalCount">0 pending</span></div>
+        <button type="button" class="hub-draft-button" id="hubDraftFromChat">Use latest chat as review draft (no auto-save)</button>
         <p class="hub-hint">Review requests for code, deployment, messages or sensitive actions. Approving a plan records a decision <strong>only on this device</strong>; it never triggers external actions.</p>
         <form id="hubRequestForm" class="hub-request-form">
           <label for="hubRequestKind">Action category</label>
