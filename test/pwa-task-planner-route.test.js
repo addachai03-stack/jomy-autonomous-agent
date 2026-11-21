@@ -163,14 +163,14 @@ test("Task Dashboard does not alter Personal Memory or old Task Queue storage", 
 });
 
 
-test("PWA HTML and JS/CSS cache use the same v57 release on Safari", () => {
+test("PWA HTML and JS/CSS cache use the same v58 release on Safari", () => {
   const html = readFileSync(new URL("../pwa/index.html", import.meta.url), "utf8");
   const worker = readFileSync(new URL("../pwa/sw.js", import.meta.url), "utf8");
-  assert.match(html, /href="\/styles\.css\?v=57"/);
-  assert.match(html, /src="\/app\.js\?v=57"/);
-  assert.match(worker, /const CACHE = "jomy-agent-shell-v57"/);
-  assert.match(worker, /"\/styles\.css\?v=57"/);
-  assert.match(worker, /"\/app\.js\?v=57"/);
+  assert.match(html, /href="\/styles\.css\?v=58"/);
+  assert.match(html, /src="\/app\.js\?v=58"/);
+  assert.match(worker, /const CACHE = "jomy-agent-shell-v58"/);
+  assert.match(worker, /"\/styles\.css\?v=58"/);
+  assert.match(worker, /"\/app\.js\?v=58"/);
   assert.match(worker, /const response = await fetch\(request\);/);
   assert.match(worker, /await caches\.match\(request, \{ ignoreSearch: true \}\)/);
   assert.match(worker, /key\.startsWith\("jomy-agent-shell-"\) && key !== CACHE/);
@@ -704,10 +704,35 @@ test("JOMY iPhone task updates, deletion and chat add persist before changing me
   assert.match(update,/const nextQueue = taskQueue.map/);
   assert.match(update,/persistTaskQueue\(nextQueue\);\s+renderTaskQueue\(\)/);
   assert.doesNotMatch(update,/saveTaskQueue\(|taskQueue = taskQueue.map/);
-  assert.match(render,/persistTaskQueue\(taskQueue.filter\(entry => entry.id !== task.id\)\)/);
+  assert.match(render,/persistTaskQueue\(taskQueue.filter\(entry => entry.id !== deleted.id\)\)/);
   assert.match(chat,/taskQueue.length >= 30/);
   assert.match(chat,/persistTaskQueue\(addTask\(taskQueue, task\)\)/);
   assert.doesNotMatch(chat,/taskQueue = addTask/);
   assert.match(html,/id="taskStorageStatus" role="alert" hidden/);
   assert.match(css,/\.task-storage-status\[hidden\]\{display:none!important\}/);
+});
+
+test("JOMY undo delete is ephemeral, accessible and preserves saved task records", () => {
+  const html=readFileSync(new URL("../pwa/index.html",import.meta.url),"utf8");
+  const css=readFileSync(new URL("../pwa/styles.css",import.meta.url),"utf8");
+  const deletion=app.split('remove.setAttribute("aria-label", "Remove task");')[1]
+    ?.split("      actions.append(remove);")[0]||"";
+  const undo=app.split('  taskUndoDelete.addEventListener("click", () => {')[1]
+    ?.split("  // Other Preview subdomains")[0]||"";
+  assert.ok(deletion && undo);
+  assert.match(html,/id="taskDeleteRecovery" class="task-delete-recovery" aria-label="Undo last task removal" hidden/);
+  assert.match(html,/id="taskUndoSummary" role="status" aria-live="polite"/);
+  assert.match(html,/id="taskUndoDelete">UNDO DELETE/);
+  assert.match(app,/let pendingDeletedTask = null/);
+  assert.match(deletion,/const index = taskQueue.findIndex\(entry => entry.id === task.id\)/);
+  assert.match(deletion,/persistTaskQueue\(taskQueue.filter\(entry => entry.id !== deleted.id\)\);\s+pendingDeletedTask = \{task: deleted, index\}/);
+  assert.match(deletion,/taskDeleteRecovery.hidden = false/);
+  assert.match(deletion,/taskUndoDelete.focus\(\{preventScroll:true\}\)/);
+  assert.match(undo,/restoreDeletedTask\(\s*taskQueue, pendingDeletedTask.task, pendingDeletedTask.index/);
+  assert.match(undo,/persistTaskQueue\(restored\);\s+pendingDeletedTask = null/);
+  assert.match(undo,/taskDeleteRecovery.hidden = true/);
+  assert.match(undo,/catch \(error\)/);
+  assert.doesNotMatch(undo,/fetch\(|planTask\(|sendMessage\(|localStorage\.clear\(/);
+  assert.match(css,/\.task-delete-recovery\[hidden\]\{display:none!important\}/);
+  assert.match(css,/\.task-delete-recovery button\{[^\n]*min-height:44px/);
 });
