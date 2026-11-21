@@ -32,3 +32,21 @@ test("tick commits exactly once with CAS and a bounded batch, no external tools"
  assert.equal(JSON.parse(updates[0][2]).items.length,2);
  assert.match(queries.find(s=>s.startsWith("UPDATE")),/status='queued' AND due_at=\?/);
 });
+
+test("heartbeat is returned only to authenticated scheduler owners",async()=>{
+ const token="synthetic-for-test-only-xxxxxxxxxxxxxxxx";
+ const heartbeat={last_tick_at:1000,last_completed:1,last_failed:0};
+ const db={prepare(sql){return {async all(){return {results:[]}},async first(){assert.match(sql,/scheduler_state/);return heartbeat;}};}};
+ const env={SCHEDULER_OWNER_TOKEN:token,SCHEDULER_ENABLED:"true",JOBS_DB:db};
+ const bad=await worker.fetch(new Request("https://test.example/api/jobs"),env);
+ assert.equal(bad.status,401);
+ assert.equal((await bad.json()).heartbeat,undefined);
+ const good=await worker.fetch(new Request("https://test.example/api/jobs",{headers:{Authorization:"Bearer "+token}}),env);
+ assert.equal(good.status,200);
+ assert.deepEqual((await good.json()).heartbeat,heartbeat);
+ const page=await worker.fetch(new Request("https://test.example/"),env);
+ const html=await page.text();
+ assert.match(html,/crypto.getRandomValues\(new Uint8Array\(32\)\)/);
+ assert.match(html,/navigator.clipboard.writeText\(value\)/);
+ assert.doesNotMatch(html,/localStorage|sessionStorage/);
+});
