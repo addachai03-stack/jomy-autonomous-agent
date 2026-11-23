@@ -1,0 +1,77 @@
+name: KAALRAJ Episode 01 Hindi Neural Voice
+on:
+  push:
+    branches:
+      - kaalraj-ep01-voice-test
+    paths:
+      - .github/workflows/kaalraj-ep01-voice.yml
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install TTS libraries
+        run: |
+          python -m pip install --disable-pip-version-check edge-tts gTTS pydub
+      - name: Generate six natural Hindi lines
+        run: |
+          python - <<'PY'
+          import asyncio, json, os
+          from pathlib import Path
+          from pydub import AudioSegment
+          OUT=Path('kaalraj_ep01_output'); OUT.mkdir(exist_ok=True)
+          lines=[
+           "अबे ओ छुटभैये बादशाहों!",
+           "तेरी सात पुश्तें जितना कमाने का सपना देखती हैं ना!",
+           "उतना तो मेरा कुत्ता एक दिन में बिस्कुट चबा जाता है!",
+           "खरबन... नीलन... पदमन... शंखन!",
+           "और उसके आगे?",
+           "कालराज का खाता शुरू होता है!"
+          ]
+          async def neural():
+           import edge_tts
+           for i, line in enumerate(lines):
+            await edge_tts.Communicate(text=line,voice='hi-IN-MadhurNeural', rate='+2%',pitch='-8Hz').save(str(OUT / f'part_{i:02d}.mp3'))
+          engine='edge-tts / hi-IN-MadhurNeural'
+          try:
+           asyncio.run(neural())
+          except Exception as exc:
+           print('NEURAL_BLOCKED:',repr(exc))
+           from gtts import gTTS
+           engine='gTTS fallback / hi'
+           for i, line in enumerate(lines): gTTS(text=line,lang='hi').save(str(OUT / f'part_{i:02d}.mp3'))
+          voice=AudioSegment.silent(duration=500,frame_rate=44100)
+          timeline=[]
+          for i, line in enumerate(lines):
+           seg=AudioSegment.from_file(OUT/f'part_{i:02d}.mp3').set_frame_rate(44100).set_channels(1)
+           start=len(voice)
+           voice+=seg
+           timeline.append(dict(start_ms=start,end_ms=len(voice),text=line))
+           voice+=AudioSegment.silent(duration=[350,250,300,340,360,1100][i],frame_rate=44100)
+          voice.export(OUT/'KAALRAJ_EP01_Hindi_Neural_Voice.mp3',format='mp3',bitrate='160k')
+          (OUT/'voice_manifest.json').write_text(json.dumps({'engine':engine,'voice':'hi-IN-MadhurNeural' if engine.startswith('edge') else 'gTTS','duration_ms':len(voice),'timeline':timeline},ensure_ascii=False,indent=2),encoding='utf-8')
+          print('SUCCESS:',engine,'duration',len(voice),'bytes',os.path.getsize(OUT/'KAALRAJ_EP01_Hindi_Neural_Voice.mp3'))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KAALRAJ-EP01-natural-Hindi-voice
+          path: kaalraj_ep01_output/
+          retention-days: 7
+
+      - name: Record workflow run locator on this isolated commit
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \\
+            -f state="${{ job.status == 'success' && 'success' || 'failure' }}" \\
+            -f context="kaalraj-ep01/voice" \\
+            -f description="KAALRAJ Hindi voice run" \\
+            -f target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
