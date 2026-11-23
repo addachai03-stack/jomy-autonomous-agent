@@ -1,0 +1,68 @@
+name: KAALRAJ Episode 03 Hindi Neural Voice
+on:
+  push:
+    branches:
+      - kaalraj-ep03-voice
+    paths:
+      - .github/workflows/kaalraj-ep03-voice.yml
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install ffmpeg and ffprobe
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+      - name: Install TTS libraries
+        run: |
+          python -m pip install --disable-pip-version-check edge-tts gTTS pydub
+      - name: Generate six natural Hindi lines
+        run: |
+          python - <<'PY'
+          import asyncio, json, os
+          from pathlib import Path
+          from pydub import AudioSegment
+          OUT=Path('kaalraj_ep03_output'); OUT.mkdir(exist_ok=True)
+          lines=[
+           "ओए पायलट! ज़रा जहाज़ रोक!",
+           "ये प्राइवेट जेट किसका है, पता है?",
+           "तेरे पूरे एयरपोर्ट की कीमत... मेरे जूते की धूल!",
+           "टिकट? खरबन, नीलन, पदमन, शंखन!",
+           "मैं उड़ान नहीं भरता...",
+           "आसमान खुद मेरे लिए रास्ता छोड़ता है, कालराज!"
+          ]
+          async def neural():
+           import edge_tts
+           for i, line in enumerate(lines):
+            await edge_tts.Communicate(text=line,voice='hi-IN-MadhurNeural', rate='+2%',pitch='-8Hz').save(str(OUT / f'part_{i:02d}.mp3'))
+          engine='edge-tts / hi-IN-MadhurNeural'
+          try:
+           asyncio.run(neural())
+          except Exception as exc:
+           print('NEURAL_BLOCKED:',repr(exc))
+           from gtts import gTTS
+           engine='gTTS fallback / hi'
+           for i, line in enumerate(lines): gTTS(text=line,lang='hi').save(str(OUT / f'part_{i:02d}.mp3'))
+          voice=AudioSegment.silent(duration=500,frame_rate=44100)
+          timeline=[]
+          for i, line in enumerate(lines):
+           seg=AudioSegment.from_file(OUT/f'part_{i:02d}.mp3').set_frame_rate(44100).set_channels(1)
+           start=len(voice)
+           voice+=seg
+           timeline.append(dict(start_ms=start,end_ms=len(voice),text=line))
+           voice+=AudioSegment.silent(duration=[350,250,300,340,360,1100][i],frame_rate=44100)
+          voice.export(OUT/'KAALRAJ_EP03_Hindi_Neural_Voice.mp3',format='mp3',bitrate='160k')
+          (OUT/'voice_manifest.json').write_text(json.dumps({'engine':engine,'voice':'hi-IN-MadhurNeural' if engine.startswith('edge') else 'gTTS','duration_ms':len(voice),'timeline':timeline},ensure_ascii=False,indent=2),encoding='utf-8')
+          print('SUCCESS:',engine,'duration',len(voice),'bytes',os.path.getsize(OUT/'KAALRAJ_EP03_Hindi_Neural_Voice.mp3'))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KAALRAJ-EP03-natural-Hindi-voice
+          path: kaalraj_ep03_output/
+          retention-days: 7
+
