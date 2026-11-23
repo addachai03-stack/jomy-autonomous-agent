@@ -11,12 +11,13 @@ jobs:
     timeout-minutes: 12
     permissions:
       contents: read
-      statuses: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Install ffmpeg and ffprobe
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
       - name: Install TTS libraries
         run: |
           python -m pip install --disable-pip-version-check edge-tts gTTS pydub
@@ -65,13 +66,3 @@ jobs:
           path: kaalraj_ep01_output/
           retention-days: 7
 
-      - name: Record workflow run locator on this isolated commit
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \\
-            -f state="${{ job.status == 'success' && 'success' || 'failure' }}" \\
-            -f context="kaalraj-ep01/voice" \\
-            -f description="KAALRAJ Hindi voice run" \\
-            -f target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
