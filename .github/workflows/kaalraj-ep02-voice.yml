@@ -4,7 +4,7 @@ on:
     branches:
       - kaalraj-ep02-voice
     paths:
-      - .github/workflows/kaalraj-ep01-voice.yml
+      - .github/workflows/kaalraj-ep02-voice.yml
 jobs:
   render:
     runs-on: ubuntu-latest
